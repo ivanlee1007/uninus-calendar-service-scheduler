@@ -13,6 +13,7 @@ from homeassistant.const import CONF_DESCRIPTION, CONF_ENTITY_ID
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
@@ -75,6 +76,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ]
     )
     await _ensure_lovelace_resource(hass)
+    for delay in (10, 30):
+        async_call_later(
+            hass,
+            delay,
+            lambda _now: hass.async_create_task(_ensure_lovelace_resource(hass)),
+        )
     store = ActionStore(hass)
     await store.async_load()
     scheduler = CalendarServiceScheduler(hass, store)
