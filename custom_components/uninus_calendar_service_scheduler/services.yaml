@@ -21,6 +21,19 @@ create_event_action:
       example: "2026-07-05T19:05:00+08:00"
       selector:
         text:
+    all_day:
+      required: false
+      selector:
+        boolean:
+    location:
+      required: false
+      selector:
+        text:
+    rrule:
+      required: false
+      example: "FREQ=WEEKLY;COUNT=4"
+      selector:
+        text:
     service:
       required: true
       example: script.turn_on

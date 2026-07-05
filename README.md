@@ -46,11 +46,30 @@ custom_components/uninus_calendar_service_scheduler
 
 Then restart Home Assistant and add the integration from the UI.
 
-## Native Calendar page integration
+## Uninus Calendar panel
 
-The integration loads a frontend module that patches the native Home Assistant Calendar page (`/calendar`). The regular lower-right **Add event** button opens the Uninus scheduler dialog instead of the stock event-only dialog. This keeps the normal Calendar browsing UI while adding service selection at event creation time.
+The integration registers its own Home Assistant panel at:
 
-The dialog creates a Local Calendar event and stores the bound Home Assistant service action through `uninus_calendar_service_scheduler.create_event_action`.
+```text
+/uninus-calendar
+```
+
+This panel is separate from Home Assistant's native `/calendar` page, so removing the integration removes the panel without monkey-patching the native Calendar UI. It provides a calendar event list plus a service-aware event creation dialog.
+
+The dialog supports the main native event fields plus service scheduling fields:
+
+- Calendar
+- Summary
+- Location
+- All day
+- Start / End
+- Recurrence RRULE text
+- Description
+- Home Assistant service
+- Target entity_id
+- Service data JSON
+
+Creating an item calls `uninus_calendar_service_scheduler.create_event_action`, which creates the Local Calendar event and stores the bound service action.
 
 ## Lovelace card fallback
 

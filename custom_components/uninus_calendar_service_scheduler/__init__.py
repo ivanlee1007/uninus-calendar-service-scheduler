@@ -9,6 +9,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.components import frontend
 from homeassistant.components.http import StaticPathConfig
+from homeassistant.components.panel_custom import async_register_panel
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_DESCRIPTION, CONF_ENTITY_ID
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
@@ -18,12 +19,14 @@ from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
-    CALENDAR_PATCH_URL,
     CARD_FILENAME,
     CARD_RESOURCE_URL,
     CONF_ALLOWED_SERVICES,
     DEFAULT_ALLOWED_SERVICES,
     DOMAIN,
+    PANEL_URL,
+    PANEL_URL_PATH,
+    PANEL_WEBCOMPONENT,
     SERVICE_CREATE_EVENT_ACTION,
     SERVICE_DELETE_EVENT_ACTION,
     SERVICE_RELOAD_ACTIONS,
@@ -48,6 +51,9 @@ CREATE_SCHEMA = vol.Schema(
         vol.Required("summary"): cv.string,
         vol.Required("start"): cv.string,
         vol.Optional("end"): cv.string,
+        vol.Optional("all_day", default=False): cv.boolean,
+        vol.Optional("location"): cv.string,
+        vol.Optional("rrule"): cv.string,
         vol.Required("service"): cv.string,
         vol.Optional("target", default={}): dict,
         vol.Optional("data", default={}): dict,
@@ -78,7 +84,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ]
     )
     await _ensure_lovelace_resource(hass)
-    frontend.add_extra_js_url(hass, CALENDAR_PATCH_URL)
+    await _register_panel(hass)
     for delay in (10, 30):
         async_call_later(
             hass,
@@ -97,6 +103,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _register_services_once(hass)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
+
+
+async def _register_panel(hass: HomeAssistant) -> None:
+    """Register the standalone scheduler calendar panel."""
+    await async_register_panel(
+        hass,
+        frontend_url_path=PANEL_URL_PATH,
+        webcomponent_name=PANEL_WEBCOMPONENT,
+        module_url=PANEL_URL,
+        sidebar_title="Uninus Calendar",
+        sidebar_icon="mdi:calendar-clock",
+        config={"title": "Uninus Calendar Service Scheduler"},
+        require_admin=False,
+        config_panel_domain=DOMAIN,
+    )
 
 
 async def _ensure_lovelace_resource(hass: HomeAssistant) -> None:
@@ -156,7 +177,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     scheduler: CalendarServiceScheduler | None = data.get("scheduler")
     if scheduler is not None:
         scheduler.async_cancel_all()
-    frontend.remove_extra_js_url(hass, CALENDAR_PATCH_URL)
+    frontend.async_remove_panel(hass, PANEL_URL_PATH)
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         data.clear()
@@ -201,16 +222,28 @@ def _register_services_once(hass: HomeAssistant) -> None:
             target=dict(call.data.get("target") or {}),
             data=dict(call.data.get("data") or {}),
             description=call.data.get(CONF_DESCRIPTION),
+            location=call.data.get("location"),
+            rrule=call.data.get("rrule"),
+            all_day=bool(call.data.get("all_day")),
         )
+        event_data = {
+            "summary": action.summary,
+            CONF_DESCRIPTION: action.calendar_description(),
+        }
+        if action.all_day:
+            event_data["start_date"] = action.start[:10]
+            event_data["end_date"] = (action.end or action.start)[:10]
+        else:
+            event_data["start_date_time"] = action.start
+            event_data["end_date_time"] = action.end or action.start
+        if action.location:
+            event_data["location"] = action.location
+        if action.rrule:
+            event_data["rrule"] = action.rrule
         await hass.services.async_call(
             "calendar",
             "create_event",
-            {
-                "summary": action.summary,
-                "start_date_time": action.start,
-                "end_date_time": action.end or action.start,
-                CONF_DESCRIPTION: action.calendar_description(),
-            },
+            event_data,
             target={CONF_ENTITY_ID: action.calendar_entity},
             blocking=True,
         )

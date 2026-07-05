@@ -23,6 +23,9 @@ class ScheduledAction:
     target: dict[str, Any] = field(default_factory=dict)
     data: dict[str, Any] = field(default_factory=dict)
     description: str | None = None
+    location: str | None = None
+    rrule: str | None = None
+    all_day: bool = False
     enabled: bool = True
     calendar_event_uid: str | None = None
     last_run: str | None = None
@@ -41,6 +44,9 @@ class ScheduledAction:
         target: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
         description: str | None = None,
+        location: str | None = None,
+        rrule: str | None = None,
+        all_day: bool = False,
     ) -> ScheduledAction:
         """Create a new action with a generated id."""
         return cls(
@@ -53,6 +59,9 @@ class ScheduledAction:
             target=target or {},
             data=data or {},
             description=description,
+            location=location,
+            rrule=rrule,
+            all_day=all_day,
             created_at=datetime.now().astimezone().isoformat(),
         )
 
@@ -69,6 +78,9 @@ class ScheduledAction:
             target=dict(raw.get("target") or {}),
             data=dict(raw.get("data") or {}),
             description=raw.get("description"),
+            location=raw.get("location"),
+            rrule=raw.get("rrule"),
+            all_day=bool(raw.get("all_day", False)),
             enabled=bool(raw.get("enabled", True)),
             calendar_event_uid=raw.get("calendar_event_uid"),
             last_run=raw.get("last_run"),
@@ -88,6 +100,9 @@ class ScheduledAction:
             "target": self.target,
             "data": self.data,
             "description": self.description,
+            "location": self.location,
+            "rrule": self.rrule,
+            "all_day": self.all_day,
             "enabled": self.enabled,
             "calendar_event_uid": self.calendar_event_uid,
             "last_run": self.last_run,
