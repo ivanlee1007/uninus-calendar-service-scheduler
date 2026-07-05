@@ -12,6 +12,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._form = this._defaultForm();
     this._helpersPromise = undefined;
     this._haPickersReady = false;
+    this._haEntityPickerReady = false;
   }
 
   set hass(hass) {
@@ -58,6 +59,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         await Promise.race([
           Promise.all([
             customElements.whenDefined("ha-service-control"),
+            customElements.whenDefined("ha-entity-picker"),
           ]),
           new Promise((resolve) => setTimeout(resolve, 2500)),
         ]);
@@ -67,6 +69,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       this._haPickersReady = Boolean(
         customElements.get("ha-service-control")
       );
+      this._haEntityPickerReady = Boolean(customElements.get("ha-entity-picker"));
       this._render();
     })();
     return this._helpersPromise;
@@ -323,8 +326,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
                  <textarea id="data" placeholder='{"brightness_pct": 80}'>${this._escape(f.data)}</textarea>
                </label>`}
           <label class="fullrow">Target entity_id
-            <select id="entity">${this._entityOptions(f.target?.entity_id || "")}</select>
-            <div class="field-note">保留明確 entity_id 欄位；若上方原生操作編輯器也有 target，這裡選的 entity_id 會合併進 target。</div>
+            ${this._haEntityPickerReady
+              ? `<ha-entity-picker id="entity-picker" label="Target entity_id" show-entity-id allow-custom-entity></ha-entity-picker>`
+              : `<select id="entity">${this._entityOptions(f.target?.entity_id || "")}</select>`}
+            <div class="field-note">使用 Home Assistant 原生 entity picker；若原生元件尚未載入，會暫時使用 entity 下拉選單。此欄位會合併進 service target。</div>
           </label>
           <label class="fullrow">Description
             <textarea id="description" placeholder="會顯示在 Local Calendar 事件描述中">${this._escape(f.description)}</textarea>
@@ -373,6 +378,18 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         this._form.data = JSON.stringify(this._form.serviceAction.data || {}, null, 2);
       });
     }
+    const entityPicker = this.shadowRoot.getElementById("entity-picker");
+    if (entityPicker) {
+      entityPicker.hass = this._hass;
+      entityPicker.value = this._form.target?.entity_id || "";
+      entityPicker.addEventListener("value-changed", (ev) => {
+        const entityId = ev.detail?.value || "";
+        this._form.target = {
+          ...(this._form.target || {}),
+          ...(entityId ? { entity_id: entityId } : {}),
+        };
+      });
+    }
     this.shadowRoot.getElementById("all_day")?.addEventListener("change", (ev) => this._toggleAllDay(ev.target.checked));
   }
 
@@ -384,7 +401,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   _captureForm() {
     const get = (id) => this.shadowRoot.getElementById(id)?.value ?? this._form[id] ?? "";
     const serviceControlValue = this.shadowRoot.getElementById("service-control")?.value;
-    const explicitEntityId = get("entity");
+    const explicitEntityId = this.shadowRoot.getElementById("entity-picker")?.value || get("entity");
     const target = {
       ...(serviceControlValue?.target || this._form.target || {}),
       ...(explicitEntityId ? { entity_id: explicitEntityId } : {}),
