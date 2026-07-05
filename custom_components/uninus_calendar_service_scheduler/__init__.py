@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import voluptuous as vol
+from homeassistant.components import frontend
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_DESCRIPTION, CONF_ENTITY_ID
@@ -17,6 +18,7 @@ from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
+    CALENDAR_PATCH_URL,
     CARD_FILENAME,
     CARD_RESOURCE_URL,
     CONF_ALLOWED_SERVICES,
@@ -76,6 +78,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ]
     )
     await _ensure_lovelace_resource(hass)
+    frontend.add_extra_js_url(hass, CALENDAR_PATCH_URL)
     for delay in (10, 30):
         async_call_later(
             hass,
@@ -153,6 +156,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     scheduler: CalendarServiceScheduler | None = data.get("scheduler")
     if scheduler is not None:
         scheduler.async_cancel_all()
+    frontend.remove_extra_js_url(hass, CALENDAR_PATCH_URL)
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         data.clear()

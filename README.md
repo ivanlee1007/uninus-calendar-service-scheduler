@@ -46,19 +46,18 @@ custom_components/uninus_calendar_service_scheduler
 
 Then restart Home Assistant and add the integration from the UI.
 
-## Lovelace card
+## Native Calendar page integration
 
-Add the JS resource:
+The integration loads a frontend module that patches the native Home Assistant Calendar page (`/calendar`). The regular lower-right **Add event** button opens the Uninus scheduler dialog instead of the stock event-only dialog. This keeps the normal Calendar browsing UI while adding service selection at event creation time.
+
+The dialog creates a Local Calendar event and stores the bound Home Assistant service action through `uninus_calendar_service_scheduler.create_event_action`.
+
+## Lovelace card fallback
+
+The integration also bundles a standalone Lovelace card for dashboards. The card resource is auto-registered when the integration loads. If your Lovelace resources are YAML-managed, add it manually:
 
 ```yaml
 url: /uninus_calendar_service_scheduler/uninus-calendar-service-scheduler-card.js
-type: module
-```
-
-The integration serves the card from its bundled `www` folder. If you prefer not to use the bundled static path, you can manually copy the card file to `/config/www/uninus-calendar-service-scheduler-card.js` and use:
-
-```yaml
-url: /local/uninus-calendar-service-scheduler-card.js
 type: module
 ```
 

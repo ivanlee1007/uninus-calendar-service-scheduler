@@ -4,10 +4,12 @@ from __future__ import annotations
 
 DOMAIN = "uninus_calendar_service_scheduler"
 NAME = "Uninus Calendar Service Scheduler"
-VERSION = "0.1.3"
+VERSION = "0.2.0"
 
 CARD_FILENAME = "uninus-calendar-service-scheduler-card.js"
 CARD_RESOURCE_URL = f"/{DOMAIN}/{CARD_FILENAME}?v={VERSION}"
+CALENDAR_PATCH_FILENAME = "uninus-calendar-service-scheduler-calendar-patch.js"
+CALENDAR_PATCH_URL = f"/{DOMAIN}/{CALENDAR_PATCH_FILENAME}?v={VERSION}"
 
 CONF_ALLOWED_SERVICES = "allowed_services"
 CONF_DEFAULT_CALENDAR = "default_calendar"
