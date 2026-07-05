@@ -66,7 +66,7 @@ The dialog supports the main native event fields plus service scheduling fields:
 - Recurrence RRULE text
 - Description
 - Home Assistant service
-- Target entity_id
+- Native Home Assistant target picker
 - Service data JSON
 
 Creating an item calls `uninus_calendar_service_scheduler.create_event_action`, which creates the Local Calendar event and stores the bound service action.
