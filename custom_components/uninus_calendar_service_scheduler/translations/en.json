@@ -1,0 +1,25 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Uninus Calendar Service Scheduler",
+        "description": "Create calendar events that run Home Assistant services when they start.",
+        "data": {
+          "default_calendar": "Default calendar",
+          "allowed_services": "Allowed services, one per line. Supports domain.* wildcards."
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Uninus Calendar Service Scheduler options",
+        "data": {
+          "default_calendar": "Default calendar",
+          "allowed_services": "Allowed services, one per line. Supports domain.* wildcards."
+        }
+      }
+    }
+  }
+}

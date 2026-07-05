@@ -1,0 +1,63 @@
+create_event_action:
+  name: Create calendar service action
+  description: Create a Local Calendar event and bind it to a Home Assistant service call.
+  fields:
+    calendar_entity:
+      required: true
+      selector:
+        entity:
+          domain: calendar
+    summary:
+      required: true
+      selector:
+        text:
+    start:
+      required: true
+      example: "2026-07-05T19:00:00+08:00"
+      selector:
+        text:
+    end:
+      required: false
+      example: "2026-07-05T19:05:00+08:00"
+      selector:
+        text:
+    service:
+      required: true
+      example: script.turn_on
+      selector:
+        text:
+    target:
+      required: false
+      selector:
+        object:
+    data:
+      required: false
+      selector:
+        object:
+    description:
+      required: false
+      selector:
+        text:
+          multiline: true
+
+delete_event_action:
+  name: Delete service action
+  description: Delete the stored service action. The calendar event is left untouched in this MVP.
+  fields:
+    action_id:
+      required: true
+      selector:
+        text:
+
+test_action:
+  name: Test action
+  description: Immediately execute a stored action.
+  fields:
+    action_id:
+      required: true
+      selector:
+        text:
+
+reload_actions:
+  name: Reload actions
+  description: Rebuild timers from stored actions.

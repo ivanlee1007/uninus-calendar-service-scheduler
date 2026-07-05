@@ -1,0 +1,25 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Uninus 行事曆服務排程器",
+        "description": "建立行事曆事件，並在事件開始時執行 Home Assistant 服務。",
+        "data": {
+          "default_calendar": "預設行事曆",
+          "allowed_services": "允許執行的服務，每行一個。支援 domain.* 萬用字元。"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Uninus 行事曆服務排程器選項",
+        "data": {
+          "default_calendar": "預設行事曆",
+          "allowed_services": "允許執行的服務，每行一個。支援 domain.* 萬用字元。"
+        }
+      }
+    }
+  }
+}
