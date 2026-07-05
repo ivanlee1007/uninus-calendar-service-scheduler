@@ -54,7 +54,7 @@ The integration registers its own Home Assistant panel at:
 /uninus-calendar
 ```
 
-This panel is separate from Home Assistant's native `/calendar` page, so removing the integration removes the panel without monkey-patching the native Calendar UI. It provides a calendar event list plus a service-aware event creation dialog.
+This panel is separate from Home Assistant's native `/calendar` page, so removing the integration removes the panel without monkey-patching the native Calendar UI. It provides a month-grid calendar view plus a service-aware event creation dialog.
 
 The dialog supports the main native event fields plus service scheduling fields:
 
