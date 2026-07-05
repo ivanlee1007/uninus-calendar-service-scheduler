@@ -31,6 +31,7 @@ from .const import (
     SERVICE_DELETE_EVENT_ACTION,
     SERVICE_RELOAD_ACTIONS,
     SERVICE_TEST_ACTION,
+    SERVICE_UPDATE_EVENT_ACTION,
 )
 from .models import (
     ScheduledAction,
@@ -63,6 +64,7 @@ CREATE_SCHEMA = vol.Schema(
 
 DELETE_SCHEMA = vol.Schema({vol.Required("action_id"): cv.string})
 TEST_SCHEMA = vol.Schema({vol.Required("action_id"): cv.string})
+UPDATE_SCHEMA = CREATE_SCHEMA.extend({vol.Required("action_id"): cv.string})
 
 
 def _entry_data(hass: HomeAssistant) -> dict[str, Any]:
@@ -259,6 +261,37 @@ def _register_services_once(hass: HomeAssistant) -> None:
         action = await store.async_remove(action_id)
         return {"removed": action is not None, "action_id": action_id}
 
+    async def _update(call: ServiceCall) -> dict[str, Any]:
+        scheduler: CalendarServiceScheduler = _entry_data(hass)["scheduler"]
+        store: ActionStore = _entry_data(hass)["store"]
+        action_id = call.data["action_id"]
+        action = store.actions.get(action_id)
+        if action is None:
+            raise vol.Invalid(f"Action {action_id!r} not found")
+        service = call.data["service"]
+        allowed = _allowed_services(hass)
+        if allowed and not is_service_allowed(service, allowed):
+            raise vol.Invalid(
+                f"Service {service!r} is not allowed. Configure the integration allowlist first."
+            )
+        split_service(service)
+        action.calendar_entity = call.data["calendar_entity"]
+        action.summary = call.data["summary"]
+        action.start = call.data["start"]
+        action.end = call.data.get("end")
+        action.service = service
+        action.target = dict(call.data.get("target") or {})
+        action.data = dict(call.data.get("data") or {})
+        action.description = call.data.get(CONF_DESCRIPTION)
+        action.location = call.data.get("location")
+        action.rrule = call.data.get("rrule")
+        action.all_day = bool(call.data.get("all_day"))
+        action.last_run = None
+        action.last_result = None
+        await store.async_add(action)
+        scheduler.async_schedule(action)
+        return {"action_id": action_id, "action": action.as_dict()}
+
     async def _test(call: ServiceCall) -> dict[str, Any]:
         scheduler: CalendarServiceScheduler = _entry_data(hass)["scheduler"]
         action_id = call.data["action_id"]
@@ -283,6 +316,13 @@ def _register_services_once(hass: HomeAssistant) -> None:
         SERVICE_DELETE_EVENT_ACTION,
         _delete,
         schema=DELETE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_UPDATE_EVENT_ACTION,
+        _update,
+        schema=UPDATE_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(

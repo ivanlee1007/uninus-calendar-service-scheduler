@@ -53,9 +53,64 @@ create_event_action:
         text:
           multiline: true
 
+update_event_action:
+  name: Update calendar service action
+  description: Update a stored service action after editing the linked Local Calendar event.
+  fields:
+    action_id:
+      required: true
+      selector:
+        text:
+    calendar_entity:
+      required: true
+      selector:
+        entity:
+          domain: calendar
+    summary:
+      required: true
+      selector:
+        text:
+    start:
+      required: true
+      selector:
+        text:
+    end:
+      required: false
+      selector:
+        text:
+    all_day:
+      required: false
+      selector:
+        boolean:
+    location:
+      required: false
+      selector:
+        text:
+    rrule:
+      required: false
+      selector:
+        text:
+    service:
+      required: true
+      selector:
+        text:
+    target:
+      required: false
+      selector:
+        object:
+    data:
+      required: false
+      selector:
+        object:
+    description:
+      required: false
+      selector:
+        text:
+          multiline: true
+
 delete_event_action:
   name: Delete service action
-  description: Delete the stored service action. The calendar event is left untouched in this MVP.
+  description: Delete the stored service action and cancel its timer. Calendar event deletion is handled by the panel when available.
   fields:
     action_id:
       required: true

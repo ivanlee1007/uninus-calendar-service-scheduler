@@ -10,6 +10,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._loading = false;
     this._visibleMonth = new Date();
     this._form = this._defaultForm();
+    this._editingEvent = undefined;
     this._helpersPromise = undefined;
     this._haPickersReady = false;
     this._haEntityPickerReady = false;
@@ -46,6 +47,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       service: "",
       target: {},
       serviceAction: { action: "", target: {}, data: {} },
+      actionId: "",
+      uid: "",
+      recurrenceId: null,
       data: "",
       description: "",
     };
@@ -278,12 +282,18 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return cells.join("");
   }
 
+  _actionIdFromDescription(description = "") {
+    const match = String(description || "").match(/HA_SERVICE_ACTION_ID:\s*([a-f0-9]+)/i);
+    return match?.[1] || "";
+  }
+
   _eventPill(ev) {
     const start = this._eventStart(ev) || "";
     const desc = ev.description || "";
-    const isService = desc.includes("HA_SERVICE_ACTION_ID:");
+    const actionId = this._actionIdFromDescription(desc);
+    const isService = Boolean(actionId);
     const time = start.includes("T") ? start.slice(11, 16) : "";
-    return `<span class="pill ${isService ? "service" : ""}" title="${this._escape(ev.summary || "")}">${time ? `<span class="time">${time}</span>` : ""}${this._escape(ev.summary || "(No title)")}</span>`;
+    return `<button class="pill ${isService ? "service" : ""}" data-uid="${this._escape(ev.uid || "")}" title="${this._escape(ev.summary || "")}">${time ? `<span class="time">${time}</span>` : ""}${this._escape(ev.summary || "(No title)")}</button>`;
   }
 
   _dialogTemplate() {
@@ -291,7 +301,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return `
       <div class="scrim"></div>
       <section class="dialog" role="dialog" aria-modal="true" aria-label="新增服務排程行程">
-        <header>新增服務排程行程</header>
+        <header>${this._editingEvent ? "編輯服務排程行程" : "新增服務排程行程"}</header>
         <div class="content">
           <div class="native-control">
             ${this._haEntityPickerReady
@@ -338,8 +348,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <div class="message fullrow ${this._message.startsWith("Error:") ? "error" : ""}">${this._escape(this._message)}</div>
         </div>
         <div class="actions">
+          ${this._editingEvent ? `<button id="delete-event">刪除行程</button>` : ""}
           <button id="cancel">取消</button>
-          <button class="primary" id="create">建立行程與服務</button>
+          <button class="primary" id="create">${this._editingEvent ? "儲存修改" : "建立行程與服務"}</button>
         </div>
       </section>
     `;
@@ -370,8 +381,13 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       this._loadEvents();
     });
     this.shadowRoot.querySelectorAll(".day").forEach((el) => el.addEventListener("dblclick", () => this._openDialog(el.dataset.date)));
+    this.shadowRoot.querySelectorAll(".pill[data-uid]").forEach((el) => el.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      this._openEventByUid(el.dataset.uid);
+    }));
     this.shadowRoot.querySelector(".scrim")?.addEventListener("click", () => this._closeDialog());
     this.shadowRoot.getElementById("cancel")?.addEventListener("click", () => this._closeDialog());
+    this.shadowRoot.getElementById("delete-event")?.addEventListener("click", () => this._deleteCurrentEvent());
     this.shadowRoot.getElementById("create")?.addEventListener("click", () => this._create());
     ["calendar", "summary", "location", "start", "end", "rrule", "service", "entity", "data", "description"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureForm());
@@ -445,7 +461,52 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._render();
   }
 
+  _openEventByUid(uid) {
+    const event = this._events.find((ev) => ev.uid === uid);
+    if (!event) return;
+    const actionId = this._actionIdFromDescription(event.description || "");
+    const storedAction = this._storedAction(actionId);
+    this._editingEvent = event;
+    const start = this._eventStart(event) || "";
+    const end = this._eventEnd(event) || start;
+    const isAllDay = Boolean(event.start?.date);
+    this._form = {
+      ...this._defaultForm(),
+      calendar: this._selectedCalendar,
+      summary: event.summary || "",
+      location: event.location || "",
+      allDay: isAllDay,
+      start: isAllDay ? start.slice(0, 10) : start.slice(0, 16),
+      end: isAllDay ? end.slice(0, 10) : end.slice(0, 16),
+      rrule: event.rrule || "",
+      description: this._cleanDescription(event.description || ""),
+      actionId,
+      uid: event.uid || "",
+      recurrenceId: event.recurrence_id || null,
+      service: storedAction?.service || "",
+      target: storedAction?.target || {},
+      data: JSON.stringify(storedAction?.data || {}, null, 2),
+      serviceAction: { action: storedAction?.service || "", target: storedAction?.target || {}, data: storedAction?.data || {} },
+    };
+    this._dialogOpen = true;
+    this._message = actionId ? "" : "此事件沒有綁定 Uninus service action；可修改日曆事件，但不能更新 service action。";
+    this._render();
+  }
+
+  _storedAction(actionId) {
+    const actions = this._hass?.states?.["sensor.uninus_calendar_service_scheduler_status"]?.attributes?.actions || [];
+    return actions.find((action) => action.action_id === actionId);
+  }
+
+  _cleanDescription(description) {
+    return String(description || "")
+      .replace(/\n*HA_SERVICE_ACTION_ID:\s*[a-f0-9]+/i, "")
+      .replace(/\n*Created by Uninus Calendar Service Scheduler/i, "")
+      .trim();
+  }
+
   _openDialog(dateKey) {
+    this._editingEvent = undefined;
     this._form = this._defaultForm();
     this._form.calendar = this._selectedCalendar;
     if (dateKey) {
@@ -459,6 +520,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
   _closeDialog() {
     this._dialogOpen = false;
+    this._editingEvent = undefined;
     this._message = "";
     this._render();
   }
@@ -487,6 +549,74 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     }
   }
 
+  _calendarEventPayload(payload) {
+    return {
+      summary: payload.summary,
+      dtstart: payload.all_day ? payload.start.slice(0, 10) : payload.start,
+      dtend: payload.all_day ? (payload.end || payload.start).slice(0, 10) : payload.end || payload.start,
+      description: this._calendarDescription(payload.description, payload.action_id || this._form.actionId),
+      ...(payload.location ? { location: payload.location } : {}),
+      ...(payload.rrule ? { rrule: payload.rrule } : {}),
+    };
+  }
+
+  _calendarDescription(description, actionId) {
+    const parts = [];
+    if (description) parts.push(String(description).trim());
+    if (actionId) parts.push(`HA_SERVICE_ACTION_ID: ${actionId}`);
+    parts.push("Created by Uninus Calendar Service Scheduler");
+    return parts.join("\n\n");
+  }
+
+  async _updateCurrentEvent(payload) {
+    if (!this._editingEvent?.uid) throw new Error("此行程缺少 uid，無法更新");
+    const actionId = this._form.actionId;
+    if (actionId) {
+      await this._hass.callWS({
+        type: "call_service",
+        domain: "uninus_calendar_service_scheduler",
+        service: "update_event_action",
+        service_data: { ...payload, action_id: actionId },
+        return_response: true,
+      });
+    }
+    await this._hass.callWS({
+      type: "calendar/event/update",
+      entity_id: this._form.calendar,
+      uid: this._form.uid,
+      recurrence_id: this._form.recurrenceId || undefined,
+      event: this._calendarEventPayload({ ...payload, action_id: actionId }),
+    });
+  }
+
+  async _deleteCurrentEvent() {
+    try {
+      if (!this._editingEvent?.uid) throw new Error("此行程缺少 uid，無法刪除");
+      if (this._form.actionId) {
+        await this._hass.callWS({
+          type: "call_service",
+          domain: "uninus_calendar_service_scheduler",
+          service: "delete_event_action",
+          service_data: { action_id: this._form.actionId },
+          return_response: true,
+        });
+      }
+      await this._hass.callWS({
+        type: "calendar/event/delete",
+        entity_id: this._form.calendar,
+        uid: this._form.uid,
+        recurrence_id: this._form.recurrenceId || undefined,
+      });
+      this._dialogOpen = false;
+      this._editingEvent = undefined;
+      this._message = "已刪除行程。";
+      await this._loadEvents();
+    } catch (err) {
+      this._message = `Error: ${err?.message || err}`;
+      this._render();
+    }
+  }
+
   async _create() {
     try {
       this._captureForm();
@@ -508,15 +638,21 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       for (const field of ["calendar_entity", "summary", "start", "service"]) {
         if (!payload[field]) throw new Error(`${field} is required`);
       }
-      await this._hass.callWS({
-        type: "call_service",
-        domain: "uninus_calendar_service_scheduler",
-        service: "create_event_action",
-        service_data: payload,
-        return_response: true,
-      });
+      const wasEditing = Boolean(this._editingEvent);
+      if (wasEditing) {
+        await this._updateCurrentEvent(payload);
+      } else {
+        await this._hass.callWS({
+          type: "call_service",
+          domain: "uninus_calendar_service_scheduler",
+          service: "create_event_action",
+          service_data: payload,
+          return_response: true,
+        });
+      }
       this._dialogOpen = false;
-      this._message = "已建立行程與服務排程。";
+      this._editingEvent = undefined;
+      this._message = wasEditing ? "已更新行程。" : "已建立行程與服務排程。";
       await this._loadEvents();
     } catch (err) {
       this._message = `Error: ${err?.message || err}`;

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 DOMAIN = "uninus_calendar_service_scheduler"
 NAME = "Uninus Calendar Service Scheduler"
-VERSION = "0.3.8"
+VERSION = "0.4.0"
 
 CARD_FILENAME = "uninus-calendar-service-scheduler-card.js"
 CARD_RESOURCE_URL = f"/{DOMAIN}/{CARD_FILENAME}?v={VERSION}"
@@ -29,6 +29,7 @@ DEFAULT_ALLOWED_SERVICES = [
 DEFAULT_SCAN_DAYS_AHEAD = 30
 
 SERVICE_CREATE_EVENT_ACTION = "create_event_action"
+SERVICE_UPDATE_EVENT_ACTION = "update_event_action"
 SERVICE_DELETE_EVENT_ACTION = "delete_event_action"
 SERVICE_TEST_ACTION = "test_action"
 SERVICE_RELOAD_ACTIONS = "reload_actions"
