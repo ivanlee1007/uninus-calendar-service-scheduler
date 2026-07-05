@@ -151,9 +151,11 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .main { min-width: 0; padding: 16px; }
       label { display: flex; flex-direction: column; gap: 6px; font-weight: 500; margin-bottom: 14px; }
       input, select, textarea { box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid var(--divider-color); border-radius: 10px; background: var(--card-background-color); color: var(--primary-text-color); font: inherit; }
-      ha-service-picker, ha-target-picker { width: 100%; }
-      ha-service-control { display: block; width: 100%; border: 1px solid var(--divider-color); border-radius: 12px; overflow: hidden; }
-      .field-note { margin-top: -8px; color: var(--secondary-text-color); font-size: 12px; }
+      ha-service-picker, ha-target-picker, ha-entity-picker { width: 100%; }
+      ha-service-control { display: block; width: 100%; }
+      .native-control { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+      .native-label { font-weight: 500; }
+      .field-note { color: var(--secondary-text-color); font-size: 12px; line-height: 1.35; }
       textarea { min-height: 86px; font-family: var(--code-font-family, monospace); }
       button { border: 0; border-radius: 20px; padding: 10px 16px; cursor: pointer; font-weight: 600; background: var(--secondary-background-color); color: var(--primary-text-color); }
       button.primary { background: var(--primary-color); color: var(--text-primary-color); }
@@ -291,9 +293,11 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       <section class="dialog" role="dialog" aria-modal="true" aria-label="新增服務排程行程">
         <header>新增服務排程行程</header>
         <div class="content">
-          <label>Calendar
-            <select id="calendar">${this._calendarOptions(f.calendar)}</select>
-          </label>
+          <div class="native-control">
+            ${this._haEntityPickerReady
+              ? `<ha-entity-picker id="calendar" label="Calendar" show-entity-id></ha-entity-picker>`
+              : `<label>Calendar<select id="calendar">${this._calendarOptions(f.calendar)}</select></label>`}
+          </div>
           <label>Summary
             <input id="summary" value="${this._escape(f.summary)}" placeholder="例如：開啟夜間模式" />
           </label>
@@ -311,26 +315,23 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <input id="rrule" value="${this._escape(f.rrule)}" placeholder="例如：FREQ=WEEKLY;COUNT=4（選填）" />
           </label>
           ${this._haPickersReady
-            ? `<div class="fullrow">
+            ? `<div class="fullrow native-control">
+                 <div class="native-label">Service / Action</div>
                  <ha-service-control id="service-control" show-service-id></ha-service-control>
                </div>`
             : `<label>Service
                  <select id="service">${this._serviceOptions(f.service)}</select>
                  <div class="field-note">找不到 HA 原生 ha-service-control 時，使用 HA service 清單。</div>
                </label>
-               <label>Target
-                 <select id="entity">${this._entityOptions(f.target?.entity_id || "")}</select>
-                 <div class="field-note">可選 entity；area/device target 需原生 ha-service-control 載入後支援。</div>
-               </label>
                <label class="fullrow">Service data JSON
                  <textarea id="data" placeholder='{"brightness_pct": 80}'>${this._escape(f.data)}</textarea>
                </label>`}
-          <label class="fullrow">Target entity_id
+          <div class="fullrow native-control">
             ${this._haEntityPickerReady
               ? `<ha-entity-picker id="entity-picker" label="Target entity_id" show-entity-id allow-custom-entity></ha-entity-picker>`
-              : `<select id="entity">${this._entityOptions(f.target?.entity_id || "")}</select>`}
-            <div class="field-note">使用 Home Assistant 原生 entity picker；若原生元件尚未載入，會暫時使用 entity 下拉選單。此欄位會合併進 service target。</div>
-          </label>
+              : `<label>Target entity_id<select id="entity">${this._entityOptions(f.target?.entity_id || "")}</select></label>`}
+            <div class="field-note">此欄位會合併進 service target。</div>
+          </div>
           <label class="fullrow">Description
             <textarea id="description" placeholder="會顯示在 Local Calendar 事件描述中">${this._escape(f.description)}</textarea>
           </label>
@@ -350,6 +351,15 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       this._form.calendar = this._selectedCalendar;
       this._loadEvents();
     });
+    const calendarPicker = this.shadowRoot.getElementById("calendar");
+    if (calendarPicker?.tagName?.toLowerCase() === "ha-entity-picker") {
+      calendarPicker.hass = this._hass;
+      calendarPicker.includeDomains = ["calendar"];
+      calendarPicker.value = this._form.calendar;
+      calendarPicker.addEventListener("value-changed", (ev) => {
+        this._form.calendar = ev.detail?.value || "";
+      });
+    }
     this.shadowRoot.getElementById("refresh")?.addEventListener("click", () => this._loadEvents());
     this.shadowRoot.getElementById("new-event-side")?.addEventListener("click", () => this._openDialog());
     this.shadowRoot.getElementById("new-event-fab")?.addEventListener("click", () => this._openDialog());
