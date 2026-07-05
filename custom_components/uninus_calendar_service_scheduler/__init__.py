@@ -16,6 +16,8 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
+    CARD_FILENAME,
+    CARD_RESOURCE_URL,
     CONF_ALLOWED_SERVICES,
     DEFAULT_ALLOWED_SERVICES,
     DOMAIN,
@@ -72,6 +74,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
         ]
     )
+    await _ensure_lovelace_resource(hass)
     store = ActionStore(hass)
     await store.async_load()
     scheduler = CalendarServiceScheduler(hass, store)
@@ -84,6 +87,57 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _register_services_once(hass)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
+
+
+async def _ensure_lovelace_resource(hass: HomeAssistant) -> None:
+    """Add or update the Lovelace resource for the bundled custom card.
+
+    HACS installs the integration files, but it does not automatically add
+    Lovelace resources for a card bundled inside an integration repository.
+    Registering it here makes remove/reinstall and version upgrades resilient:
+    when the integration loads, the dashboard resource points at the currently
+    bundled card with a cache-busting version query string.
+    """
+    try:
+        from homeassistant.components.lovelace.const import LOVELACE_DATA
+    except ImportError:
+        _LOGGER.debug("Lovelace is not available; skipping card resource setup")
+        return
+
+    lovelace_data = hass.data.get(LOVELACE_DATA)
+    resources = getattr(lovelace_data, "resources", None) if lovelace_data else None
+    if resources is None or not hasattr(resources, "async_items"):
+        _LOGGER.debug("Lovelace resources are not ready; skipping card resource setup")
+        return
+    if not hasattr(resources, "async_create_item"):
+        _LOGGER.info(
+            "Lovelace resources appear to be YAML-managed; add %s manually as a module resource",
+            CARD_RESOURCE_URL,
+        )
+        return
+
+    try:
+        items = list(resources.async_items() or [])
+        existing = next(
+            (
+                item
+                for item in items
+                if str(item.get("url", "")).split("?", 1)[0]
+                == f"/{DOMAIN}/{CARD_FILENAME}"
+            ),
+            None,
+        )
+        if existing:
+            if existing.get("url") != CARD_RESOURCE_URL or existing.get("type") != "module":
+                await resources.async_update_item(
+                    existing["id"], {"url": CARD_RESOURCE_URL, "res_type": "module"}
+                )
+            return
+        await resources.async_create_item(
+            {"url": CARD_RESOURCE_URL, "res_type": "module"}
+        )
+    except Exception:  # pragma: no cover - HA internals vary by version
+        _LOGGER.exception("Failed to ensure Lovelace resource for bundled card")
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
