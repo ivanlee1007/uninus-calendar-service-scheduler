@@ -48,7 +48,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        self.config_entry = config_entry
+        self._config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -59,7 +59,7 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
                 data.get(CONF_ALLOWED_SERVICES)
             )
             return self.async_create_entry(title="", data=data)
-        defaults = dict(self.config_entry.options or self.config_entry.data or {})
+        defaults = dict(self._config_entry.options or self._config_entry.data or {})
         return self.async_show_form(
             step_id="init", data_schema=_schema(defaults), errors={}
         )
