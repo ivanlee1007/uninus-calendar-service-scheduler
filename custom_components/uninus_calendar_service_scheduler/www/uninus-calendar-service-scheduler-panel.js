@@ -322,6 +322,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
                <label class="fullrow">Service data JSON
                  <textarea id="data" placeholder='{"brightness_pct": 80}'>${this._escape(f.data)}</textarea>
                </label>`}
+          <label class="fullrow">Target entity_id
+            <select id="entity">${this._entityOptions(f.target?.entity_id || "")}</select>
+            <div class="field-note">保留明確 entity_id 欄位；若上方原生操作編輯器也有 target，這裡選的 entity_id 會合併進 target。</div>
+          </label>
           <label class="fullrow">Description
             <textarea id="description" placeholder="會顯示在 Local Calendar 事件描述中">${this._escape(f.description)}</textarea>
           </label>
@@ -379,6 +383,12 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
   _captureForm() {
     const get = (id) => this.shadowRoot.getElementById(id)?.value ?? this._form[id] ?? "";
+    const serviceControlValue = this.shadowRoot.getElementById("service-control")?.value;
+    const explicitEntityId = get("entity");
+    const target = {
+      ...(serviceControlValue?.target || this._form.target || {}),
+      ...(explicitEntityId ? { entity_id: explicitEntityId } : {}),
+    };
     this._form = {
       calendar: get("calendar"),
       summary: get("summary"),
@@ -387,10 +397,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       start: get("start"),
       end: get("end"),
       rrule: get("rrule"),
-      service: this.shadowRoot.getElementById("service-control")?.value?.action || get("service"),
-      target: this.shadowRoot.getElementById("service-control")?.value?.target || (get("entity") ? { entity_id: get("entity") } : this._form.target || {}),
-      serviceAction: this.shadowRoot.getElementById("service-control")?.value || this._form.serviceAction || { action: get("service"), target: this._form.target || {}, data: {} },
-      data: this.shadowRoot.getElementById("service-control") ? JSON.stringify(this.shadowRoot.getElementById("service-control").value?.data || {}, null, 2) : get("data"),
+      service: serviceControlValue?.action || get("service"),
+      target,
+      serviceAction: serviceControlValue || this._form.serviceAction || { action: get("service"), target, data: {} },
+      data: serviceControlValue ? JSON.stringify(serviceControlValue.data || {}, null, 2) : get("data"),
       description: get("description"),
     };
   }

@@ -67,6 +67,7 @@ The dialog supports the main native event fields plus service scheduling fields:
 - Description
 - Home Assistant service
 - Home Assistant native `ha-service-control` action editor when available, with service/entity selector fallback
+- Explicit target entity_id field retained and merged into the scheduled service target
 - Service data JSON
 
 Creating an item calls `uninus_calendar_service_scheduler.create_event_action`, which creates the Local Calendar event and stores the bound service action.
