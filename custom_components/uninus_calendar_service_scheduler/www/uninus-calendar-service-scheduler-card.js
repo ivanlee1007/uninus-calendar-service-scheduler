@@ -138,14 +138,14 @@ class UninusCalendarServiceSchedulerCard extends HTMLElement {
       for (const required of ["calendar_entity", "summary", "start", "service"]) {
         if (!payload[required]) throw new Error(`${required} is required`);
       }
-      const response = await this._hass.callService(
-        "uninus_calendar_service_scheduler",
-        "create_event_action",
-        payload,
-        undefined,
-        true
-      );
-      this._message = `Created action: ${response?.action_id || "ok"}`;
+      const response = await this._hass.callWS({
+        type: "call_service",
+        domain: "uninus_calendar_service_scheduler",
+        service: "create_event_action",
+        service_data: payload,
+        return_response: true,
+      });
+      this._message = `Created action: ${response?.response?.action_id || response?.action_id || "ok"}`;
     } catch (err) {
       this._message = `Error: ${err.message || err}`;
     }

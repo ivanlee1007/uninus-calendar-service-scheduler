@@ -508,7 +508,13 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       for (const field of ["calendar_entity", "summary", "start", "service"]) {
         if (!payload[field]) throw new Error(`${field} is required`);
       }
-      await this._hass.callService("uninus_calendar_service_scheduler", "create_event_action", payload, undefined, true);
+      await this._hass.callWS({
+        type: "call_service",
+        domain: "uninus_calendar_service_scheduler",
+        service: "create_event_action",
+        service_data: payload,
+        return_response: true,
+      });
       this._dialogOpen = false;
       this._message = "已建立行程與服務排程。";
       await this._loadEvents();
