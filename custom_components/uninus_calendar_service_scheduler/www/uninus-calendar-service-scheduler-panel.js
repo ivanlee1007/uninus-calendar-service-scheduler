@@ -88,18 +88,21 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return this._hass?.states?.[entityId]?.attributes?.friendly_name || entityId;
   }
 
-  _serviceOptions() {
+  _serviceOptions(selected = "") {
     const services = [];
     Object.entries(this._hass?.services || {}).forEach(([domain, domainServices]) => {
       Object.keys(domainServices || {}).forEach((service) => services.push(`${domain}.${service}`));
     });
-    return services.sort().map((id) => `<option value="${this._escape(id)}"></option>`).join("");
+    return [`<option value="">選擇 service</option>`]
+      .concat(services.sort().map((id) => `<option value="${this._escape(id)}" ${id === selected ? "selected" : ""}>${this._escape(id)}</option>`))
+      .join("");
   }
 
-  _entityOptions() {
-    return Object.keys(this._hass?.states || {})
+  _entityOptions(selected = "") {
+    return [`<option value="">不指定 entity</option>`]
+      .concat(Object.keys(this._hass?.states || {})
       .sort()
-      .map((id) => `<option value="${this._escape(id)}"></option>`)
+      .map((id) => `<option value="${this._escape(id)}" ${id === selected ? "selected" : ""}>${this._escape(this._stateName(id))} (${this._escape(id)})</option>`))
       .join("");
   }
 
@@ -146,6 +149,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       label { display: flex; flex-direction: column; gap: 6px; font-weight: 500; margin-bottom: 14px; }
       input, select, textarea { box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid var(--divider-color); border-radius: 10px; background: var(--card-background-color); color: var(--primary-text-color); font: inherit; }
       ha-service-picker, ha-target-picker { width: 100%; }
+      .field-note { margin-top: -8px; color: var(--secondary-text-color); font-size: 12px; }
       textarea { min-height: 86px; font-family: var(--code-font-family, monospace); }
       button { border: 0; border-radius: 20px; padding: 10px 16px; cursor: pointer; font-weight: 600; background: var(--secondary-background-color); color: var(--primary-text-color); }
       button.primary { background: var(--primary-color); color: var(--text-primary-color); }
@@ -305,14 +309,14 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <label>Service
             ${this._haPickersReady
               ? `<ha-service-picker id="service" label="Service" show-service-id></ha-service-picker>`
-              : `<input id="service" value="${this._escape(f.service)}" list="uninus-services" placeholder="script.turn_on" />
-                 <datalist id="uninus-services">${this._serviceOptions()}</datalist>`}
+              : `<select id="service">${this._serviceOptions(f.service)}</select>
+                 <div class="field-note">目前 custom panel 無法穩定載入 HA 原生 service picker，先使用 HA service 清單。</div>`}
           </label>
           <label>Target
             ${this._haPickersReady
               ? `<ha-target-picker id="target" compact></ha-target-picker>`
-              : `<input id="entity" value="${this._escape(f.target?.entity_id || "")}" list="uninus-entities" placeholder="script.night_mode" />
-                 <datalist id="uninus-entities">${this._entityOptions()}</datalist>`}
+              : `<select id="entity">${this._entityOptions(f.target?.entity_id || "")}</select>
+                 <div class="field-note">可選 entity；area/device target 需等正式 target picker 可載入後支援。</div>`}
           </label>
           <label class="fullrow">Service data JSON
             <textarea id="data" placeholder='{"brightness_pct": 80}'>${this._escape(f.data)}</textarea>
