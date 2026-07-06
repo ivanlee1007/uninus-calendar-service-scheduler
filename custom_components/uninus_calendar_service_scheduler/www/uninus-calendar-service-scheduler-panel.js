@@ -10,6 +10,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._selectedCalendars = [];
     this._loading = false;
     this._visibleMonth = new Date();
+    this._viewMode = this._loadViewMode();
     this._form = this._defaultForm();
     this._editingEvent = undefined;
     this._helpersPromise = undefined;
@@ -95,6 +96,27 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
   _selectedCalendarsStorageKey() {
     return "uninus-calendar-service-scheduler:selectedCalendars";
+  }
+
+  _viewModeStorageKey() {
+    return "uninus-calendar-service-scheduler:viewMode";
+  }
+
+  _loadViewMode() {
+    try {
+      const value = localStorage.getItem(this._viewModeStorageKey());
+      return ["month", "week", "day"].includes(value) ? value : "month";
+    } catch (_err) {
+      return "month";
+    }
+  }
+
+  _saveViewMode() {
+    try {
+      localStorage.setItem(this._viewModeStorageKey(), this._viewMode);
+    } catch (_err) {
+      // Ignore storage failures; the current in-memory view mode still works.
+    }
   }
 
   _loadSelectedCalendars() {
@@ -225,18 +247,29 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       button.primary { background: var(--primary-color); color: var(--text-primary-color); }
       button.full { width: 100%; margin-top: 6px; }
       .monthbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-      .monthbar h2 { margin: 0; font-weight: 500; font-size: 22px; }
+      .monthbar h2 { margin: 0; font-weight: 500; font-size: 22px; text-align: center; flex: 1; }
       .nav { display: flex; gap: 8px; align-items: center; }
+      .view-switch { display: inline-flex; overflow: hidden; border-radius: 20px; background: var(--secondary-background-color); }
+      .view-switch button { border-radius: 0; min-width: 48px; padding: 8px 12px; background: transparent; }
+      .view-switch button.active { background: var(--primary-color); color: var(--text-primary-color); }
       .calendar-card { border: 1px solid var(--divider-color); border-radius: 14px; overflow: hidden; background: var(--card-background-color); }
-      .weekdays, .monthgrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
-      .weekday { padding: 10px; color: var(--secondary-text-color); font-weight: 600; font-size: 13px; border-inline-end: 1px solid var(--divider-color); background: var(--secondary-background-color); }
+      .weekdays, .monthgrid, .weekgrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+      .weekday { padding: 10px; color: var(--secondary-text-color); font-weight: 600; font-size: 13px; border-inline-end: 1px solid var(--divider-color); background: var(--secondary-background-color); text-align: center; }
       .weekday:last-child { border-inline-end: 0; }
       .day { min-height: 128px; padding: 8px; border-block-start: 1px solid var(--divider-color); border-inline-end: 1px solid var(--divider-color); position: relative; overflow: hidden; }
+      .weekgrid .day { min-height: calc(100vh - 238px); }
       .day:nth-child(7n) { border-inline-end: 0; }
       .day.out { background: color-mix(in srgb, var(--secondary-background-color) 55%, transparent); color: var(--secondary-text-color); }
-      .day.today .num { background: var(--primary-color); color: var(--text-primary-color); }
+      .day.today .num, .day-panel.today .num { background: var(--primary-color); color: var(--text-primary-color); }
       .num { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 26px; border-radius: 50%; font-size: 13px; margin-bottom: 4px; }
-      .pill { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 6px; padding: 3px 6px; margin: 3px 0; font-size: 12px; background: var(--primary-color); color: var(--text-primary-color); }
+      .day-panel { min-height: calc(100vh - 238px); padding: 14px; border-block-start: 1px solid var(--divider-color); }
+      .day-heading { margin: 0 0 12px; color: var(--secondary-text-color); font-size: 14px; font-weight: 600; }
+      .day-list { display: flex; flex-direction: column; gap: 8px; }
+      .day-event { border-inline-start: 4px solid var(--primary-color); border-radius: 10px; padding: 10px 12px; background: var(--secondary-background-color); text-align: start; }
+      .day-event.service { border-inline-start-color: var(--success-color, #43a047); }
+      .day-event .event-title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .day-event .event-time { color: var(--secondary-text-color); font-size: 12px; margin-bottom: 3px; }
+      .pill { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 6px; padding: 3px 6px; margin: 3px 0; font-size: 12px; background: var(--primary-color); color: var(--text-primary-color); text-align: start; }
       .pill.service { background: var(--success-color, #43a047); color: white; }
       .pill .time { opacity: .88; margin-inline-end: 4px; }
       .empty { padding: 24px; text-align: center; color: var(--secondary-text-color); }
@@ -279,17 +312,15 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         </aside>
         <main class="main">
           <div class="monthbar">
-            <h2>${this._monthTitle()}</h2>
             <div class="nav">
-              <button id="prev-month">‹</button>
               <button id="today">今天</button>
-              <button id="next-month">›</button>
+              <button id="prev-month" aria-label="上一步">‹</button>
+              <button id="next-month" aria-label="下一步">›</button>
             </div>
+            <h2>${this._periodTitle()}</h2>
+            <div class="view-switch" role="group" aria-label="顯示方式">${this._viewModeButtons()}</div>
           </div>
-          <div class="calendar-card">
-            <div class="weekdays">${["日", "一", "二", "三", "四", "五", "六"].map((d) => `<div class="weekday">${d}</div>`).join("")}</div>
-            <div class="monthgrid">${this._monthCells()}</div>
-          </div>
+          ${this._calendarContent()}
           <p class="message">${this._loading ? "載入中…" : `${this._events.length} 個事件`}</p>
         </main>
       </div>
@@ -305,12 +336,85 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return `${this._visibleMonth.getFullYear()} 年 ${this._visibleMonth.getMonth() + 1} 月`;
   }
 
+  _periodTitle() {
+    if (this._viewMode === "day") return this._formatDateLong(this._visibleMonth);
+    if (this._viewMode === "week") {
+      const start = this._startOfWeek(this._visibleMonth);
+      const end = this._addDays(start, 6);
+      const sameMonth = start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth();
+      if (sameMonth) return `${start.getFullYear()} 年 ${start.getMonth() + 1} 月 ${start.getDate()} 日 – ${end.getDate()} 日`;
+      return `${this._formatDateLong(start)} – ${this._formatDateLong(end)}`;
+    }
+    return this._monthTitle();
+  }
+
+  _viewModeButtons() {
+    return [
+      ["month", "月", "月"],
+      ["week", "週", "週"],
+      ["day", "日", "日"],
+    ].map(([mode, label, title]) => `<button class="view-mode ${this._viewMode === mode ? "active" : ""}" data-view="${mode}" title="${title}" aria-pressed="${this._viewMode === mode}">${label}</button>`).join("");
+  }
+
+  _calendarContent() {
+    if (this._viewMode === "day") return `<div class="calendar-card">${this._dayPanel()}</div>`;
+    const labels = this._weekdayLabels(this._viewMode === "week");
+    return `<div class="calendar-card"><div class="weekdays">${labels.map((d) => `<div class="weekday">${d}</div>`).join("")}</div><div class="${this._viewMode === "week" ? "weekgrid" : "monthgrid"}">${this._viewMode === "week" ? this._weekCells() : this._monthCells()}</div></div>`;
+  }
+
+
   _eventStart(ev) {
     return ev.start?.dateTime || ev.start?.date || ev.start;
   }
 
   _eventEnd(ev) {
     return ev.end?.dateTime || ev.end?.date || ev.end;
+  }
+
+  _startOfWeek(date) {
+    const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    start.setDate(start.getDate() - start.getDay());
+    return start;
+  }
+
+  _addDays(date, days) {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+  }
+
+  _formatDateLong(date) {
+    return `${date.getFullYear()} 年 ${date.getMonth() + 1} 月 ${date.getDate()} 日`;
+  }
+
+  _formatDateShort(date) {
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+  }
+
+  _weekdayLabels(withDates = false) {
+    const names = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
+    if (!withDates) return ["日", "一", "二", "三", "四", "五", "六"];
+    const start = this._startOfWeek(this._visibleMonth);
+    return names.map((name, index) => `${this._formatDateShort(this._addDays(start, index))}（${name}）`);
+  }
+
+  _visibleRange() {
+    if (this._viewMode === "day") {
+      const start = new Date(this._visibleMonth.getFullYear(), this._visibleMonth.getMonth(), this._visibleMonth.getDate());
+      const end = this._addDays(start, 1);
+      return { start, end };
+    }
+    if (this._viewMode === "week") {
+      const start = this._startOfWeek(this._visibleMonth);
+      const end = this._addDays(start, 7);
+      return { start, end };
+    }
+    const year = this._visibleMonth.getFullYear();
+    const month = this._visibleMonth.getMonth();
+    const first = new Date(year, month, 1);
+    const start = this._startOfWeek(first);
+    const end = this._addDays(start, 42);
+    return { start, end };
   }
 
   _eventsByDate() {
@@ -326,26 +430,41 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   }
 
   _monthCells() {
-    const year = this._visibleMonth.getFullYear();
     const month = this._visibleMonth.getMonth();
-    const first = new Date(year, month, 1);
-    const gridStart = new Date(first);
-    gridStart.setDate(first.getDate() - first.getDay());
+    const { start: gridStart } = this._visibleRange();
+    return this._dateCells(gridStart, 42, (day) => day.getMonth() !== month, 4);
+  }
+
+  _weekCells() {
+    const { start } = this._visibleRange();
+    return this._dateCells(start, 7, () => false, 12);
+  }
+
+  _dateCells(start, count, isOut = () => false, maxEvents = 4) {
     const todayKey = this._dateInputValue(new Date());
     const byDate = this._eventsByDate();
     const cells = [];
-    for (let i = 0; i < 42; i += 1) {
-      const day = new Date(gridStart);
-      day.setDate(gridStart.getDate() + i);
+    for (let i = 0; i < count; i += 1) {
+      const day = this._addDays(start, i);
       const key = this._dateInputValue(day);
       const events = byDate.get(key) || [];
-      cells.push(`<div class="day ${day.getMonth() !== month ? "out" : ""} ${key === todayKey ? "today" : ""}" data-date="${key}">
+      cells.push(`<div class="day date-cell ${isOut(day) ? "out" : ""} ${key === todayKey ? "today" : ""}" data-date="${key}">
         <span class="num">${day.getDate()}</span>
-        ${events.slice(0, 4).map((ev) => this._eventPill(ev)).join("")}
-        ${events.length > 4 ? `<span class="pill">+${events.length - 4} more</span>` : ""}
+        ${events.slice(0, maxEvents).map((ev) => this._eventPill(ev)).join("")}
+        ${events.length > maxEvents ? `<span class="pill">+${events.length - maxEvents} more</span>` : ""}
       </div>`);
     }
     return cells.join("");
+  }
+
+  _dayPanel() {
+    const key = this._dateInputValue(this._visibleMonth);
+    const events = this._eventsByDate().get(key) || [];
+    const today = key === this._dateInputValue(new Date());
+    return `<div class="day-panel date-cell ${today ? "today" : ""}" data-date="${key}">
+      <h3 class="day-heading"><span class="num">${this._visibleMonth.getDate()}</span> ${["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"][this._visibleMonth.getDay()]}</h3>
+      <div class="day-list">${events.length ? events.map((ev) => this._dayEvent(ev)).join("") : `<p class="empty">這一天沒有行程</p>`}</div>
+    </div>`;
   }
 
   _actionIdFromDescription(description = "") {
@@ -353,13 +472,29 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return match?.[1] || "";
   }
 
-  _eventPill(ev) {
+  _formatEventTime(ev, includeEnd = false) {
     const start = this._eventStart(ev) || "";
+    const end = this._eventEnd(ev) || "";
+    if (!start.includes("T")) return "";
+    const startTime = start.slice(11, 16);
+    if (!includeEnd || !end.includes("T")) return startTime;
+    return `${startTime} - ${end.slice(11, 16)}`;
+  }
+
+  _eventPill(ev) {
     const desc = ev.description || "";
     const actionId = this._actionIdFromDescription(desc);
     const isService = Boolean(actionId);
-    const time = start.includes("T") ? start.slice(11, 16) : "";
+    const time = this._formatEventTime(ev);
     return `<button class="pill ${isService ? "service" : ""}" data-uid="${this._escape(ev.uid || "")}" data-calendar="${this._escape(ev.__calendarEntity || this._selectedCalendar || "")}" title="${this._escape(ev.summary || "")}">${time ? `<span class="time">${time}</span>` : ""}${this._escape(ev.summary || "(No title)")}</button>`;
+  }
+
+  _dayEvent(ev) {
+    const desc = ev.description || "";
+    const actionId = this._actionIdFromDescription(desc);
+    const isService = Boolean(actionId);
+    const time = this._formatEventTime(ev, true) || "全天";
+    return `<button class="day-event ${isService ? "service" : ""}" data-uid="${this._escape(ev.uid || "")}" data-calendar="${this._escape(ev.__calendarEntity || this._selectedCalendar || "")}" title="${this._escape(ev.summary || "")}"><div class="event-time">${this._escape(time)}</div><div class="event-title">${this._escape(ev.summary || "(No title)")}</div></button>`;
   }
 
   _dialogTemplate() {
@@ -446,14 +581,15 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("refresh")?.addEventListener("click", () => this._loadEvents());
     this.shadowRoot.getElementById("new-event-side")?.addEventListener("click", () => this._openDialog());
     this.shadowRoot.getElementById("new-event-fab")?.addEventListener("click", () => this._openDialog());
-    this.shadowRoot.getElementById("prev-month")?.addEventListener("click", () => this._moveMonth(-1));
-    this.shadowRoot.getElementById("next-month")?.addEventListener("click", () => this._moveMonth(1));
+    this.shadowRoot.getElementById("prev-month")?.addEventListener("click", () => this._movePeriod(-1));
+    this.shadowRoot.getElementById("next-month")?.addEventListener("click", () => this._movePeriod(1));
     this.shadowRoot.getElementById("today")?.addEventListener("click", () => {
       this._visibleMonth = new Date();
       this._loadEvents();
     });
-    this.shadowRoot.querySelectorAll(".day").forEach((el) => el.addEventListener("dblclick", () => this._openDialog(el.dataset.date)));
-    this.shadowRoot.querySelectorAll(".pill[data-uid]").forEach((el) => el.addEventListener("click", (ev) => {
+    this.shadowRoot.querySelectorAll(".view-mode").forEach((el) => el.addEventListener("click", () => this._setViewMode(el.dataset.view)));
+    this.shadowRoot.querySelectorAll(".date-cell").forEach((el) => el.addEventListener("dblclick", () => this._openDialog(el.dataset.date)));
+    this.shadowRoot.querySelectorAll(".pill[data-uid], .day-event[data-uid]").forEach((el) => el.addEventListener("click", (ev) => {
       ev.stopPropagation();
       this._openEventByUid(el.dataset.uid, el.dataset.calendar);
     }));
@@ -494,9 +630,22 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("all_day")?.addEventListener("change", (ev) => this._toggleAllDay(ev.target.checked));
   }
 
-  _moveMonth(delta) {
-    this._visibleMonth = new Date(this._visibleMonth.getFullYear(), this._visibleMonth.getMonth() + delta, 1);
+  _setViewMode(mode) {
+    if (!["month", "week", "day"].includes(mode) || this._viewMode === mode) return;
+    this._viewMode = mode;
+    this._saveViewMode();
     this._loadEvents();
+  }
+
+  _movePeriod(delta) {
+    if (this._viewMode === "day") this._visibleMonth = this._addDays(this._visibleMonth, delta);
+    else if (this._viewMode === "week") this._visibleMonth = this._addDays(this._visibleMonth, delta * 7);
+    else this._visibleMonth = new Date(this._visibleMonth.getFullYear(), this._visibleMonth.getMonth() + delta, 1);
+    this._loadEvents();
+  }
+
+  _moveMonth(delta) {
+    this._movePeriod(delta);
   }
 
   _captureForm() {
@@ -671,13 +820,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._loading = true;
     if (!this._dialogOpen) this._render();
     try {
-      const year = this._visibleMonth.getFullYear();
-      const month = this._visibleMonth.getMonth();
-      const first = new Date(year, month, 1);
-      const start = new Date(first);
-      start.setDate(first.getDate() - first.getDay());
-      const end = new Date(start);
-      end.setDate(start.getDate() + 42);
+      const { start, end } = this._visibleRange();
       const qs = `start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`;
       const results = await Promise.all(calendars.map(async (calendarEntity) => {
         const entityPath = encodeURIComponent(calendarEntity);
