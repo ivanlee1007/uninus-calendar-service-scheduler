@@ -677,8 +677,16 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const parts = [];
     if (description) parts.push(String(description).trim());
     if (actionId) parts.push(`HA_SERVICE_ACTION_ID: ${actionId}`);
-    parts.push("Created by Uninus Calendar Service Scheduler");
+    if (actionId) parts.push("Created by Uninus Calendar Service Scheduler");
     return parts.join("\n\n");
+  }
+
+  async _createCalendarOnlyEvent(payload) {
+    await this._hass.callWS({
+      type: "calendar/event/create",
+      entity_id: payload.calendar_entity,
+      event: this._calendarEventPayload({ ...payload, action_id: "" }),
+    });
   }
 
   async _updateCurrentEvent(payload) {
@@ -739,7 +747,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     try {
       this._captureForm();
       const f = this._form;
-      const serviceData = f.data ? JSON.parse(f.data) : {};
+      const serviceData = f.service && f.data ? JSON.parse(f.data) : {};
       const payload = {
         calendar_entity: f.calendar,
         summary: f.summary,
@@ -753,12 +761,14 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         data: serviceData,
         description: f.description,
       };
-      for (const field of ["calendar_entity", "summary", "start", "service"]) {
+      for (const field of ["calendar_entity", "summary", "start"]) {
         if (!payload[field]) throw new Error(`${field} is required`);
       }
       const wasEditing = Boolean(this._editingEvent);
       if (wasEditing) {
         await this._updateCurrentEvent(payload);
+      } else if (!payload.service) {
+        await this._createCalendarOnlyEvent(payload);
       } else {
         await this._hass.callWS({
           type: "call_service",
@@ -770,7 +780,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       }
       this._dialogOpen = false;
       this._editingEvent = undefined;
-      this._message = wasEditing ? "已更新行程。" : "已建立行程與服務排程。";
+      this._message = wasEditing ? "已更新行程。" : (payload.service ? "已建立行程與服務排程。" : "已建立行程。此行程不會執行 service action。");
       await this._loadEvents();
     } catch (err) {
       this._message = `Error: ${err?.message || err}`;
