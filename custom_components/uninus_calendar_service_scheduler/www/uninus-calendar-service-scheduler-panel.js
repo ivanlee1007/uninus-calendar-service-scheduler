@@ -14,6 +14,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._helpersPromise = undefined;
     this._haPickersReady = false;
     this._haEntityPickerReady = false;
+    this._actionOverrides = new Map();
   }
 
   set hass(hass) {
@@ -512,8 +513,30 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   }
 
   _storedAction(actionId) {
+    if (this._actionOverrides?.has(actionId)) return this._actionOverrides.get(actionId);
     const actions = this._hass?.states?.["sensor.uninus_calendar_service_scheduler_status"]?.attributes?.actions || [];
     return actions.find((action) => action.action_id === actionId);
+  }
+
+  _rememberActionOverride(actionId, payload, eventUid) {
+    if (!actionId) return;
+    const existing = this._storedAction(actionId) || {};
+    this._actionOverrides.set(actionId, {
+      ...existing,
+      action_id: actionId,
+      calendar_entity: payload.calendar_entity,
+      summary: payload.summary,
+      start: payload.start,
+      end: payload.end,
+      service: payload.service,
+      target: payload.target || {},
+      data: payload.data || {},
+      description: payload.description || "",
+      location: payload.location || "",
+      rrule: payload.rrule || "",
+      all_day: Boolean(payload.all_day),
+      calendar_event_uid: eventUid,
+    });
   }
 
   _cleanDescription(description) {
@@ -614,6 +637,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         service_data: { ...payload, action_id: actionId, calendar_event_uid: eventUid },
         return_response: true,
       });
+      this._rememberActionOverride(actionId, payload, eventUid);
     }
     await this._hass.callWS({
       type: "calendar/event/update",
