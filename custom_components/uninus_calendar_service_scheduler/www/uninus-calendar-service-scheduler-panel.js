@@ -7,6 +7,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._message = "";
     this._dialogOpen = false;
     this._selectedCalendar = "";
+    this._selectedCalendars = [];
     this._loading = false;
     this._visibleMonth = new Date();
     this._form = this._defaultForm();
@@ -20,13 +21,16 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   set hass(hass) {
     const oldHass = this._hass;
     this._hass = hass;
+    if (!this._selectedCalendars.length) {
+      this._selectedCalendars = this._calendarIds().slice(0, 1);
+    }
     if (!this._selectedCalendar) {
-      this._selectedCalendar = this._calendarIds()[0] || "";
+      this._selectedCalendar = this._selectedCalendars[0] || this._calendarIds()[0] || "";
       this._form.calendar = this._selectedCalendar;
     }
     this._ensureHaPickers();
     if (!this._dialogOpen) this._render();
-    if (!oldHass && this._selectedCalendar) this._loadEvents();
+    if (!oldHass && this._selectedCalendars.length) this._loadEvents();
   }
 
   set panel(panel) {
@@ -90,6 +94,20 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return this._calendarIds()
       .map((id) => `<option value="${this._escape(id)}" ${id === selected ? "selected" : ""}>${this._escape(this._stateName(id))}</option>`)
       .join("");
+  }
+
+  _calendarChecklist() {
+    const selected = new Set(this._selectedCalendars.length ? this._selectedCalendars : [this._selectedCalendar].filter(Boolean));
+    return this._calendarIds()
+      .map((id) => `<label class="calendar-check"><input type="checkbox" class="calendar-choice" value="${this._escape(id)}" ${selected.has(id) ? "checked" : ""} /> <span>${this._escape(this._stateName(id))}</span><code>${this._escape(id)}</code></label>`)
+      .join("");
+  }
+
+  _selectedCalendarLabel() {
+    const count = this._selectedCalendars.length;
+    if (!count) return "未選擇 Calendar";
+    if (count === 1) return this._stateName(this._selectedCalendars[0]);
+    return `已選擇 ${count} 個 Calendar`;
   }
 
   _stateName(entityId) {
@@ -160,6 +178,15 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .appbar a, .appbar button { color: inherit; }
       .layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: calc(100vh - 64px); }
       .side { border-inline-end: 1px solid var(--divider-color); background: var(--card-background-color); padding: 16px; }
+      .calendar-menu { border: 1px solid var(--divider-color); border-radius: 12px; margin-bottom: 14px; overflow: hidden; }
+      .calendar-menu summary { cursor: pointer; padding: 10px 12px; font-weight: 600; list-style: none; background: var(--secondary-background-color); }
+      .calendar-menu summary::-webkit-details-marker { display: none; }
+      .calendar-list { display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow: auto; padding: 8px; }
+      .calendar-check { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; row-gap: 2px; align-items: center; margin: 0; padding: 8px; border-radius: 8px; font-weight: 500; }
+      .calendar-check:hover { background: var(--secondary-background-color); }
+      .calendar-check input { width: auto; grid-row: 1 / span 2; }
+      .calendar-check span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .calendar-check code { grid-column: 2; color: var(--secondary-text-color); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .main { min-width: 0; padding: 16px; }
       label { display: flex; flex-direction: column; gap: 6px; font-weight: 500; margin-bottom: 14px; }
       input, select, textarea { box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid var(--divider-color); border-radius: 10px; background: var(--card-background-color); color: var(--primary-text-color); font: inherit; }
@@ -214,9 +241,11 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       </div>
       <div class="layout">
         <aside class="side">
-          <label>Calendar
-            <select id="calendar-select">${this._calendarOptions()}</select>
-          </label>
+          <div class="native-label">Calendar</div>
+          <details class="calendar-menu" open>
+            <summary>${this._escape(this._selectedCalendarLabel())}</summary>
+            <div class="calendar-list">${this._calendarChecklist()}</div>
+          </details>
           <button class="primary full" id="new-event-side">新增服務排程行程</button>
           <button class="full" id="refresh">重新整理</button>
           <p class="message">獨立 panel：不修改 Home Assistant 原生 /calendar。</p>
@@ -301,7 +330,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const actionId = this._actionIdFromDescription(desc);
     const isService = Boolean(actionId);
     const time = start.includes("T") ? start.slice(11, 16) : "";
-    return `<button class="pill ${isService ? "service" : ""}" data-uid="${this._escape(ev.uid || "")}" title="${this._escape(ev.summary || "")}">${time ? `<span class="time">${time}</span>` : ""}${this._escape(ev.summary || "(No title)")}</button>`;
+    return `<button class="pill ${isService ? "service" : ""}" data-uid="${this._escape(ev.uid || "")}" data-calendar="${this._escape(ev.__calendarEntity || this._selectedCalendar || "")}" title="${this._escape(ev.summary || "")}">${time ? `<span class="time">${time}</span>` : ""}${this._escape(ev.summary || "(No title)")}</button>`;
   }
 
   _dialogTemplate() {
@@ -366,10 +395,13 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   }
 
   _bind() {
-    this.shadowRoot.getElementById("calendar-select")?.addEventListener("change", (ev) => {
-      this._selectedCalendar = ev.target.value;
-      this._form.calendar = this._selectedCalendar;
-      this._loadEvents();
+    this.shadowRoot.querySelectorAll(".calendar-choice").forEach((checkbox) => {
+      checkbox.addEventListener("change", () => {
+        this._selectedCalendars = Array.from(this.shadowRoot.querySelectorAll(".calendar-choice:checked")).map((el) => el.value);
+        this._selectedCalendar = this._selectedCalendars[0] || "";
+        this._form.calendar = this._selectedCalendar;
+        this._loadEvents();
+      });
     });
     const calendarPicker = this.shadowRoot.getElementById("calendar");
     if (calendarPicker?.tagName?.toLowerCase() === "ha-entity-picker") {
@@ -392,7 +424,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.querySelectorAll(".day").forEach((el) => el.addEventListener("dblclick", () => this._openDialog(el.dataset.date)));
     this.shadowRoot.querySelectorAll(".pill[data-uid]").forEach((el) => el.addEventListener("click", (ev) => {
       ev.stopPropagation();
-      this._openEventByUid(el.dataset.uid);
+      this._openEventByUid(el.dataset.uid, el.dataset.calendar);
     }));
     this.shadowRoot.querySelector(".scrim")?.addEventListener("click", () => this._closeDialog());
     this.shadowRoot.getElementById("cancel")?.addEventListener("click", () => this._closeDialog());
@@ -500,8 +532,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._render();
   }
 
-  _openEventByUid(uid) {
-    const event = this._events.find((ev) => ev.uid === uid);
+  _openEventByUid(uid, calendarEntity = "") {
+    const event = this._events.find((ev) => ev.uid === uid && (!calendarEntity || ev.__calendarEntity === calendarEntity));
     if (!event) return;
     const actionId = this._actionIdFromDescription(event.description || "");
     const storedAction = this._storedAction(actionId);
@@ -511,7 +543,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const isAllDay = Boolean(event.start?.date);
     this._form = {
       ...this._defaultForm(),
-      calendar: this._selectedCalendar,
+      calendar: event.__calendarEntity || storedAction?.calendar_entity || this._selectedCalendar,
       summary: event.summary || "",
       location: event.location || "",
       allDay: isAllDay,
@@ -602,7 +634,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   }
 
   async _loadEvents() {
-    if (!this._hass || !this._selectedCalendar) return;
+    const calendars = this._selectedCalendars.length ? this._selectedCalendars : [this._selectedCalendar].filter(Boolean);
+    if (!this._hass || !calendars.length) return;
     this._loading = true;
     if (!this._dialogOpen) this._render();
     try {
@@ -614,8 +647,12 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       const end = new Date(start);
       end.setDate(start.getDate() + 42);
       const qs = `start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`;
-      const entityPath = encodeURIComponent(this._selectedCalendar);
-      this._events = await this._hass.callApi("GET", `calendars/${entityPath}?${qs}`);
+      const results = await Promise.all(calendars.map(async (calendarEntity) => {
+        const entityPath = encodeURIComponent(calendarEntity);
+        const events = await this._hass.callApi("GET", `calendars/${entityPath}?${qs}`);
+        return (events || []).map((event) => ({ ...event, __calendarEntity: calendarEntity }));
+      }));
+      this._events = results.flat().sort((a, b) => String(this._eventStart(a) || "").localeCompare(String(this._eventStart(b) || "")));
     } catch (err) {
       this._message = `Error: ${err?.message || err}`;
       this._events = [];
