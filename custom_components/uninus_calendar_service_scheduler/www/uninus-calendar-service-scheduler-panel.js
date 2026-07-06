@@ -681,6 +681,13 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return parts.join("\n\n");
   }
 
+  _newActionId() {
+    if (crypto?.randomUUID) return crypto.randomUUID().replace(/-/g, "");
+    return Array.from(crypto.getRandomValues(new Uint8Array(16)))
+      .map((value) => value.toString(16).padStart(2, "0"))
+      .join("");
+  }
+
   async _createCalendarOnlyEvent(payload) {
     await this._hass.callWS({
       type: "calendar/event/create",
@@ -693,8 +700,12 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const eventUid = this._currentEventUid();
     const recurrenceId = this._currentEventRecurrenceId();
     if (!eventUid) throw new Error("此行程缺少 uid，無法更新");
-    const actionId = this._form.actionId;
-    if (actionId) {
+    let actionId = this._form.actionId;
+    if (payload.service && !actionId) {
+      actionId = this._newActionId();
+      this._form.actionId = actionId;
+    }
+    if (payload.service && actionId) {
       await this._hass.callWS({
         type: "call_service",
         domain: "uninus_calendar_service_scheduler",
@@ -703,6 +714,17 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         return_response: true,
       });
       this._rememberActionOverride(actionId, payload, eventUid);
+    } else if (!payload.service && actionId) {
+      await this._hass.callWS({
+        type: "call_service",
+        domain: "uninus_calendar_service_scheduler",
+        service: "delete_event_action",
+        service_data: { action_id: actionId },
+        return_response: true,
+      });
+      this._actionOverrides?.delete(actionId);
+      this._form.actionId = "";
+      actionId = "";
     }
     await this._hass.callWS({
       type: "calendar/event/update",
