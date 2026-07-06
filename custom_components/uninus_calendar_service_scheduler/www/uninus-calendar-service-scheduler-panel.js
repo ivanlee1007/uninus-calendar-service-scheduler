@@ -16,16 +16,19 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._haPickersReady = false;
     this._haEntityPickerReady = false;
     this._actionOverrides = new Map();
+    this._calendarListScrollTop = 0;
   }
 
   set hass(hass) {
     const oldHass = this._hass;
     this._hass = hass;
+    const calendarIds = this._calendarIds();
     if (!this._selectedCalendars.length) {
-      this._selectedCalendars = this._calendarIds().slice(0, 1);
+      const savedCalendars = this._loadSelectedCalendars().filter((id) => calendarIds.includes(id));
+      this._selectedCalendars = savedCalendars.length ? savedCalendars : calendarIds.slice(0, 1);
     }
     if (!this._selectedCalendar) {
-      this._selectedCalendar = this._selectedCalendars[0] || this._calendarIds()[0] || "";
+      this._selectedCalendar = this._selectedCalendars[0] || calendarIds[0] || "";
       this._form.calendar = this._selectedCalendar;
     }
     this._ensureHaPickers();
@@ -88,6 +91,28 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return Object.keys(this._hass?.states || {})
       .filter((id) => id.startsWith("calendar."))
       .sort();
+  }
+
+  _selectedCalendarsStorageKey() {
+    return "uninus-calendar-service-scheduler:selectedCalendars";
+  }
+
+  _loadSelectedCalendars() {
+    try {
+      const raw = localStorage.getItem(this._selectedCalendarsStorageKey());
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : [];
+    } catch (_err) {
+      return [];
+    }
+  }
+
+  _saveSelectedCalendars() {
+    try {
+      localStorage.setItem(this._selectedCalendarsStorageKey(), JSON.stringify(this._selectedCalendars));
+    } catch (_err) {
+      // Ignore storage failures; selection still works for the current session.
+    }
   }
 
   _calendarOptions(selected = this._selectedCalendar) {
@@ -233,6 +258,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot) return;
+    const previousCalendarList = this.shadowRoot.querySelector(".calendar-list");
+    if (previousCalendarList) this._calendarListScrollTop = previousCalendarList.scrollTop;
     this.shadowRoot.innerHTML = `
       <style>${this._styles()}</style>
       <div class="appbar">
@@ -270,6 +297,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       ${this._dialogTemplate()}
     `;
     this._bind();
+    const nextCalendarList = this.shadowRoot.querySelector(".calendar-list");
+    if (nextCalendarList) nextCalendarList.scrollTop = this._calendarListScrollTop || 0;
   }
 
   _monthTitle() {
@@ -400,6 +429,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         this._selectedCalendars = Array.from(this.shadowRoot.querySelectorAll(".calendar-choice:checked")).map((el) => el.value);
         this._selectedCalendar = this._selectedCalendars[0] || "";
         this._form.calendar = this._selectedCalendar;
+        this._calendarListScrollTop = this.shadowRoot.querySelector(".calendar-list")?.scrollTop || 0;
+        this._saveSelectedCalendars();
         this._loadEvents();
       });
     });
