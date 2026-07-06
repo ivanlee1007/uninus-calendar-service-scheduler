@@ -607,7 +607,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         type: "call_service",
         domain: "uninus_calendar_service_scheduler",
         service: "update_event_action",
-        service_data: { ...payload, action_id: actionId },
+        service_data: { ...payload, action_id: actionId, calendar_event_uid: eventUid },
         return_response: true,
       });
     }
