@@ -171,6 +171,40 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .join("");
   }
 
+  _recurrenceOptions(selectedRrule = "") {
+    const selected = this._recurrencePresetFromRrule(selectedRrule);
+    const options = [
+      ["", "不重複"],
+      ["yearly", "每年"],
+      ["monthly", "每月"],
+      ["weekly", "每週"],
+      ["daily", "每天"],
+    ];
+    if (selected === "custom") options.push(["custom", "自訂 RRULE"]);
+    return options
+      .map(([value, label]) => `<option value="${value}" ${value === selected ? "selected" : ""}>${label}</option>`)
+      .join("");
+  }
+
+  _recurrencePresetFromRrule(rrule = "") {
+    const normalized = String(rrule || "").trim().toUpperCase();
+    if (!normalized) return "";
+    if (normalized === "FREQ=DAILY") return "daily";
+    if (normalized === "FREQ=WEEKLY") return "weekly";
+    if (normalized === "FREQ=MONTHLY") return "monthly";
+    if (normalized === "FREQ=YEARLY") return "yearly";
+    return "custom";
+  }
+
+  _rruleFromRecurrencePreset(preset, existingRrule = "") {
+    if (preset === "daily") return "FREQ=DAILY";
+    if (preset === "weekly") return "FREQ=WEEKLY";
+    if (preset === "monthly") return "FREQ=MONTHLY";
+    if (preset === "yearly") return "FREQ=YEARLY";
+    if (preset === "custom") return existingRrule || "";
+    return "";
+  }
+
   _entityOptions(selected = "") {
     return [`<option value="">不指定 entity</option>`]
       .concat(Object.keys(this._hass?.states || {})
@@ -522,8 +556,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <label>End
             <input id="end" type="${f.allDay ? "date" : "datetime-local"}" value="${this._escape(f.end)}" />
           </label>
-          <label class="fullrow">Recurrence RRULE
-            <input id="rrule" value="${this._escape(f.rrule)}" placeholder="例如：FREQ=WEEKLY;COUNT=4（選填）" />
+          <label class="fullrow">重複
+            <select id="recurrence">${this._recurrenceOptions(f.rrule)}</select>
+            <div class="field-note">模仿 Home Assistant 原生「增加行程」：不重複、每年、每月、每週、每天。儲存時會自動產生 RRULE。</div>
           </label>
           ${this._haPickersReady
             ? `<div class="fullrow native-control">
@@ -597,7 +632,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("cancel")?.addEventListener("click", () => this._closeDialog());
     this.shadowRoot.getElementById("delete-event")?.addEventListener("click", () => this._deleteCurrentEvent());
     this.shadowRoot.getElementById("create")?.addEventListener("click", () => this._create());
-    ["calendar", "summary", "location", "start", "end", "rrule", "service", "entity", "data", "description"].forEach((id) => {
+    ["calendar", "summary", "location", "start", "end", "recurrence", "service", "entity", "data", "description"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureForm());
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureForm());
     });
@@ -661,6 +696,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       else delete target.entity_id;
     }
     const dataText = get("data");
+    const recurrencePreset = this.shadowRoot.getElementById("recurrence")?.value ?? this._recurrencePresetFromRrule(this._form.rrule);
+    const nextRrule = this._rruleFromRecurrencePreset(recurrencePreset, this._form.rrule);
     const allDay = this.shadowRoot.getElementById("all_day")?.checked ?? this._form.allDay;
     const startValue = get("start");
     let endValue = get("end");
@@ -680,7 +717,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       allDay,
       start: startValue,
       end: endValue,
-      rrule: get("rrule"),
+      rrule: nextRrule,
       service,
       target,
       serviceAction: { action: service, target, data: this._parseServiceData(dataText) },
