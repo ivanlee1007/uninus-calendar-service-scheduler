@@ -336,12 +336,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
                <label class="fullrow">Service data JSON
                  <textarea id="data" placeholder='{"brightness_pct": 80}'>${this._escape(f.data)}</textarea>
                </label>`}
-          <div class="fullrow native-control">
-            ${this._haEntityPickerReady
-              ? `<ha-entity-picker id="entity-picker" label="Target entity_id" show-entity-id allow-custom-entity></ha-entity-picker>`
-              : `<label>Target entity_id<select id="entity">${this._entityOptions(f.target?.entity_id || "")}</select></label>`}
-            <div class="field-note">此欄位會合併進 service target。</div>
-          </div>
+          ${this._haPickersReady ? "" : `<div class="fullrow native-control">
+            <label>Target entity_id<select id="entity">${this._entityOptions(f.target?.entity_id || "")}</select></label>
+            <div class="field-note">此欄位會合併進 service target；原生 service-control 可用時會改用其內建目標欄位。</div>
+          </div>`}
           <label class="fullrow">Description
             <textarea id="description" placeholder="會顯示在 Local Calendar 事件描述中">${this._escape(f.description)}</textarea>
           </label>
@@ -435,7 +433,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const get = (id) => this.shadowRoot.getElementById(id)?.value ?? this._form[id] ?? "";
     const serviceControlValue = this.shadowRoot.getElementById("service-control")?.value;
     const serviceControlAction = serviceControlValue?.action || serviceControlValue?.service || "";
-    const explicitEntityId = this.shadowRoot.getElementById("entity-picker")?.value || get("entity");
+    const explicitEntityId = get("entity");
     const target = {
       ...(serviceControlValue?.target || this._form.target || {}),
       ...(explicitEntityId ? { entity_id: explicitEntityId } : {}),
