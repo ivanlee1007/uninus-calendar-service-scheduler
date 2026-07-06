@@ -130,6 +130,13 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return `${date.getFullYear()}-${this._pad(date.getMonth() + 1)}-${this._pad(date.getDate())}T${this._pad(date.getHours())}:${this._pad(date.getMinutes())}`;
   }
 
+  _durationMs(startValue, endValue) {
+    const start = new Date(startValue);
+    const end = new Date(endValue);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 5 * 60 * 1000;
+    return Math.max(end.getTime() - start.getTime(), 60 * 1000);
+  }
+
   _dateInputValue(date = new Date()) {
     return `${date.getFullYear()}-${this._pad(date.getMonth() + 1)}-${this._pad(date.getDate())}`;
   }
@@ -432,6 +439,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
   _captureForm() {
     const get = (id) => this.shadowRoot.getElementById(id)?.value ?? this._form[id] ?? "";
+    const previousDuration = this._durationMs(this._form.start, this._form.end);
     const servicePickerValue = this.shadowRoot.getElementById("service-picker")?.value || "";
     const explicitEntityId = this.shadowRoot.getElementById("entity-picker")?.value || get("entity");
     const target = {
@@ -440,13 +448,25 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     };
     const service = servicePickerValue || get("service") || this._form.service || "";
     const dataText = get("data");
+    const allDay = this.shadowRoot.getElementById("all_day")?.checked ?? this._form.allDay;
+    const startValue = get("start");
+    let endValue = get("end");
+    if (!allDay) {
+      const startDate = new Date(startValue);
+      const endDate = new Date(endValue);
+      if (!Number.isNaN(startDate.getTime()) && !Number.isNaN(endDate.getTime()) && endDate.getTime() <= startDate.getTime()) {
+        endValue = this._localInputValue(new Date(startDate.getTime() + previousDuration));
+        const endInput = this.shadowRoot.getElementById("end");
+        if (endInput) endInput.value = endValue;
+      }
+    }
     this._form = {
       calendar: get("calendar"),
       summary: get("summary"),
       location: get("location"),
-      allDay: this.shadowRoot.getElementById("all_day")?.checked ?? this._form.allDay,
-      start: get("start"),
-      end: get("end"),
+      allDay,
+      start: startValue,
+      end: endValue,
       rrule: get("rrule"),
       service,
       target,
