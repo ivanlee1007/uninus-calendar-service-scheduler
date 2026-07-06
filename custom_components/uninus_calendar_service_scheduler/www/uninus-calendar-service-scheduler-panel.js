@@ -337,7 +337,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     }
     const endMode = this.shadowRoot.getElementById("recurrence_end")?.value || "never";
     if (endMode === "until") {
-      const until = this._untilFromDate(this.shadowRoot.getElementById("recurrence_until")?.value || "");
+      const untilDate = this.shadowRoot.getElementById("recurrence_until")?.value || this._dateInputValue(safeStart);
+      const until = this._untilFromDate(untilDate);
       if (until) parts.push(`UNTIL=${until}`);
     } else if (endMode === "count") {
       const count = Math.max(parseInt(this.shadowRoot.getElementById("recurrence_count")?.value || "1", 10) || 1, 1);
