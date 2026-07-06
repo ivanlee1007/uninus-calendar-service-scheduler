@@ -398,9 +398,16 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       serviceControl.hass = this._hass;
       serviceControl.value = this._form.serviceAction || { action: "", target: {}, data: {} };
       serviceControl.addEventListener("value-changed", (ev) => {
-        this._form.serviceAction = ev.detail?.value || { action: "", target: {}, data: {} };
-        this._form.service = this._form.serviceAction.action || "";
-        this._form.target = this._form.serviceAction.target || {};
+        const nextValue = ev.detail?.value || {};
+        const nextAction = nextValue.action || nextValue.service || "";
+        if (!nextAction && this._form.service) return;
+        this._form.serviceAction = {
+          action: nextAction,
+          target: nextValue.target || this._form.target || {},
+          data: nextValue.data || {},
+        };
+        this._form.service = nextAction;
+        this._form.target = this._form.serviceAction.target;
         this._form.data = JSON.stringify(this._form.serviceAction.data || {}, null, 2);
       });
     }
@@ -427,11 +434,13 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   _captureForm() {
     const get = (id) => this.shadowRoot.getElementById(id)?.value ?? this._form[id] ?? "";
     const serviceControlValue = this.shadowRoot.getElementById("service-control")?.value;
+    const serviceControlAction = serviceControlValue?.action || serviceControlValue?.service || "";
     const explicitEntityId = this.shadowRoot.getElementById("entity-picker")?.value || get("entity");
     const target = {
       ...(serviceControlValue?.target || this._form.target || {}),
       ...(explicitEntityId ? { entity_id: explicitEntityId } : {}),
     };
+    const service = serviceControlAction || get("service") || this._form.service || "";
     this._form = {
       calendar: get("calendar"),
       summary: get("summary"),
@@ -440,9 +449,11 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       start: get("start"),
       end: get("end"),
       rrule: get("rrule"),
-      service: serviceControlValue?.action || get("service"),
+      service,
       target,
-      serviceAction: serviceControlValue || this._form.serviceAction || { action: get("service"), target, data: {} },
+      serviceAction: serviceControlAction
+        ? { action: serviceControlAction, target, data: serviceControlValue?.data || {} }
+        : (this._form.serviceAction || { action: service, target, data: {} }),
       actionId: this._form.actionId || "",
       uid: this._form.uid || "",
       recurrenceId: this._form.recurrenceId || null,
@@ -506,6 +517,21 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .replace(/\n*HA_SERVICE_ACTION_ID:\s*[a-f0-9]+/i, "")
       .replace(/\n*Created by Uninus Calendar Service Scheduler/i, "")
       .trim();
+  }
+
+  _eventByActionId(actionId) {
+    if (!actionId) return undefined;
+    return this._events.find((ev) => this._actionIdFromDescription(ev.description || "") === actionId);
+  }
+
+  _currentEventUid() {
+    const actionEvent = this._eventByActionId(this._form.actionId);
+    return this._form.uid || this._editingEvent?.uid || actionEvent?.uid || "";
+  }
+
+  _currentEventRecurrenceId() {
+    const actionEvent = this._eventByActionId(this._form.actionId);
+    return this._form.recurrenceId ?? this._editingEvent?.recurrence_id ?? actionEvent?.recurrence_id;
   }
 
   _openDialog(dateKey) {
@@ -572,8 +598,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   }
 
   async _updateCurrentEvent(payload) {
-    const eventUid = this._form.uid || this._editingEvent?.uid || "";
-    const recurrenceId = this._form.recurrenceId ?? this._editingEvent?.recurrence_id;
+    const eventUid = this._currentEventUid();
+    const recurrenceId = this._currentEventRecurrenceId();
     if (!eventUid) throw new Error("此行程缺少 uid，無法更新");
     const actionId = this._form.actionId;
     if (actionId) {
@@ -596,8 +622,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
   async _deleteCurrentEvent() {
     try {
-      const eventUid = this._form.uid || this._editingEvent?.uid || "";
-      const recurrenceId = this._form.recurrenceId ?? this._editingEvent?.recurrence_id;
+      const eventUid = this._currentEventUid();
+      const recurrenceId = this._currentEventRecurrenceId();
       if (!eventUid) throw new Error("此行程缺少 uid，無法刪除");
       if (this._form.actionId) {
         await this._hass.callWS({
