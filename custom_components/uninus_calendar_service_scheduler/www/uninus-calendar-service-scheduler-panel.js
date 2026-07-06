@@ -6,6 +6,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._events = [];
     this._message = "";
     this._dialogOpen = false;
+    this._deleteConfirmOpen = false;
     this._selectedCalendar = "";
     this._selectedCalendars = [];
     this._loading = false;
@@ -464,6 +465,14 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .dialog { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(860px, calc(100vw - 32px)); max-height: min(860px, calc(100vh - 32px)); overflow: auto; z-index: 10; border-radius: 28px; background: var(--card-background-color); color: var(--primary-text-color); display: ${this._dialogOpen ? "block" : "none"}; box-shadow: 0 24px 38px rgba(0,0,0,.14), 0 9px 46px rgba(0,0,0,.12), 0 11px 15px rgba(0,0,0,.2); }
       .dialog header { padding: 24px 24px 8px; font-size: 22px; font-weight: 500; }
       .dialog .content { padding: 0 24px 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+      .delete-confirm { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(360px, calc(100vw - 48px)); z-index: 12; border-radius: 20px; background: var(--card-background-color); color: var(--primary-text-color); display: ${this._deleteConfirmOpen ? "block" : "none"}; box-shadow: 0 18px 34px rgba(0,0,0,.28); padding: 20px 16px 16px; }
+      .delete-confirm header { display: flex; align-items: center; gap: 12px; padding: 0 4px 10px; font-size: 22px; font-weight: 500; }
+      .delete-confirm .close { background: transparent; border-radius: 50%; padding: 8px; font-size: 24px; line-height: 1; }
+      .delete-confirm p { margin: 0 8px 24px; line-height: 1.45; color: var(--primary-text-color); }
+      .delete-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
+      .delete-actions button { border-radius: 22px; }
+      .delete-actions .text { background: transparent; color: var(--primary-color); padding-inline: 8px; }
+      .delete-actions .danger { background: var(--error-color, #dc3545); color: var(--text-primary-color, #fff); }
       .fullrow { grid-column: 1 / -1; }
       .checkbox { flex-direction: row; align-items: center; gap: 10px; }
       .checkbox input { width: auto; }
@@ -681,6 +690,25 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return `<button class="day-event ${isService ? "service" : ""}" data-uid="${this._escape(ev.uid || "")}" data-calendar="${this._escape(ev.__calendarEntity || this._selectedCalendar || "")}" title="${this._escape(ev.summary || "")}"><div class="event-time">${this._escape(time)}</div><div class="event-title">${this._escape(ev.summary || "(No title)")}</div></button>`;
   }
 
+  _isRecurringCurrentEvent() {
+    return Boolean(this._form?.rrule || this._form?.recurrenceId || this._editingEvent?.rrule || this._editingEvent?.recurrence_id);
+  }
+
+  _deleteConfirmTemplate() {
+    if (!this._editingEvent) return "";
+    const recurring = this._isRecurringCurrentEvent();
+    return `<section class="delete-confirm" role="alertdialog" aria-modal="true" aria-label="刪除行程">
+      <header><button class="close" id="delete-cancel-x" aria-label="取消">×</button><span>刪除行程</span></header>
+      <p>${recurring ? "僅刪除此行程、或所有未來的行程？" : "要刪除此行程嗎？"}</p>
+      <div class="delete-actions">
+        <button class="text" id="delete-cancel">取消</button>
+        ${recurring
+          ? `<button class="danger" id="delete-this-event">僅刪除此<br/>行程</button><button class="danger" id="delete-future-events">刪除所有未來<br/>行程</button>`
+          : `<button class="danger" id="delete-this-event">刪除行程</button>`}
+      </div>
+    </section>`;
+  }
+
   _dialogTemplate() {
     const f = this._form;
     return `
@@ -737,6 +765,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <button class="primary" id="create">${this._editingEvent ? "儲存修改" : "建立行程與服務"}</button>
         </div>
       </section>
+      ${this._deleteConfirmTemplate()}
     `;
   }
 
@@ -775,9 +804,13 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       ev.stopPropagation();
       this._openEventByUid(el.dataset.uid, el.dataset.calendar);
     }));
-    this.shadowRoot.querySelector(".scrim")?.addEventListener("click", () => this._closeDialog());
+    this.shadowRoot.querySelector(".scrim")?.addEventListener("click", () => this._deleteConfirmOpen ? this._closeDeleteConfirm() : this._closeDialog());
     this.shadowRoot.getElementById("cancel")?.addEventListener("click", () => this._closeDialog());
-    this.shadowRoot.getElementById("delete-event")?.addEventListener("click", () => this._deleteCurrentEvent());
+    this.shadowRoot.getElementById("delete-event")?.addEventListener("click", () => this._openDeleteConfirm());
+    this.shadowRoot.getElementById("delete-cancel")?.addEventListener("click", () => this._closeDeleteConfirm());
+    this.shadowRoot.getElementById("delete-cancel-x")?.addEventListener("click", () => this._closeDeleteConfirm());
+    this.shadowRoot.getElementById("delete-this-event")?.addEventListener("click", () => this._deleteCurrentEvent(""));
+    this.shadowRoot.getElementById("delete-future-events")?.addEventListener("click", () => this._deleteCurrentEvent("THISANDFUTURE"));
     this.shadowRoot.getElementById("create")?.addEventListener("click", () => this._create());
     ["calendar", "summary", "location", "start", "end", "recurrence", "recurrence_interval", "recurrence_monthly_mode", "recurrence_end", "recurrence_until", "recurrence_count", "rrule_custom", "service", "entity", "data", "description"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureForm());
@@ -999,8 +1032,19 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
   _closeDialog() {
     this._dialogOpen = false;
+    this._deleteConfirmOpen = false;
     this._editingEvent = undefined;
     this._message = "";
+    this._render();
+  }
+
+  _openDeleteConfirm() {
+    this._deleteConfirmOpen = true;
+    this._render();
+  }
+
+  _closeDeleteConfirm() {
+    this._deleteConfirmOpen = false;
     this._render();
   }
 
@@ -1100,12 +1144,15 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     });
   }
 
-  async _deleteCurrentEvent() {
+  async _deleteCurrentEvent(recurrenceRange = "") {
     try {
       const eventUid = this._currentEventUid();
       const recurrenceId = this._currentEventRecurrenceId();
       if (!eventUid) throw new Error("此行程缺少 uid，無法刪除");
-      if (this._form.actionId) {
+      const isRecurring = this._isRecurringCurrentEvent();
+      const deleteAllFuture = isRecurring && recurrenceRange === "THISANDFUTURE";
+      const deleteStoredAction = Boolean(this._form.actionId) && (!isRecurring || deleteAllFuture);
+      if (deleteStoredAction) {
         await this._hass.callWS({
           type: "call_service",
           domain: "uninus_calendar_service_scheduler",
@@ -1113,18 +1160,25 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           service_data: { action_id: this._form.actionId },
           return_response: true,
         });
+        this._actionOverrides?.delete(this._form.actionId);
       }
-      await this._hass.callWS({
+      const deleteMessage = {
         type: "calendar/event/delete",
         entity_id: this._form.calendar,
         uid: eventUid,
         recurrence_id: recurrenceId || undefined,
-      });
+        recurrence_range: isRecurring ? recurrenceRange : undefined,
+      };
+      await this._hass.callWS(deleteMessage);
+      this._deleteConfirmOpen = false;
       this._dialogOpen = false;
       this._editingEvent = undefined;
-      this._message = "已刪除行程。";
+      this._message = isRecurring && !deleteAllFuture
+        ? "已刪除此筆重複行程。"
+        : "已刪除行程。";
       await this._loadEvents();
     } catch (err) {
+      this._deleteConfirmOpen = false;
       this._message = `Error: ${err?.message || err}`;
       this._render();
     }
