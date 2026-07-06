@@ -572,7 +572,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   }
 
   async _updateCurrentEvent(payload) {
-    if (!this._editingEvent?.uid) throw new Error("此行程缺少 uid，無法更新");
+    const eventUid = this._form.uid || this._editingEvent?.uid || "";
+    const recurrenceId = this._form.recurrenceId ?? this._editingEvent?.recurrence_id;
+    if (!eventUid) throw new Error("此行程缺少 uid，無法更新");
     const actionId = this._form.actionId;
     if (actionId) {
       await this._hass.callWS({
@@ -586,15 +588,17 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     await this._hass.callWS({
       type: "calendar/event/update",
       entity_id: this._form.calendar,
-      uid: this._form.uid,
-      recurrence_id: this._form.recurrenceId || undefined,
+      uid: eventUid,
+      recurrence_id: recurrenceId || undefined,
       event: this._calendarEventPayload({ ...payload, action_id: actionId }),
     });
   }
 
   async _deleteCurrentEvent() {
     try {
-      if (!this._editingEvent?.uid) throw new Error("此行程缺少 uid，無法刪除");
+      const eventUid = this._form.uid || this._editingEvent?.uid || "";
+      const recurrenceId = this._form.recurrenceId ?? this._editingEvent?.recurrence_id;
+      if (!eventUid) throw new Error("此行程缺少 uid，無法刪除");
       if (this._form.actionId) {
         await this._hass.callWS({
           type: "call_service",
@@ -607,8 +611,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       await this._hass.callWS({
         type: "calendar/event/delete",
         entity_id: this._form.calendar,
-        uid: this._form.uid,
-        recurrence_id: this._form.recurrenceId || undefined,
+        uid: eventUid,
+        recurrence_id: recurrenceId || undefined,
       });
       this._dialogOpen = false;
       this._editingEvent = undefined;
