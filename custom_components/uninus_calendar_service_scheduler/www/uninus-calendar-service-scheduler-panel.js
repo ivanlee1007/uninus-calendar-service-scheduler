@@ -186,23 +186,164 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .join("");
   }
 
+  _parseRrule(rrule = "") {
+    const parsed = {};
+    String(rrule || "").split(";").forEach((part) => {
+      const [key, ...rest] = part.split("=");
+      if (key) parsed[key.trim().toUpperCase()] = rest.join("=").trim().toUpperCase();
+    });
+    return parsed;
+  }
+
   _recurrencePresetFromRrule(rrule = "") {
-    const normalized = String(rrule || "").trim().toUpperCase();
-    if (!normalized) return "";
-    if (normalized === "FREQ=DAILY") return "daily";
-    if (normalized === "FREQ=WEEKLY") return "weekly";
-    if (normalized === "FREQ=MONTHLY") return "monthly";
-    if (normalized === "FREQ=YEARLY") return "yearly";
+    const parsed = this._parseRrule(rrule);
+    if (!parsed.FREQ) return "";
+    if (parsed.FREQ === "DAILY") return "daily";
+    if (parsed.FREQ === "WEEKLY") return "weekly";
+    if (parsed.FREQ === "MONTHLY") return "monthly";
+    if (parsed.FREQ === "YEARLY") return "yearly";
     return "custom";
   }
 
-  _rruleFromRecurrencePreset(preset, existingRrule = "") {
-    if (preset === "daily") return "FREQ=DAILY";
-    if (preset === "weekly") return "FREQ=WEEKLY";
-    if (preset === "monthly") return "FREQ=MONTHLY";
-    if (preset === "yearly") return "FREQ=YEARLY";
-    if (preset === "custom") return existingRrule || "";
-    return "";
+  _recurrenceConfigFromRrule(rrule = "", startValue = this._form?.start) {
+    const parsed = this._parseRrule(rrule);
+    const start = new Date(startValue || this._localInputValue());
+    const safeStart = Number.isNaN(start.getTime()) ? new Date() : start;
+    const byday = parsed.BYDAY || "";
+    const config = {
+      preset: this._recurrencePresetFromRrule(rrule),
+      interval: Math.max(parseInt(parsed.INTERVAL || "1", 10) || 1, 1),
+      weekdays: byday ? byday.split(",").filter(Boolean) : [this._weekdayCode(safeStart.getDay())],
+      monthlyMode: parsed.BYDAY ? "weekday" : "monthday",
+      end: parsed.COUNT ? "count" : (parsed.UNTIL ? "until" : "never"),
+      count: Math.max(parseInt(parsed.COUNT || "10", 10) || 10, 1),
+      until: parsed.UNTIL ? this._dateFromUntil(parsed.UNTIL) : this._dateInputValue(safeStart),
+      custom: String(rrule || ""),
+    };
+    return config;
+  }
+
+  _dateFromUntil(value = "") {
+    const raw = String(value || "");
+    if (/^\d{8}/.test(raw)) return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
+    return this._dateInputValue(new Date());
+  }
+
+  _untilFromDate(value = "") {
+    const compact = String(value || "").replace(/-/g, "");
+    return /^\d{8}$/.test(compact) ? `${compact}T235959Z` : "";
+  }
+
+  _weekdayCode(dayIndex) {
+    return ["SU", "MO", "TU", "WE", "TH", "FR", "SA"][dayIndex] || "MO";
+  }
+
+  _weekdayLabel(code) {
+    return { SU: "日", MO: "一", TU: "二", WE: "三", TH: "四", FR: "五", SA: "六" }[code] || code;
+  }
+
+  _weekdayLongLabel(code) {
+    return { SU: "週日", MO: "週一", TU: "週二", WE: "週三", TH: "週四", FR: "週五", SA: "週六" }[code] || code;
+  }
+
+  _nthWeekdayOfMonth(date) {
+    return Math.floor((date.getDate() - 1) / 7) + 1;
+  }
+
+  _nthLabel(n) {
+    return ["", "第一個", "第二個", "第三個", "第四個", "第五個"][n] || `第 ${n} 個`;
+  }
+
+  _monthlyOptions(startValue = this._form?.start, selected = "monthday") {
+    const date = new Date(startValue || this._localInputValue());
+    const safeDate = Number.isNaN(date.getTime()) ? new Date() : date;
+    const day = safeDate.getDate();
+    const nth = this._nthWeekdayOfMonth(safeDate);
+    const weekday = this._weekdayLongLabel(this._weekdayCode(safeDate.getDay()));
+    return [
+      ["monthday", `每月 在 ${day}`],
+      ["weekday", `每月 在${this._nthLabel(nth)}${weekday}`],
+    ].map(([value, label]) => `<option value="${value}" ${value === selected ? "selected" : ""}>${this._escape(label)}</option>`).join("");
+  }
+
+  _yearlyRuleLabel(startValue = this._form?.start) {
+    const date = new Date(startValue || this._localInputValue());
+    const safeDate = Number.isNaN(date.getTime()) ? new Date() : date;
+    return `每年 在 ${safeDate.getMonth() + 1} 月 ${safeDate.getDate()} 日`;
+  }
+
+  _recurrenceTemplate() {
+    const f = this._form;
+    const config = this._recurrenceConfigFromRrule(f.rrule, f.start);
+    const preset = config.preset;
+    const unit = { daily: "日", weekly: "週", monthly: "月", yearly: "年" }[preset] || "";
+    const weekdayOrder = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+    return `
+      <label class="fullrow">重複
+        <select id="recurrence">${this._recurrenceOptions(f.rrule)}</select>
+      </label>
+      ${preset && preset !== "custom" ? `<label class="fullrow">重複頻率
+        <div class="inline-field"><input id="recurrence_interval" type="number" min="1" step="1" value="${this._escape(config.interval)}" /><span>${unit}</span></div>
+      </label>` : ""}
+      ${preset === "weekly" ? `<div class="fullrow recurrence-weekdays" aria-label="每週重複日">
+        ${weekdayOrder.map((code) => `<label class="weekday-chip"><input class="recurrence-weekday" type="checkbox" value="${code}" ${config.weekdays.includes(code) ? "checked" : ""}/><span>${this._weekdayLabel(code)}</span></label>`).join("")}
+      </div>` : ""}
+      ${preset === "monthly" ? `<label class="fullrow">每月重複
+        <select id="recurrence_monthly_mode">${this._monthlyOptions(f.start, config.monthlyMode)}</select>
+      </label>` : ""}
+      ${preset === "yearly" ? `<div class="fullrow field-note recurrence-summary">${this._escape(this._yearlyRuleLabel(f.start))}</div>` : ""}
+      ${preset && preset !== "custom" ? `<label class="fullrow">結束
+        <select id="recurrence_end">
+          <option value="never" ${config.end === "never" ? "selected" : ""}>持續不停</option>
+          <option value="until" ${config.end === "until" ? "selected" : ""}>直到日期</option>
+          <option value="count" ${config.end === "count" ? "selected" : ""}>重複次數</option>
+        </select>
+      </label>
+      ${config.end === "until" ? `<label class="fullrow">直到
+        <input id="recurrence_until" type="date" value="${this._escape(config.until)}" />
+      </label>` : ""}
+      ${config.end === "count" ? `<label class="fullrow">重複次數
+        <input id="recurrence_count" type="number" min="1" step="1" value="${this._escape(config.count)}" />
+      </label>` : ""}` : ""}
+      ${preset === "custom" ? `<label class="fullrow">自訂 RRULE
+        <input id="rrule_custom" value="${this._escape(f.rrule)}" placeholder="FREQ=WEEKLY;COUNT=4" />
+      </label>` : ""}
+    `;
+  }
+
+  _rruleFromRecurrenceControls() {
+    const preset = this.shadowRoot.getElementById("recurrence")?.value || "";
+    if (!preset) return "";
+    if (preset === "custom") return this.shadowRoot.getElementById("rrule_custom")?.value || this._form.rrule || "";
+    const parts = [`FREQ=${{ daily: "DAILY", weekly: "WEEKLY", monthly: "MONTHLY", yearly: "YEARLY" }[preset]}`];
+    const interval = Math.max(parseInt(this.shadowRoot.getElementById("recurrence_interval")?.value || "1", 10) || 1, 1);
+    if (interval > 1) parts.push(`INTERVAL=${interval}`);
+    const start = new Date(this.shadowRoot.getElementById("start")?.value || this._form.start || this._localInputValue());
+    const safeStart = Number.isNaN(start.getTime()) ? new Date() : start;
+    if (preset === "weekly") {
+      const days = Array.from(this.shadowRoot.querySelectorAll(".recurrence-weekday:checked")).map((el) => el.value);
+      parts.push(`BYDAY=${(days.length ? days : [this._weekdayCode(safeStart.getDay())]).join(",")}`);
+    }
+    if (preset === "monthly") {
+      if (this.shadowRoot.getElementById("recurrence_monthly_mode")?.value === "weekday") {
+        parts.push(`BYDAY=${this._nthWeekdayOfMonth(safeStart)}${this._weekdayCode(safeStart.getDay())}`);
+      } else {
+        parts.push(`BYMONTHDAY=${safeStart.getDate()}`);
+      }
+    }
+    if (preset === "yearly") {
+      parts.push(`BYMONTH=${safeStart.getMonth() + 1}`);
+      parts.push(`BYMONTHDAY=${safeStart.getDate()}`);
+    }
+    const endMode = this.shadowRoot.getElementById("recurrence_end")?.value || "never";
+    if (endMode === "until") {
+      const until = this._untilFromDate(this.shadowRoot.getElementById("recurrence_until")?.value || "");
+      if (until) parts.push(`UNTIL=${until}`);
+    } else if (endMode === "count") {
+      const count = Math.max(parseInt(this.shadowRoot.getElementById("recurrence_count")?.value || "1", 10) || 1, 1);
+      parts.push(`COUNT=${count}`);
+    }
+    return parts.join(";");
   }
 
   _entityOptions(selected = "") {
@@ -276,6 +417,14 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .native-control { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
       .native-label { font-weight: 500; }
       .field-note { color: var(--secondary-text-color); font-size: 12px; line-height: 1.35; }
+      .inline-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+      .inline-field span { color: var(--secondary-text-color); padding-inline-end: 12px; }
+      .recurrence-weekdays { display: flex; gap: 8px; flex-wrap: wrap; margin: -4px 0 10px; }
+      .weekday-chip { margin: 0; display: inline-flex; align-items: center; cursor: pointer; }
+      .weekday-chip input { position: absolute; opacity: 0; pointer-events: none; }
+      .weekday-chip span { min-width: 32px; padding: 8px 12px; border: 1px solid var(--divider-color); border-radius: 14px; text-align: center; background: var(--card-background-color); }
+      .weekday-chip input:checked + span { background: var(--primary-color); color: var(--text-primary-color); border-color: var(--primary-color); }
+      .recurrence-summary { margin-top: -8px; }
       textarea { min-height: 86px; font-family: var(--code-font-family, monospace); }
       button { border: 0; border-radius: 20px; padding: 10px 16px; cursor: pointer; font-weight: 600; background: var(--secondary-background-color); color: var(--primary-text-color); }
       button.primary { background: var(--primary-color); color: var(--text-primary-color); }
@@ -556,10 +705,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <label>End
             <input id="end" type="${f.allDay ? "date" : "datetime-local"}" value="${this._escape(f.end)}" />
           </label>
-          <label class="fullrow">重複
-            <select id="recurrence">${this._recurrenceOptions(f.rrule)}</select>
-            <div class="field-note">模仿 Home Assistant 原生「增加行程」：不重複、每年、每月、每週、每天。儲存時會自動產生 RRULE。</div>
-          </label>
+          ${this._recurrenceTemplate()}
           ${this._haPickersReady
             ? `<div class="fullrow native-control">
                  <div class="native-label">Service / Action</div>
@@ -632,10 +778,17 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("cancel")?.addEventListener("click", () => this._closeDialog());
     this.shadowRoot.getElementById("delete-event")?.addEventListener("click", () => this._deleteCurrentEvent());
     this.shadowRoot.getElementById("create")?.addEventListener("click", () => this._create());
-    ["calendar", "summary", "location", "start", "end", "recurrence", "service", "entity", "data", "description"].forEach((id) => {
+    ["calendar", "summary", "location", "start", "end", "recurrence", "recurrence_interval", "recurrence_monthly_mode", "recurrence_end", "recurrence_until", "recurrence_count", "rrule_custom", "service", "entity", "data", "description"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureForm());
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureForm());
     });
+    ["recurrence", "recurrence_end", "start"].forEach((id) => {
+      this.shadowRoot.getElementById(id)?.addEventListener("change", () => {
+        this._captureForm();
+        this._render();
+      });
+    });
+    this.shadowRoot.querySelectorAll(".recurrence-weekday").forEach((el) => el.addEventListener("change", () => this._captureForm()));
     const servicePicker = this.shadowRoot.getElementById("service-picker");
     if (servicePicker) {
       servicePicker.hass = this._hass;
@@ -696,8 +849,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       else delete target.entity_id;
     }
     const dataText = get("data");
-    const recurrencePreset = this.shadowRoot.getElementById("recurrence")?.value ?? this._recurrencePresetFromRrule(this._form.rrule);
-    const nextRrule = this._rruleFromRecurrencePreset(recurrencePreset, this._form.rrule);
+    const nextRrule = this._rruleFromRecurrenceControls();
     const allDay = this.shadowRoot.getElementById("all_day")?.checked ?? this._form.allDay;
     const startValue = get("start");
     let endValue = get("end");
