@@ -443,6 +443,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       service: serviceControlValue?.action || get("service"),
       target,
       serviceAction: serviceControlValue || this._form.serviceAction || { action: get("service"), target, data: {} },
+      actionId: this._form.actionId || "",
+      uid: this._form.uid || "",
+      recurrenceId: this._form.recurrenceId || null,
       data: serviceControlValue ? JSON.stringify(serviceControlValue.data || {}, null, 2) : get("data"),
       description: get("description"),
     };
