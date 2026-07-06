@@ -440,7 +440,6 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       servicePicker.value = this._form.service || "";
       servicePicker.addEventListener("value-changed", (ev) => {
         const nextService = ev.detail?.value || "";
-        if (!nextService && this._form.service) return;
         this._form.service = nextService;
         this._form.serviceAction = {
           action: this._form.service,
@@ -455,10 +454,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       entityPicker.value = this._form.target?.entity_id || "";
       entityPicker.addEventListener("value-changed", (ev) => {
         const entityId = ev.detail?.value || "";
-        this._form.target = {
-          ...(this._form.target || {}),
-          ...(entityId ? { entity_id: entityId } : {}),
-        };
+        const target = { ...(this._form.target || {}) };
+        if (entityId) target.entity_id = entityId;
+        else delete target.entity_id;
+        this._form.target = target;
       });
     }
     this.shadowRoot.getElementById("all_day")?.addEventListener("change", (ev) => this._toggleAllDay(ev.target.checked));
@@ -472,13 +471,15 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   _captureForm() {
     const get = (id) => this.shadowRoot.getElementById(id)?.value ?? this._form[id] ?? "";
     const previousDuration = this._durationMs(this._form.start, this._form.end);
-    const servicePickerValue = this.shadowRoot.getElementById("service-picker")?.value || "";
-    const explicitEntityId = this.shadowRoot.getElementById("entity-picker")?.value || get("entity");
-    const target = {
-      ...(this._form.target || {}),
-      ...(explicitEntityId ? { entity_id: explicitEntityId } : {}),
-    };
-    const service = servicePickerValue || get("service") || this._form.service || "";
+    const servicePicker = this.shadowRoot.getElementById("service-picker");
+    const entityPicker = this.shadowRoot.getElementById("entity-picker");
+    const service = servicePicker ? (servicePicker.value || "") : (get("service") || this._form.service || "");
+    const explicitEntityId = entityPicker ? (entityPicker.value || "") : get("entity");
+    const target = { ...(this._form.target || {}) };
+    if (entityPicker || this.shadowRoot.getElementById("entity")) {
+      if (explicitEntityId) target.entity_id = explicitEntityId;
+      else delete target.entity_id;
+    }
     const dataText = get("data");
     const allDay = this.shadowRoot.getElementById("all_day")?.checked ?? this._form.allDay;
     const startValue = get("start");
