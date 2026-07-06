@@ -55,9 +55,12 @@ CREATE_SCHEMA = vol.Schema(
         vol.Optional("all_day", default=False): cv.boolean,
         vol.Optional("location"): cv.string,
         vol.Optional("rrule"): cv.string,
-        vol.Required("service"): cv.string,
+        vol.Optional("service", default=""): cv.string,
         vol.Optional("target", default={}): dict,
         vol.Optional("data", default={}): dict,
+        vol.Optional("end_service", default=""): cv.string,
+        vol.Optional("end_target", default={}): dict,
+        vol.Optional("end_data", default={}): dict,
         vol.Optional(CONF_DESCRIPTION): cv.string,
     }
 )
@@ -204,6 +207,17 @@ def _allowed_services(hass: HomeAssistant) -> list[str]:
     )
 
 
+
+def _validate_service_pair(hass: HomeAssistant, service: str) -> None:
+    if not service:
+        return
+    allowed = _allowed_services(hass)
+    if allowed and not is_service_allowed(service, allowed):
+        raise vol.Invalid(
+            f"Service {service!r} is not allowed. Configure the integration allowlist first."
+        )
+    split_service(service)
+
 def _register_services_once(hass: HomeAssistant) -> None:
     """Register domain services once per HA runtime."""
     data = _entry_data(hass)
@@ -213,13 +227,12 @@ def _register_services_once(hass: HomeAssistant) -> None:
     async def _create(call: ServiceCall) -> dict[str, Any]:
         scheduler: CalendarServiceScheduler = _entry_data(hass)["scheduler"]
         store: ActionStore = _entry_data(hass)["store"]
-        service = call.data["service"]
-        allowed = _allowed_services(hass)
-        if allowed and not is_service_allowed(service, allowed):
-            raise vol.Invalid(
-                f"Service {service!r} is not allowed. Configure the integration allowlist first."
-            )
-        split_service(service)
+        service = call.data.get("service") or ""
+        end_service = call.data.get("end_service") or ""
+        if not service and not end_service:
+            raise vol.Invalid("Configure at least one start or end service action.")
+        _validate_service_pair(hass, service)
+        _validate_service_pair(hass, end_service)
         action = ScheduledAction.create(
             calendar_entity=call.data["calendar_entity"],
             summary=call.data["summary"],
@@ -228,6 +241,9 @@ def _register_services_once(hass: HomeAssistant) -> None:
             service=service,
             target=dict(call.data.get("target") or {}),
             data=dict(call.data.get("data") or {}),
+            end_service=end_service,
+            end_target=dict(call.data.get("end_target") or {}),
+            end_data=dict(call.data.get("end_data") or {}),
             description=call.data.get(CONF_DESCRIPTION),
             location=call.data.get("location"),
             rrule=call.data.get("rrule"),
@@ -271,13 +287,12 @@ def _register_services_once(hass: HomeAssistant) -> None:
         store: ActionStore = _entry_data(hass)["store"]
         action_id = call.data["action_id"]
         action = store.actions.get(action_id)
-        service = call.data["service"]
-        allowed = _allowed_services(hass)
-        if allowed and not is_service_allowed(service, allowed):
-            raise vol.Invalid(
-                f"Service {service!r} is not allowed. Configure the integration allowlist first."
-            )
-        split_service(service)
+        service = call.data.get("service") or ""
+        end_service = call.data.get("end_service") or ""
+        if not service and not end_service:
+            raise vol.Invalid("Configure at least one start or end service action.")
+        _validate_service_pair(hass, service)
+        _validate_service_pair(hass, end_service)
         if action is None:
             action = ScheduledAction.create(
                 calendar_entity=call.data["calendar_entity"],
@@ -287,6 +302,9 @@ def _register_services_once(hass: HomeAssistant) -> None:
                 service=service,
                 target=dict(call.data.get("target") or {}),
                 data=dict(call.data.get("data") or {}),
+                end_service=end_service,
+                end_target=dict(call.data.get("end_target") or {}),
+                end_data=dict(call.data.get("end_data") or {}),
                 description=call.data.get(CONF_DESCRIPTION),
                 location=call.data.get("location"),
                 rrule=call.data.get("rrule"),
@@ -300,6 +318,9 @@ def _register_services_once(hass: HomeAssistant) -> None:
         action.service = service
         action.target = dict(call.data.get("target") or {})
         action.data = dict(call.data.get("data") or {})
+        action.end_service = end_service
+        action.end_target = dict(call.data.get("end_target") or {})
+        action.end_data = dict(call.data.get("end_data") or {})
         action.description = call.data.get(CONF_DESCRIPTION)
         action.location = call.data.get("location")
         action.rrule = call.data.get("rrule")

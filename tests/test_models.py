@@ -63,3 +63,23 @@ def test_calendar_description_contains_marker():
     description = action.calendar_description()
     assert ACTION_MARKER in description
     assert action.action_id in description
+
+
+def test_start_and_end_service_actions_roundtrip():
+    action = ScheduledAction.create(
+        calendar_entity="calendar.local",
+        summary="Test",
+        start="2026-07-05T19:00:00+08:00",
+        end="2026-07-05T20:00:00+08:00",
+        service="light.turn_on",
+        target={"entity_id": "light.demo"},
+        data={"brightness_pct": 80},
+        end_service="light.turn_off",
+        end_target={"entity_id": "light.demo"},
+        end_data={},
+    )
+    loaded = ScheduledAction.from_dict(action.as_dict())
+    assert loaded.service == "light.turn_on"
+    assert loaded.end_service == "light.turn_off"
+    assert loaded.target == {"entity_id": "light.demo"}
+    assert loaded.end_target == {"entity_id": "light.demo"}

@@ -57,6 +57,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       service: "",
       target: {},
       serviceAction: { action: "", target: {}, data: {} },
+      endService: "",
+      endTarget: {},
+      endData: "",
+      endServiceAction: { action: "", target: {}, data: {} },
       actionId: "",
       uid: "",
       recurrenceId: null,
@@ -170,6 +174,29 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return [`<option value="">選擇 service</option>`]
       .concat(services.sort().map((id) => `<option value="${this._escape(id)}" ${id === selected ? "selected" : ""}>${this._escape(id)}</option>`))
       .join("");
+  }
+
+  _actionSection(prefix, title, service, target, dataText, note) {
+    const serviceId = `${prefix}_service`;
+    const pickerId = `${prefix}-service-picker`;
+    const entityId = `${prefix}-entity-picker`;
+    const fallbackEntityId = `${prefix}_entity`;
+    const dataId = `${prefix}_data`;
+    return `<fieldset class="action-section fullrow">
+      <legend>${this._escape(title)}</legend>
+      ${this._haPickersReady
+        ? `<div class="native-control"><div class="native-label">Service / Action</div><ha-service-picker id="${pickerId}" show-service-id></ha-service-picker></div>`
+        : `<label>Service<select id="${serviceId}">${this._serviceOptions(service)}</select></label>`}
+      <div class="native-control">
+        ${this._haEntityPickerReady
+          ? `<ha-entity-picker id="${entityId}" label="Target entity_id" show-entity-id allow-custom-entity></ha-entity-picker>`
+          : `<label>Target entity_id<select id="${fallbackEntityId}">${this._entityOptions(target?.entity_id || "")}</select></label>`}
+        <div class="field-note">${this._escape(note)}</div>
+      </div>
+      <label>Service data JSON
+        <textarea id="${dataId}" placeholder='{"brightness_pct": 80}'>${this._escape(dataText || "")}</textarea>
+      </label>
+    </fieldset>`;
   }
 
   _recurrenceOptions(selectedRrule = "") {
@@ -418,6 +445,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       ha-service-picker { display: block; width: 100%; }
       .native-control { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
       .native-label { font-weight: 500; }
+      .action-section { border: 1px solid var(--divider-color); border-radius: 16px; padding: 14px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+      .action-section legend { padding: 0 8px; font-weight: 700; }
+      .action-section textarea, .action-section label, .action-section .native-control { margin-bottom: 0; }
       .field-note { color: var(--secondary-text-color); font-size: 12px; line-height: 1.35; }
       .inline-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
       .inline-field span { color: var(--secondary-text-color); padding-inline-end: 12px; }
@@ -735,25 +765,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <input id="end" type="${f.allDay ? "date" : "datetime-local"}" value="${this._escape(f.end)}" />
           </label>
           ${this._recurrenceTemplate()}
-          ${this._haPickersReady
-            ? `<div class="fullrow native-control">
-                 <div class="native-label">Service / Action</div>
-                 <ha-service-picker id="service-picker" show-service-id></ha-service-picker>
-               </div>`
-            : `<label>Service
-                 <select id="service">${this._serviceOptions(f.service)}</select>
-                 <div class="field-note">找不到 HA 原生 ha-service-picker 時，使用 HA service 清單。</div>
-               </label>
-               `}
-          <div class="fullrow native-control">
-            ${this._haEntityPickerReady
-              ? `<ha-entity-picker id="entity-picker" label="Target entity_id" show-entity-id allow-custom-entity></ha-entity-picker>`
-              : `<label>Target entity_id<select id="entity">${this._entityOptions(f.target?.entity_id || "")}</select></label>`}
-            <div class="field-note">此欄位會寫入 service target。要更換目標時，直接在這裡選擇新的 entity。</div>
-          </div>
-          <label class="fullrow">Service data JSON
-            <textarea id="data" placeholder='{"brightness_pct": 80}'>${this._escape(f.data)}</textarea>
-          </label>
+          ${this._actionSection("start", "行程開始 Service Action", f.service, f.target, f.data, "行程開始時間觸發；留空表示開始時不執行 service action。")}
+          ${this._actionSection("end", "行程結束 Service Action", f.endService, f.endTarget, f.endData, "行程結束時間觸發；留空表示結束時不執行 service action。")}
           <label class="fullrow">Description
             <textarea id="description" placeholder="會顯示在 Local Calendar 事件描述中">${this._escape(f.description)}</textarea>
           </label>
@@ -812,7 +825,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("delete-this-event")?.addEventListener("click", () => this._deleteCurrentEvent(""));
     this.shadowRoot.getElementById("delete-future-events")?.addEventListener("click", () => this._deleteCurrentEvent("THISANDFUTURE"));
     this.shadowRoot.getElementById("create")?.addEventListener("click", () => this._create());
-    ["calendar", "summary", "location", "start", "end", "recurrence", "recurrence_interval", "recurrence_monthly_mode", "recurrence_end", "recurrence_until", "recurrence_count", "rrule_custom", "service", "entity", "data", "description"].forEach((id) => {
+    ["calendar", "summary", "location", "start", "end", "recurrence", "recurrence_interval", "recurrence_monthly_mode", "recurrence_end", "recurrence_until", "recurrence_count", "rrule_custom", "start_service", "start_entity", "start_data", "end_service", "end_entity", "end_data", "description"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureForm());
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureForm());
     });
@@ -823,33 +836,34 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       });
     });
     this.shadowRoot.querySelectorAll(".recurrence-weekday").forEach((el) => el.addEventListener("change", () => this._captureForm()));
-    const servicePicker = this.shadowRoot.getElementById("service-picker");
+    this._bindActionControls("start", "service", "target", "data");
+    this._bindActionControls("end", "endService", "endTarget", "endData");
+    this.shadowRoot.getElementById("all_day")?.addEventListener("change", (ev) => this._toggleAllDay(ev.target.checked));
+  }
+
+  _bindActionControls(prefix, serviceKey, targetKey, dataKey) {
+    const servicePicker = this.shadowRoot.getElementById(`${prefix}-service-picker`);
     if (servicePicker) {
       servicePicker.hass = this._hass;
-      servicePicker.value = this._form.service || "";
+      servicePicker.value = this._form[serviceKey] || "";
       servicePicker.addEventListener("value-changed", (ev) => {
-        const nextService = ev.detail?.value || "";
-        this._form.service = nextService;
-        this._form.serviceAction = {
-          action: this._form.service,
-          target: this._form.target || {},
-          data: this._parseServiceData(this._form.data),
-        };
+        this._form[serviceKey] = ev.detail?.value || "";
+        this._captureForm();
       });
     }
-    const entityPicker = this.shadowRoot.getElementById("entity-picker");
+    const entityPicker = this.shadowRoot.getElementById(`${prefix}-entity-picker`);
     if (entityPicker) {
       entityPicker.hass = this._hass;
-      entityPicker.value = this._form.target?.entity_id || "";
+      entityPicker.value = this._form[targetKey]?.entity_id || "";
       entityPicker.addEventListener("value-changed", (ev) => {
         const entityId = ev.detail?.value || "";
-        const target = { ...(this._form.target || {}) };
+        const target = { ...(this._form[targetKey] || {}) };
         if (entityId) target.entity_id = entityId;
         else delete target.entity_id;
-        this._form.target = target;
+        this._form[targetKey] = target;
+        this._captureForm();
       });
     }
-    this.shadowRoot.getElementById("all_day")?.addEventListener("change", (ev) => this._toggleAllDay(ev.target.checked));
   }
 
   _setViewMode(mode) {
@@ -873,16 +887,26 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   _captureForm() {
     const get = (id) => this.shadowRoot.getElementById(id)?.value ?? this._form[id] ?? "";
     const previousDuration = this._durationMs(this._form.start, this._form.end);
-    const servicePicker = this.shadowRoot.getElementById("service-picker");
-    const entityPicker = this.shadowRoot.getElementById("entity-picker");
-    const service = servicePicker ? (servicePicker.value || "") : (get("service") || this._form.service || "");
-    const explicitEntityId = entityPicker ? (entityPicker.value || "") : get("entity");
-    const target = { ...(this._form.target || {}) };
-    if (entityPicker || this.shadowRoot.getElementById("entity")) {
-      if (explicitEntityId) target.entity_id = explicitEntityId;
-      else delete target.entity_id;
-    }
-    const dataText = get("data");
+    const readService = (prefix, fallbackKey) => {
+      const picker = this.shadowRoot.getElementById(`${prefix}-service-picker`);
+      return picker ? (picker.value || "") : (get(`${prefix}_service`) || this._form[fallbackKey] || "");
+    };
+    const readTarget = (prefix, fallbackId, current = {}) => {
+      const picker = this.shadowRoot.getElementById(`${prefix}-entity-picker`);
+      const explicitEntityId = picker ? (picker.value || "") : get(fallbackId);
+      const target = { ...(current || {}) };
+      if (picker || this.shadowRoot.getElementById(fallbackId)) {
+        if (explicitEntityId) target.entity_id = explicitEntityId;
+        else delete target.entity_id;
+      }
+      return target;
+    };
+    const service = readService("start", "service");
+    const endService = readService("end", "endService");
+    const target = readTarget("start", "start_entity", this._form.target);
+    const endTarget = readTarget("end", "end_entity", this._form.endTarget);
+    const dataText = get("start_data");
+    const endDataText = get("end_data");
     const nextRrule = this._rruleFromRecurrenceControls();
     const allDay = this.shadowRoot.getElementById("all_day")?.checked ?? this._form.allDay;
     const startValue = get("start");
@@ -907,6 +931,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       service,
       target,
       serviceAction: { action: service, target, data: this._parseServiceData(dataText) },
+      endService,
+      endTarget,
+      endData: endDataText,
+      endServiceAction: { action: endService, target: endTarget, data: this._parseServiceData(endDataText) },
       actionId: this._form.actionId || "",
       uid: this._form.uid || "",
       recurrenceId: this._form.recurrenceId || null,
@@ -962,6 +990,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       target: storedAction?.target || {},
       data: JSON.stringify(storedAction?.data || {}, null, 2),
       serviceAction: { action: storedAction?.service || "", target: storedAction?.target || {}, data: storedAction?.data || {} },
+      endService: storedAction?.end_service || "",
+      endTarget: storedAction?.end_target || {},
+      endData: JSON.stringify(storedAction?.end_data || {}, null, 2),
+      endServiceAction: { action: storedAction?.end_service || "", target: storedAction?.end_target || {}, data: storedAction?.end_data || {} },
     };
     this._dialogOpen = true;
     this._message = actionId ? "" : "此事件沒有綁定 Uninus service action；可修改日曆事件，但不能更新 service action。";
@@ -987,6 +1019,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       service: payload.service,
       target: payload.target || {},
       data: payload.data || {},
+      end_service: payload.end_service || "",
+      end_target: payload.end_target || {},
+      end_data: payload.end_data || {},
       description: payload.description || "",
       location: payload.location || "",
       rrule: payload.rrule || "",
@@ -1110,11 +1145,12 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const recurrenceId = this._currentEventRecurrenceId();
     if (!eventUid) throw new Error("此行程缺少 uid，無法更新");
     let actionId = this._form.actionId;
-    if (payload.service && !actionId) {
+    const hasAnyService = Boolean(payload.service || payload.end_service);
+    if (hasAnyService && !actionId) {
       actionId = this._newActionId();
       this._form.actionId = actionId;
     }
-    if (payload.service && actionId) {
+    if (hasAnyService && actionId) {
       await this._hass.callWS({
         type: "call_service",
         domain: "uninus_calendar_service_scheduler",
@@ -1123,7 +1159,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         return_response: true,
       });
       this._rememberActionOverride(actionId, payload, eventUid);
-    } else if (!payload.service && actionId) {
+    } else if (!hasAnyService && actionId) {
       await this._hass.callWS({
         type: "call_service",
         domain: "uninus_calendar_service_scheduler",
@@ -1189,6 +1225,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       this._captureForm();
       const f = this._form;
       const serviceData = f.service && f.data ? JSON.parse(f.data) : {};
+      const endServiceData = f.endService && f.endData ? JSON.parse(f.endData) : {};
       const payload = {
         calendar_entity: f.calendar,
         summary: f.summary,
@@ -1200,6 +1237,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         service: f.service,
         target: f.target || {},
         data: serviceData,
+        end_service: f.endService,
+        end_target: f.endTarget || {},
+        end_data: endServiceData,
         description: f.description,
       };
       for (const field of ["calendar_entity", "summary", "start"]) {
@@ -1208,7 +1248,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       const wasEditing = Boolean(this._editingEvent);
       if (wasEditing) {
         await this._updateCurrentEvent(payload);
-      } else if (!payload.service) {
+      } else if (!payload.service && !payload.end_service) {
         await this._createCalendarOnlyEvent(payload);
       } else {
         await this._hass.callWS({
@@ -1221,7 +1261,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       }
       this._dialogOpen = false;
       this._editingEvent = undefined;
-      this._message = wasEditing ? "已更新行程。" : (payload.service ? "已建立行程與服務排程。" : "已建立行程。此行程不會執行 service action。");
+      this._message = wasEditing ? "已更新行程。" : ((payload.service || payload.end_service) ? "已建立行程與開始/結束服務排程。" : "已建立行程。此行程不會執行 service action。");
       await this._loadEvents();
     } catch (err) {
       this._message = `Error: ${err?.message || err}`;

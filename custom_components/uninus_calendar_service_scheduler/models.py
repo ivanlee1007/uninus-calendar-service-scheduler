@@ -19,9 +19,12 @@ class ScheduledAction:
     summary: str
     start: str
     end: str | None
-    service: str
+    service: str = ""
     target: dict[str, Any] = field(default_factory=dict)
     data: dict[str, Any] = field(default_factory=dict)
+    end_service: str = ""
+    end_target: dict[str, Any] = field(default_factory=dict)
+    end_data: dict[str, Any] = field(default_factory=dict)
     description: str | None = None
     location: str | None = None
     rrule: str | None = None
@@ -40,9 +43,12 @@ class ScheduledAction:
         summary: str,
         start: str,
         end: str | None,
-        service: str,
+        service: str = "",
         target: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
+        end_service: str = "",
+        end_target: dict[str, Any] | None = None,
+        end_data: dict[str, Any] | None = None,
         description: str | None = None,
         location: str | None = None,
         rrule: str | None = None,
@@ -58,6 +64,9 @@ class ScheduledAction:
             service=service,
             target=target or {},
             data=data or {},
+            end_service=end_service,
+            end_target=end_target or {},
+            end_data=end_data or {},
             description=description,
             location=location,
             rrule=rrule,
@@ -74,9 +83,12 @@ class ScheduledAction:
             summary=str(raw.get("summary") or "Scheduled service action"),
             start=str(raw["start"]),
             end=raw.get("end"),
-            service=str(raw["service"]),
+            service=str(raw.get("service") or ""),
             target=dict(raw.get("target") or {}),
             data=dict(raw.get("data") or {}),
+            end_service=str(raw.get("end_service") or ""),
+            end_target=dict(raw.get("end_target") or {}),
+            end_data=dict(raw.get("end_data") or {}),
             description=raw.get("description"),
             location=raw.get("location"),
             rrule=raw.get("rrule"),
@@ -99,6 +111,9 @@ class ScheduledAction:
             "service": self.service,
             "target": self.target,
             "data": self.data,
+            "end_service": self.end_service,
+            "end_target": self.end_target,
+            "end_data": self.end_data,
             "description": self.description,
             "location": self.location,
             "rrule": self.rrule,
