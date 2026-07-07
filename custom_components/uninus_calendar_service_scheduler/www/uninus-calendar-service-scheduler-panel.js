@@ -713,7 +713,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const actionId = this._actionIdFromDescription(desc);
     const isService = Boolean(actionId);
     const time = this._formatEventTime(ev);
-    return `<button class="pill ${isService ? "service" : ""}" data-uid="${this._escape(ev.uid || "")}" data-calendar="${this._escape(ev.__calendarEntity || this._selectedCalendar || "")}" title="${this._escape(ev.summary || "")}">${time ? `<span class="time">${time}</span>` : ""}${this._escape(ev.summary || "(No title)")}</button>`;
+    return `<button class="pill ${isService ? "service" : ""}" data-uid="${this._escape(ev.uid || "")}" data-recurrence-id="${this._escape(ev.recurrence_id || "")}" data-calendar="${this._escape(ev.__calendarEntity || this._selectedCalendar || "")}" title="${this._escape(ev.summary || "")}">${time ? `<span class="time">${time}</span>` : ""}${this._escape(ev.summary || "(No title)")}</button>`;
   }
 
   _dayEvent(ev) {
@@ -721,7 +721,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const actionId = this._actionIdFromDescription(desc);
     const isService = Boolean(actionId);
     const time = this._formatEventTime(ev, true) || "全天";
-    return `<button class="day-event ${isService ? "service" : ""}" data-uid="${this._escape(ev.uid || "")}" data-calendar="${this._escape(ev.__calendarEntity || this._selectedCalendar || "")}" title="${this._escape(ev.summary || "")}"><div class="event-time">${this._escape(time)}</div><div class="event-title">${this._escape(ev.summary || "(No title)")}</div></button>`;
+    return `<button class="day-event ${isService ? "service" : ""}" data-uid="${this._escape(ev.uid || "")}" data-recurrence-id="${this._escape(ev.recurrence_id || "")}" data-calendar="${this._escape(ev.__calendarEntity || this._selectedCalendar || "")}" title="${this._escape(ev.summary || "")}"><div class="event-time">${this._escape(time)}</div><div class="event-title">${this._escape(ev.summary || "(No title)")}</div></button>`;
   }
 
   _isRecurringCurrentEvent() {
@@ -834,7 +834,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.querySelectorAll(".date-cell").forEach((el) => el.addEventListener("dblclick", () => this._openDialog(el.dataset.date)));
     this.shadowRoot.querySelectorAll(".pill[data-uid], .day-event[data-uid]").forEach((el) => el.addEventListener("click", (ev) => {
       ev.stopPropagation();
-      this._openEventByUid(el.dataset.uid, el.dataset.calendar);
+      this._openEventByUid(el.dataset.uid, el.dataset.calendar, el.dataset.recurrenceId || "");
     }));
     this.shadowRoot.querySelector(".scrim")?.addEventListener("click", () => this._deleteConfirmOpen ? this._closeDeleteConfirm() : (this._editConfirmOpen ? this._closeEditConfirm() : this._closeDialog()));
     this.shadowRoot.getElementById("cancel")?.addEventListener("click", () => this._closeDialog());
@@ -987,8 +987,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._render();
   }
 
-  _openEventByUid(uid, calendarEntity = "") {
-    const event = this._events.find((ev) => ev.uid === uid && (!calendarEntity || ev.__calendarEntity === calendarEntity));
+  _openEventByUid(uid, calendarEntity = "", recurrenceId = "") {
+    const event = this._events.find((ev) => ev.uid === uid && (!calendarEntity || ev.__calendarEntity === calendarEntity) && (!recurrenceId || ev.recurrence_id === recurrenceId));
     if (!event) return;
     const actionId = this._actionIdFromDescription(event.description || "");
     const storedAction = this._storedAction(actionId);
@@ -1282,12 +1282,56 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     }
   }
 
+  async _updateSingleOccurrenceEvent(payload) {
+    const eventUid = this._currentEventUid();
+    const recurrenceId = this._currentEventRecurrenceId();
+    if (!eventUid) throw new Error("此行程缺少 uid，無法更新");
+    const singlePayload = { ...payload, rrule: "" };
+    let actionId = "";
+    if (singlePayload.service || singlePayload.end_service) {
+      actionId = this._newActionId();
+      await this._hass.callWS({
+        type: "call_service",
+        domain: "uninus_calendar_service_scheduler",
+        service: "update_event_action",
+        service_data: { ...singlePayload, action_id: actionId, calendar_event_uid: eventUid },
+        return_response: true,
+      });
+      this._rememberActionOverride(actionId, singlePayload, eventUid);
+    }
+    try {
+      await this._hass.callWS({
+        type: "calendar/event/update",
+        entity_id: this._form.calendar,
+        uid: eventUid,
+        recurrence_id: recurrenceId || undefined,
+        event: this._calendarEventPayload({ ...singlePayload, action_id: actionId }),
+      });
+    } catch (err) {
+      if (actionId) {
+        await this._hass.callWS({
+          type: "call_service",
+          domain: "uninus_calendar_service_scheduler",
+          service: "delete_event_action",
+          service_data: { action_id: actionId },
+          return_response: true,
+        });
+        this._actionOverrides?.delete(actionId);
+      }
+      throw err;
+    }
+  }
+
   async _updateCurrentEvent(payload, scope = "this") {
     const eventUid = this._currentEventUid();
     const recurrenceId = this._currentEventRecurrenceId();
     if (!eventUid) throw new Error("此行程缺少 uid，無法更新");
     if (this._isRecurringCurrentEvent() && scope === "future") {
       await this._updateFutureEvents(payload);
+      return;
+    }
+    if (this._isRecurringCurrentEvent() && recurrenceId && scope === "this") {
+      await this._updateSingleOccurrenceEvent(payload);
       return;
     }
     let actionId = this._form.actionId;
