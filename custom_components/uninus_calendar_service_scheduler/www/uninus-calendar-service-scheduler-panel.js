@@ -412,6 +412,21 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return `${date.getFullYear()}-${this._pad(date.getMonth() + 1)}-${this._pad(date.getDate())}`;
   }
 
+  _addDays(dateValue, days = 1) {
+    const [year, month, day] = String(dateValue || "").slice(0, 10).split("-").map((part) => parseInt(part, 10));
+    if (!year || !month || !day) return dateValue;
+    const date = new Date(year, month - 1, day);
+    date.setDate(date.getDate() + days);
+    return this._dateInputValue(date);
+  }
+
+  _exclusiveAllDayEndDate(startValue, endValue) {
+    const start = String(startValue || "").slice(0, 10);
+    const end = String(endValue || start).slice(0, 10);
+    if (!start) return end;
+    return !end || end <= start ? this._addDays(start, 1) : end;
+  }
+
   _toIsoWithOffset(localValue) {
     if (!localValue) return "";
     const date = new Date(localValue);
@@ -949,7 +964,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       location: get("location"),
       allDay,
       start: startValue,
-      end: endValue,
+      end: allDay ? this._exclusiveAllDayEndDate(startValue, endValue) : endValue,
       rrule: nextRrule,
       service,
       target,
@@ -979,7 +994,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._form.allDay = allDay;
     if (allDay) {
       this._form.start = (this._form.start || this._dateInputValue()).slice(0, 10);
-      this._form.end = (this._form.end || this._dateInputValue(new Date(Date.now() + 86400000))).slice(0, 10);
+      this._form.end = this._exclusiveAllDayEndDate(this._form.start, this._form.end || this._dateInputValue(new Date(Date.now() + 86400000)));
     } else {
       this._form.start = this._localInputValue(new Date(`${this._form.start}T00:00:00`));
       this._form.end = this._localInputValue(new Date(`${this._form.end}T00:00:00`));
@@ -1133,7 +1148,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return {
       summary: payload.summary,
       dtstart: payload.all_day ? payload.start.slice(0, 10) : payload.start,
-      dtend: payload.all_day ? (payload.end || payload.start).slice(0, 10) : payload.end || payload.start,
+      dtend: payload.all_day ? this._exclusiveAllDayEndDate(payload.start, payload.end) : payload.end || payload.start,
       description: this._calendarDescription(payload.description, payload.action_id || this._form.actionId),
       ...(payload.location ? { location: payload.location } : {}),
       ...(payload.rrule ? { rrule: payload.rrule } : {}),
@@ -1419,8 +1434,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       const payload = {
         calendar_entity: f.calendar,
         summary: f.summary,
-        start: f.allDay ? `${f.start}T00:00:00` : this._toIsoWithOffset(f.start),
-        end: f.allDay ? `${f.end}T00:00:00` : this._toIsoWithOffset(f.end),
+        start: f.allDay ? `${f.start.slice(0, 10)}T00:00:00` : this._toIsoWithOffset(f.start),
+        end: f.allDay ? `${this._exclusiveAllDayEndDate(f.start, f.end)}T00:00:00` : this._toIsoWithOffset(f.end),
         all_day: f.allDay,
         location: f.location,
         rrule: f.rrule,
