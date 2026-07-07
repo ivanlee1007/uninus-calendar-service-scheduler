@@ -112,14 +112,34 @@ update_event_action:
       selector:
         text:
     service:
-      required: true
+      name: Start service
+      description: Service to run when the calendar event starts. Leave empty if only an end action is needed.
+      required: false
       selector:
         text:
     target:
+      name: Start target
       required: false
       selector:
         object:
     data:
+      name: Start data
+      required: false
+      selector:
+        object:
+    end_service:
+      name: End service
+      description: Service to run when the calendar event ends. Leave empty if no end action is needed.
+      required: false
+      selector:
+        text:
+    end_target:
+      name: End target
+      required: false
+      selector:
+        object:
+    end_data:
+      name: End data
       required: false
       selector:
         object:
