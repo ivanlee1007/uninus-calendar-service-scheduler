@@ -4,7 +4,7 @@ from __future__ import annotations
 
 DOMAIN = "uninus_calendar_service_scheduler"
 NAME = "Uninus Calendar Service Scheduler"
-VERSION = "0.4.22"
+VERSION = "0.4.23"
 
 CARD_FILENAME = "uninus-calendar-service-scheduler-card.js"
 CARD_RESOURCE_URL = f"/{DOMAIN}/{CARD_FILENAME}?v={VERSION}"
@@ -17,8 +17,27 @@ CONF_ALLOWED_SERVICES = "allowed_services"
 CONF_DEFAULT_CALENDAR = "default_calendar"
 CONF_SCAN_DAYS_AHEAD = "scan_days_ahead"
 
-# Empty means unrestricted: any Home Assistant domain.service can be scheduled.
+# Legacy allowlist kept for backward compatibility. Empty means unrestricted.
 DEFAULT_ALLOWED_SERVICES = []
+# Denylist for high-risk services. Everything not listed here is schedulable.
+DEFAULT_BLOCKED_SERVICES = [
+    "homeassistant.restart",
+    "homeassistant.stop",
+    "homeassistant.reload_all",
+    "homeassistant.set_location",
+    "hassio.host_reboot",
+    "hassio.host_shutdown",
+    "hassio.restore_full",
+    "hassio.restore_partial",
+    "hassio.app_stop",
+    "hassio.app_restart",
+    "hassio.addon_stop",
+    "hassio.addon_restart",
+    "update.install",
+    "recorder.purge",
+    "recorder.purge_entities",
+    "recorder.disable",
+]
 DEFAULT_SCAN_DAYS_AHEAD = 30
 
 SERVICE_CREATE_EVENT_ACTION = "create_event_action"

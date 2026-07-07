@@ -23,6 +23,7 @@ from .const import (
     CARD_RESOURCE_URL,
     CONF_ALLOWED_SERVICES,
     DEFAULT_ALLOWED_SERVICES,
+    DEFAULT_BLOCKED_SERVICES,
     DOMAIN,
     PANEL_URL,
     PANEL_URL_PATH,
@@ -208,17 +209,25 @@ def _allowed_services(hass: HomeAssistant) -> list[str]:
 
 
 
-def _validate_service_pair(hass: HomeAssistant, service: str) -> None:
-    """Validate service syntax.
+def _blocked_services(hass: HomeAssistant) -> list[str]:
+    """Return high-risk service denylist patterns."""
+    return DEFAULT_BLOCKED_SERVICES
 
-    The scheduler intentionally allows every Home Assistant service. The old
-    allowlist remains in config only for backward compatibility and is no longer
-    enforced, because the panel is an admin scheduling surface and users expect
-    services like backup.create_automatic to work.
+
+def _validate_service_pair(hass: HomeAssistant, service: str) -> None:
+    """Validate service syntax and block known high-risk services.
+
+    The scheduler allows all Home Assistant services except the explicit
+    high-risk denylist. The legacy allowed_services option remains for backward
+    compatibility and is not enforced.
     """
     if not service:
         return
     split_service(service)
+    if is_service_allowed(service, _blocked_services(hass)):
+        raise vol.Invalid(
+            f"Service {service!r} is blocked because it is considered high risk."
+        )
 
 def _register_services_once(hass: HomeAssistant) -> None:
     """Register domain services once per HA runtime."""

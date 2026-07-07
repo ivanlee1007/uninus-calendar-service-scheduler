@@ -36,12 +36,19 @@ def test_split_service():
     assert split_service("light.turn_on") == ("light", "turn_on")
 
 
-def test_allowed_services_exact_and_wildcard():
-    allowed = ["light.turn_on", "script.*", "backup.*"]
-    assert is_service_allowed("light.turn_on", allowed)
-    assert is_service_allowed("script.turn_on", allowed)
-    assert is_service_allowed("backup.create_automatic", allowed)
-    assert not is_service_allowed("homeassistant.restart", allowed)
+def test_service_pattern_matching_exact_and_wildcard():
+    patterns = ["light.turn_on", "script.*", "backup.*"]
+    assert is_service_allowed("light.turn_on", patterns)
+    assert is_service_allowed("script.turn_on", patterns)
+    assert is_service_allowed("backup.create_automatic", patterns)
+    assert not is_service_allowed("homeassistant.restart", patterns)
+
+
+def test_high_risk_denylist_patterns():
+    blocked = ["homeassistant.restart", "update.install", "recorder.purge"]
+    assert is_service_allowed("homeassistant.restart", blocked)
+    assert is_service_allowed("update.install", blocked)
+    assert not is_service_allowed("backup.create_automatic", blocked)
 
 
 def test_normalize_allowed_services_from_text():
