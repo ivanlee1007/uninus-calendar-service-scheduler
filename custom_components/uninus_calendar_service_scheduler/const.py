@@ -4,7 +4,7 @@ from __future__ import annotations
 
 DOMAIN = "uninus_calendar_service_scheduler"
 NAME = "Uninus Calendar Service Scheduler"
-VERSION = "0.4.21"
+VERSION = "0.4.22"
 
 CARD_FILENAME = "uninus-calendar-service-scheduler-card.js"
 CARD_RESOURCE_URL = f"/{DOMAIN}/{CARD_FILENAME}?v={VERSION}"
@@ -17,15 +17,8 @@ CONF_ALLOWED_SERVICES = "allowed_services"
 CONF_DEFAULT_CALENDAR = "default_calendar"
 CONF_SCAN_DAYS_AHEAD = "scan_days_ahead"
 
-DEFAULT_ALLOWED_SERVICES = [
-    "light.turn_on",
-    "light.turn_off",
-    "switch.turn_on",
-    "switch.turn_off",
-    "scene.turn_on",
-    "script.turn_on",
-    "automation.trigger",
-]
+# Empty means unrestricted: any Home Assistant domain.service can be scheduled.
+DEFAULT_ALLOWED_SERVICES = []
 DEFAULT_SCAN_DAYS_AHEAD = 30
 
 SERVICE_CREATE_EVENT_ACTION = "create_event_action"

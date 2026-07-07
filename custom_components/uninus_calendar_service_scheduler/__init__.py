@@ -209,13 +209,15 @@ def _allowed_services(hass: HomeAssistant) -> list[str]:
 
 
 def _validate_service_pair(hass: HomeAssistant, service: str) -> None:
+    """Validate service syntax.
+
+    The scheduler intentionally allows every Home Assistant service. The old
+    allowlist remains in config only for backward compatibility and is no longer
+    enforced, because the panel is an admin scheduling surface and users expect
+    services like backup.create_automatic to work.
+    """
     if not service:
         return
-    allowed = _allowed_services(hass)
-    if allowed and not is_service_allowed(service, allowed):
-        raise vol.Invalid(
-            f"Service {service!r} is not allowed. Configure the integration allowlist first."
-        )
     split_service(service)
 
 def _register_services_once(hass: HomeAssistant) -> None:

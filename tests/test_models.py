@@ -37,9 +37,10 @@ def test_split_service():
 
 
 def test_allowed_services_exact_and_wildcard():
-    allowed = ["light.turn_on", "script.*"]
+    allowed = ["light.turn_on", "script.*", "backup.*"]
     assert is_service_allowed("light.turn_on", allowed)
     assert is_service_allowed("script.turn_on", allowed)
+    assert is_service_allowed("backup.create_automatic", allowed)
     assert not is_service_allowed("homeassistant.restart", allowed)
 
 
