@@ -422,7 +422,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return this._dateInputValue(date);
   }
 
-  _addDays(dateValue, days = 1) {
+  _addDateDays(dateValue, days = 1) {
     const normalized = this._dateOnly(dateValue);
     const [year, month, day] = normalized.split("-").map((part) => parseInt(part, 10));
     if (!year || !month || !day) return normalized;
@@ -435,7 +435,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const start = this._dateOnly(startValue);
     const end = this._dateOnly(endValue) || start;
     if (!start) return end;
-    return !end || end <= start ? this._addDays(start, 1) : end;
+    return !end || end <= start ? this._addDateDays(start, 1) : end;
   }
 
   _toIsoWithOffset(localValue) {
