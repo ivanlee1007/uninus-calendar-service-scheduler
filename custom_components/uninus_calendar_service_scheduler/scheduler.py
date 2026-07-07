@@ -12,6 +12,7 @@ from homeassistant.helpers.event import async_track_point_in_utc_time
 from homeassistant.util import dt as dt_util
 
 from .models import ScheduledAction, split_service
+from .recurrence import next_phase_time
 from .storage import ActionStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -63,15 +64,12 @@ class CalendarServiceScheduler:
         if removed:
             self._notify()
 
-    def _schedule_phase(self, action: ScheduledAction, phase: str, when_text: str | None) -> None:
-        if not when_text:
-            return
+    def _schedule_phase(self, action: ScheduledAction, phase: str) -> None:
         service = action.service if phase == "start" else action.end_service
         if not service:
             return
-        when = dt_util.parse_datetime(when_text)
+        when = next_phase_time(action, phase, dt_util.utcnow())
         if when is None:
-            _LOGGER.warning("Action %s has invalid %s time %s", action.action_id, phase, when_text)
             return
         when_utc = dt_util.as_utc(when)
         if when_utc <= dt_util.utcnow():
@@ -89,8 +87,8 @@ class CalendarServiceScheduler:
         self.async_cancel(action.action_id)
         if not action.enabled:
             return
-        self._schedule_phase(action, "start", action.start)
-        self._schedule_phase(action, "end", action.end)
+        self._schedule_phase(action, "start")
+        self._schedule_phase(action, "end")
         self._notify()
 
     async def async_run_action(
@@ -136,6 +134,8 @@ class CalendarServiceScheduler:
             last_result="ok",
         )
         self._unsub_by_action.pop(f"{action_id}:{phase}", None)
+        if action.rrule:
+            self.async_schedule(action)
         self._notify()
 
     def state_attributes(self) -> dict[str, Any]:
@@ -148,9 +148,9 @@ class CalendarServiceScheduler:
                 ("start", action.start, action.service),
                 ("end", action.end, action.end_service),
             ):
-                when = dt_util.parse_datetime(when_text) if when_text and service else None
+                when = next_phase_time(action, phase, now) if when_text and service else None
                 if when is not None and dt_util.as_utc(when) > now and action.enabled:
-                    future.append((when_text, phase, action))
+                    future.append((dt_util.as_local(when).isoformat(), phase, action))
         future.sort(key=lambda item: item[0])
         next_action = None
         if future:

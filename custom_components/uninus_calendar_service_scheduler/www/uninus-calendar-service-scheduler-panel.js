@@ -64,6 +64,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       actionId: "",
       uid: "",
       recurrenceId: null,
+      editScope: "this",
       data: "",
       description: "",
     };
@@ -739,6 +740,18 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     </section>`;
   }
 
+
+  _editScopeTemplate() {
+    if (!this._editingEvent || !this._isRecurringCurrentEvent()) return "";
+    const scope = this._form.editScope || "this";
+    return `<label class="fullrow">套用修改範圍
+      <select id="edit_scope">
+        <option value="this" ${scope === "this" ? "selected" : ""}>僅修改此行程</option>
+        <option value="future" ${scope === "future" ? "selected" : ""}>修改此行程及所有未來行程</option>
+      </select>
+    </label>`;
+  }
+
   _dialogTemplate() {
     const f = this._form;
     return `
@@ -765,6 +778,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <input id="end" type="${f.allDay ? "date" : "datetime-local"}" value="${this._escape(f.end)}" />
           </label>
           ${this._recurrenceTemplate()}
+          ${this._editScopeTemplate()}
           ${this._actionSection("start", "行程開始 Service Action", f.service, f.target, f.data, "行程開始時間觸發；留空表示開始時不執行 service action。")}
           ${this._actionSection("end", "行程結束 Service Action", f.endService, f.endTarget, f.endData, "行程結束時間觸發；留空表示結束時不執行 service action。")}
           <label class="fullrow">Description
@@ -825,7 +839,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("delete-this-event")?.addEventListener("click", () => this._deleteCurrentEvent(""));
     this.shadowRoot.getElementById("delete-future-events")?.addEventListener("click", () => this._deleteCurrentEvent("THISANDFUTURE"));
     this.shadowRoot.getElementById("create")?.addEventListener("click", () => this._create());
-    ["calendar", "summary", "location", "start", "end", "recurrence", "recurrence_interval", "recurrence_monthly_mode", "recurrence_end", "recurrence_until", "recurrence_count", "rrule_custom", "start_service", "start_entity", "start_data", "end_service", "end_entity", "end_data", "description"].forEach((id) => {
+    ["calendar", "summary", "location", "start", "end", "recurrence", "recurrence_interval", "recurrence_monthly_mode", "recurrence_end", "recurrence_until", "recurrence_count", "rrule_custom", "edit_scope", "start_service", "start_entity", "start_data", "end_service", "end_entity", "end_data", "description"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureForm());
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureForm());
     });
@@ -938,6 +952,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       actionId: this._form.actionId || "",
       uid: this._form.uid || "",
       recurrenceId: this._form.recurrenceId || null,
+      editScope: get("edit_scope") || this._form.editScope || "this",
       data: dataText,
       description: get("description"),
     };
@@ -986,6 +1001,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       actionId,
       uid: event.uid || "",
       recurrenceId: event.recurrence_id || null,
+      editScope: "this",
       service: storedAction?.service || "",
       target: storedAction?.target || {},
       data: JSON.stringify(storedAction?.data || {}, null, 2),
@@ -1140,10 +1156,81 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     });
   }
 
+
+  _rruleUntilBefore(rrule, startIso) {
+    if (!rrule) return "";
+    const start = new Date(startIso);
+    if (Number.isNaN(start.getTime())) return rrule;
+    const untilDate = new Date(start.getTime() - 24 * 60 * 60 * 1000);
+    const until = `${untilDate.getUTCFullYear()}${this._pad(untilDate.getUTCMonth() + 1)}${this._pad(untilDate.getUTCDate())}T235959Z`;
+    const parts = String(rrule).split(";").filter((part) => part && !part.toUpperCase().startsWith("UNTIL=") && !part.toUpperCase().startsWith("COUNT="));
+    parts.push(`UNTIL=${until}`);
+    return parts.join(";");
+  }
+
+  _payloadFromStoredAction(action, fallbackPayload, rruleOverride) {
+    return {
+      calendar_entity: action?.calendar_entity || fallbackPayload.calendar_entity,
+      summary: action?.summary || fallbackPayload.summary,
+      start: action?.start || fallbackPayload.start,
+      end: action?.end || fallbackPayload.end,
+      all_day: Boolean(action?.all_day ?? fallbackPayload.all_day),
+      location: action?.location || "",
+      rrule: rruleOverride ?? action?.rrule ?? "",
+      service: action?.service || "",
+      target: action?.target || {},
+      data: action?.data || {},
+      end_service: action?.end_service || "",
+      end_target: action?.end_target || {},
+      end_data: action?.end_data || {},
+      description: action?.description || "",
+    };
+  }
+
+  async _updateFutureEvents(payload) {
+    const eventUid = this._currentEventUid();
+    const recurrenceId = this._currentEventRecurrenceId();
+    if (!eventUid || !recurrenceId) throw new Error("此重複行程缺少 uid 或 recurrence_id，無法套用到未來行程");
+    const originalActionId = this._form.actionId;
+    const originalAction = this._storedAction(originalActionId);
+    if (originalActionId && originalAction) {
+      const truncatedRrule = this._rruleUntilBefore(originalAction.rrule || this._editingEvent?.rrule || payload.rrule, payload.start);
+      await this._hass.callWS({
+        type: "call_service",
+        domain: "uninus_calendar_service_scheduler",
+        service: "update_event_action",
+        service_data: { ...this._payloadFromStoredAction(originalAction, payload, truncatedRrule), action_id: originalActionId, calendar_event_uid: eventUid },
+        return_response: true,
+      });
+    }
+    await this._hass.callWS({
+      type: "calendar/event/delete",
+      entity_id: this._form.calendar,
+      uid: eventUid,
+      recurrence_id: recurrenceId,
+      recurrence_range: "THISANDFUTURE",
+    });
+    if (!payload.service && !payload.end_service) {
+      await this._createCalendarOnlyEvent(payload);
+    } else {
+      await this._hass.callWS({
+        type: "call_service",
+        domain: "uninus_calendar_service_scheduler",
+        service: "create_event_action",
+        service_data: payload,
+        return_response: true,
+      });
+    }
+  }
+
   async _updateCurrentEvent(payload) {
     const eventUid = this._currentEventUid();
     const recurrenceId = this._currentEventRecurrenceId();
     if (!eventUid) throw new Error("此行程缺少 uid，無法更新");
+    if (this._isRecurringCurrentEvent() && this._form.editScope === "future") {
+      await this._updateFutureEvents(payload);
+      return;
+    }
     let actionId = this._form.actionId;
     const hasAnyService = Boolean(payload.service || payload.end_service);
     if (hasAnyService && !actionId) {

@@ -24,12 +24,15 @@ def _load_module(name):
 
 const = _load_module("const")
 models = _load_module("models")
+recurrence = _load_module("recurrence")
 
 ACTION_MARKER = const.ACTION_MARKER
 ScheduledAction = models.ScheduledAction
 is_service_allowed = models.is_service_allowed
 normalize_allowed_services = models.normalize_allowed_services
 split_service = models.split_service
+next_occurrence_start = recurrence.next_occurrence_start
+next_phase_time = recurrence.next_phase_time
 
 
 def test_split_service():
@@ -91,3 +94,47 @@ def test_start_and_end_service_actions_roundtrip():
     assert loaded.end_service == "light.turn_off"
     assert loaded.target == {"entity_id": "light.demo"}
     assert loaded.end_target == {"entity_id": "light.demo"}
+
+
+
+def test_next_occurrence_daily_rrule():
+    action = ScheduledAction.create(
+        calendar_entity="calendar.local",
+        summary="Daily",
+        start="2026-07-01T08:00:00+08:00",
+        end="2026-07-01T09:00:00+08:00",
+        service="light.turn_on",
+        end_service="light.turn_off",
+        rrule="FREQ=DAILY;UNTIL=20260730T235959Z",
+    )
+    occurrence = next_occurrence_start(action, models.datetime.fromisoformat("2026-07-14T12:00:00+08:00"))
+    assert occurrence.isoformat().startswith("2026-07-15T08:00:00")
+    end_occurrence = next_phase_time(action, "end", models.datetime.fromisoformat("2026-07-14T12:00:00+08:00"))
+    assert end_occurrence.isoformat().startswith("2026-07-15T09:00:00")
+
+
+def test_next_occurrence_stops_after_until():
+    action = ScheduledAction.create(
+        calendar_entity="calendar.local",
+        summary="Daily",
+        start="2026-07-01T08:00:00+08:00",
+        end="2026-07-01T09:00:00+08:00",
+        service="light.turn_on",
+        rrule="FREQ=DAILY;UNTIL=20260714T235959Z",
+    )
+    assert next_occurrence_start(action, models.datetime.fromisoformat("2026-07-15T00:00:00+08:00")) is None
+
+
+
+def test_recurring_end_after_start_uses_current_occurrence():
+    action = ScheduledAction.create(
+        calendar_entity="calendar.local",
+        summary="Daily",
+        start="2026-07-01T08:00:00+08:00",
+        end="2026-07-01T09:00:00+08:00",
+        service="light.turn_on",
+        end_service="light.turn_off",
+        rrule="FREQ=DAILY;UNTIL=20260730T235959Z",
+    )
+    end_occurrence = next_phase_time(action, "end", models.datetime.fromisoformat("2026-07-15T08:01:00+08:00"))
+    assert end_occurrence.isoformat().startswith("2026-07-15T09:00:00")
