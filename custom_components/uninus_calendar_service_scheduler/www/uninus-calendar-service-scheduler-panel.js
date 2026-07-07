@@ -1156,6 +1156,35 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     });
   }
 
+  async _createServiceEventViaCalendarApi(payload) {
+    const actionId = this._newActionId();
+    await this._hass.callWS({
+      type: "call_service",
+      domain: "uninus_calendar_service_scheduler",
+      service: "update_event_action",
+      service_data: { ...payload, action_id: actionId },
+      return_response: true,
+    });
+    try {
+      await this._hass.callWS({
+        type: "calendar/event/create",
+        entity_id: payload.calendar_entity,
+        event: this._calendarEventPayload({ ...payload, action_id: actionId }),
+      });
+    } catch (err) {
+      await this._hass.callWS({
+        type: "call_service",
+        domain: "uninus_calendar_service_scheduler",
+        service: "delete_event_action",
+        service_data: { action_id: actionId },
+        return_response: true,
+      });
+      throw err;
+    }
+    this._rememberActionOverride(actionId, payload, "");
+    return actionId;
+  }
+
 
   _rruleUntilBefore(rrule, startIso) {
     if (!rrule) return "";
@@ -1213,13 +1242,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     if (!payload.service && !payload.end_service) {
       await this._createCalendarOnlyEvent(payload);
     } else {
-      await this._hass.callWS({
-        type: "call_service",
-        domain: "uninus_calendar_service_scheduler",
-        service: "create_event_action",
-        service_data: payload,
-        return_response: true,
-      });
+      await this._createServiceEventViaCalendarApi(payload);
     }
   }
 
@@ -1338,13 +1361,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       } else if (!payload.service && !payload.end_service) {
         await this._createCalendarOnlyEvent(payload);
       } else {
-        await this._hass.callWS({
-          type: "call_service",
-          domain: "uninus_calendar_service_scheduler",
-          service: "create_event_action",
-          service_data: payload,
-          return_response: true,
-        });
+        await this._createServiceEventViaCalendarApi(payload);
       }
       this._dialogOpen = false;
       this._editingEvent = undefined;
