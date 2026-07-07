@@ -412,17 +412,28 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return `${date.getFullYear()}-${this._pad(date.getMonth() + 1)}-${this._pad(date.getDate())}`;
   }
 
+  _dateOnly(value) {
+    if (!value) return "";
+    const raw = String(value).trim();
+    const isoDate = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (isoDate) return isoDate[1];
+    const date = value instanceof Date ? value : new Date(raw);
+    if (Number.isNaN(date.getTime())) return "";
+    return this._dateInputValue(date);
+  }
+
   _addDays(dateValue, days = 1) {
-    const [year, month, day] = String(dateValue || "").slice(0, 10).split("-").map((part) => parseInt(part, 10));
-    if (!year || !month || !day) return dateValue;
+    const normalized = this._dateOnly(dateValue);
+    const [year, month, day] = normalized.split("-").map((part) => parseInt(part, 10));
+    if (!year || !month || !day) return normalized;
     const date = new Date(year, month - 1, day);
     date.setDate(date.getDate() + days);
     return this._dateInputValue(date);
   }
 
   _exclusiveAllDayEndDate(startValue, endValue) {
-    const start = String(startValue || "").slice(0, 10);
-    const end = String(endValue || start).slice(0, 10);
+    const start = this._dateOnly(startValue);
+    const end = this._dateOnly(endValue) || start;
     if (!start) return end;
     return !end || end <= start ? this._addDays(start, 1) : end;
   }
@@ -963,7 +974,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       summary: get("summary"),
       location: get("location"),
       allDay,
-      start: startValue,
+      start: allDay ? this._dateOnly(startValue) : startValue,
       end: allDay ? this._exclusiveAllDayEndDate(startValue, endValue) : endValue,
       rrule: nextRrule,
       service,
@@ -993,7 +1004,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._captureForm();
     this._form.allDay = allDay;
     if (allDay) {
-      this._form.start = (this._form.start || this._dateInputValue()).slice(0, 10);
+      this._form.start = this._dateOnly(this._form.start) || this._dateInputValue();
       this._form.end = this._exclusiveAllDayEndDate(this._form.start, this._form.end || this._dateInputValue(new Date(Date.now() + 86400000)));
     } else {
       this._form.start = this._localInputValue(new Date(`${this._form.start}T00:00:00`));
@@ -1147,7 +1158,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   _calendarEventPayload(payload) {
     return {
       summary: payload.summary,
-      dtstart: payload.all_day ? payload.start.slice(0, 10) : payload.start,
+      dtstart: payload.all_day ? this._dateOnly(payload.start) : payload.start,
       dtend: payload.all_day ? this._exclusiveAllDayEndDate(payload.start, payload.end) : payload.end || payload.start,
       description: this._calendarDescription(payload.description, payload.action_id || this._form.actionId),
       ...(payload.location ? { location: payload.location } : {}),
@@ -1434,7 +1445,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       const payload = {
         calendar_entity: f.calendar,
         summary: f.summary,
-        start: f.allDay ? `${f.start.slice(0, 10)}T00:00:00` : this._toIsoWithOffset(f.start),
+        start: f.allDay ? `${this._dateOnly(f.start)}T00:00:00` : this._toIsoWithOffset(f.start),
         end: f.allDay ? `${this._exclusiveAllDayEndDate(f.start, f.end)}T00:00:00` : this._toIsoWithOffset(f.end),
         all_day: f.allDay,
         location: f.location,
