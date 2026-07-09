@@ -280,3 +280,23 @@ def test_traceability_record_set_state_summary_counts_missing_required_links():
         "missing_link_count": 1,
         "recent_operations": [operation.as_dict()],
     }
+
+
+
+def test_master_data_records_support_editing_and_archival_status():
+    farm = Farm.create(name="舊農場", operator="王小農")
+    plot = Plot.create(farm_id=farm.farm_id, name="A 區", product="芒果")
+    cycle = CropCycle.create(plot_id=plot.plot_id, product="芒果", lot_number="LOT-1")
+
+    updated_farm = Farm.from_dict({**farm.as_dict(), "name": "新農場", "status": "archived", "archived_at": "2026-07-09T10:00:00+08:00"})
+    updated_plot = Plot.from_dict({**plot.as_dict(), "status": "inactive", "archived_at": "2026-07-09T10:01:00+08:00"})
+    updated_cycle = CropCycle.from_dict({**cycle.as_dict(), "status": "archived", "actual_harvest_date": "2026-09-01", "archived_at": "2026-07-09T10:02:00+08:00"})
+
+    assert updated_farm.name == "新農場"
+    assert updated_farm.status == "archived"
+    assert updated_farm.archived_at == "2026-07-09T10:00:00+08:00"
+    assert updated_plot.status == "inactive"
+    assert updated_plot.archived_at == "2026-07-09T10:01:00+08:00"
+    assert updated_cycle.status == "archived"
+    assert updated_cycle.actual_harvest_date == "2026-09-01"
+    assert updated_cycle.archived_at == "2026-07-09T10:02:00+08:00"

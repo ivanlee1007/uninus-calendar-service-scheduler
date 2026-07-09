@@ -112,6 +112,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
   _defaultManagementForm() {
     return {
+      selectedFarmId: "",
+      selectedPlotId: "",
+      selectedCycleId: "",
+      farmStatus: "active",
       farmName: "",
       farmOperator: "",
       farmAddress: "",
@@ -122,6 +126,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       plotTgapCategory: "水果類",
       plotArea: "",
       plotLocation: "",
+      plotStatus: "active",
       cyclePlotId: "",
       cycleProduct: "",
       cycleVariety: "",
@@ -129,6 +134,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       cycleTraceCode: "",
       cycleStartDate: this._dateInputValue(new Date()),
       cycleExpectedHarvestDate: "",
+      cycleActualHarvestDate: "",
+      cycleStatus: "active",
     };
   }
 
@@ -608,6 +615,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .management-section { border: 1px solid var(--divider-color); border-radius: 16px; padding: 14px; background: var(--card-background-color); }
       .management-section h3 { margin: 0 0 10px; font-size: 16px; }
       .management-section .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .management-section .row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+      .management-section .archive { background: var(--warning-color, #fb8c00); color: white; }
+      .management-list { max-height: 150px; overflow: auto; border: 1px solid var(--divider-color); border-radius: 12px; padding: 8px; background: var(--secondary-background-color); }
+      .management-list button { display: block; width: 100%; text-align: start; margin: 4px 0; border-radius: 10px; }
       .delete-confirm, .edit-confirm { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(360px, calc(100vw - 48px)); z-index: 12; border-radius: 20px; background: var(--card-background-color); color: var(--primary-text-color); box-shadow: 0 18px 34px rgba(0,0,0,.28); padding: 20px 16px 16px; }
       .delete-confirm { display: ${this._deleteConfirmOpen ? "block" : "none"}; }
       .edit-confirm { display: ${this._editConfirmOpen ? "block" : "none"}; }
@@ -665,25 +676,35 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const plots = Object.values(records.plots || {});
     const cycles = Object.values(records.cycles || {});
     const f = this._managementForm || this._defaultManagementForm();
-    const farmOptions = [`<option value="">選擇農場</option>`].concat(farms.map((farm) => `<option value="${this._escape(farm.farm_id)}" ${farm.farm_id === f.plotFarmId ? "selected" : ""}>${this._escape(farm.name || farm.farm_id)}</option>`)).join("");
-    const plotOptions = [`<option value="">選擇場區</option>`].concat(plots.map((plot) => `<option value="${this._escape(plot.plot_id)}" ${plot.plot_id === f.cyclePlotId ? "selected" : ""}>${this._escape(plot.name || plot.plot_id)} ${this._escape(plot.product || "")}</option>`)).join("");
+    const statusOptions = (selected) => ["active", "inactive", "archived"].map((item) => `<option value="${item}" ${item === selected ? "selected" : ""}>${item === "active" ? "啟用" : item === "inactive" ? "停用" : "封存"}</option>`).join("");
+    const farmOptions = [`<option value="">選擇農場</option>`].concat(farms.map((farm) => `<option value="${this._escape(farm.farm_id)}" ${farm.farm_id === f.plotFarmId ? "selected" : ""}>${this._escape(farm.name || farm.farm_id)} ${farm.status === "archived" ? "(封存)" : farm.status === "inactive" ? "(停用)" : ""}</option>`)).join("");
+    const plotOptions = [`<option value="">選擇場區</option>`].concat(plots.map((plot) => `<option value="${this._escape(plot.plot_id)}" ${plot.plot_id === f.cyclePlotId ? "selected" : ""}>${this._escape(plot.name || plot.plot_id)} ${this._escape(plot.product || "")} ${plot.status === "archived" ? "(封存)" : plot.status === "inactive" ? "(停用)" : ""}</option>`)).join("");
     const categoryOptions = ["農糧", "水果類", "蔬菜類", "水稻", "雜糧類", "畜禽", "水產", "分裝流通", "林產品"].map((item) => `<option value="${this._escape(item)}" ${item === f.plotTgapCategory ? "selected" : ""}>${this._escape(item)}</option>`).join("");
     return `
       <section class="management-dialog" role="dialog" aria-modal="true" aria-label="農場 / 場區 / 生產週期管理">
         <header>農場 / 場區 / 生產週期管理</header>
         <div class="content">
           <section class="management-section fullrow">
-            <h3>新增農場</h3>
+            <h3>既有農場 / 場區 / 生產週期</h3>
+            <div class="fields">
+              <div><b>農場</b><div class="management-list">${farms.length ? farms.map((farm) => `<button class="trace-select-farm" data-id="${this._escape(farm.farm_id)}">${this._escape(farm.name || farm.farm_id)} <span class="system-note">${this._escape(farm.status || "active")}</span></button>`).join("") : `<p class="message">尚無農場</p>`}</div></div>
+              <div><b>場區</b><div class="management-list">${plots.length ? plots.map((plot) => `<button class="trace-select-plot" data-id="${this._escape(plot.plot_id)}">${this._escape(plot.name || plot.plot_id)} <span class="system-note">${this._escape(plot.status || "active")}</span></button>`).join("") : `<p class="message">尚無場區</p>`}</div></div>
+              <div class="fullrow"><b>生產週期</b><div class="management-list">${cycles.length ? cycles.map((cycle) => `<button class="trace-select-cycle" data-id="${this._escape(cycle.cycle_id)}">${this._escape(cycle.product || cycle.cycle_id)} ${this._escape(cycle.lot_number || "")} <span class="system-note">${this._escape(cycle.status || "active")}</span></button>`).join("") : `<p class="message">尚無生產週期</p>`}</div></div>
+            </div>
+          </section>
+          <section class="management-section fullrow">
+            <h3>${f.selectedFarmId ? "編輯農場" : "新增農場"}</h3>
             <div class="fields">
               <label>農場名稱<input id="trace_farm_name" value="${this._escape(f.farmName)}" /></label>
               <label>經營者<input id="trace_farm_operator" value="${this._escape(f.farmOperator)}" /></label>
               <label>地址<input id="trace_farm_address" value="${this._escape(f.farmAddress)}" /></label>
               <label>電話<input id="trace_farm_phone" value="${this._escape(f.farmPhone)}" /></label>
+              <label>狀態<select id="trace_farm_status">${statusOptions(f.farmStatus || "active")}</select></label>
             </div>
-            <button class="primary full" id="trace-farm-create">建立農場</button>
+            <div class="row-actions"><button class="primary" id="trace-farm-create">建立農場</button><button id="trace-farm-save" ${f.selectedFarmId ? "" : "disabled"}>儲存農場</button><button class="archive" id="trace-farm-archive" ${f.selectedFarmId ? "" : "disabled"}>封存農場</button></div>
           </section>
           <section class="management-section fullrow">
-            <h3>新增場區</h3>
+            <h3>${f.selectedPlotId ? "編輯場區" : "新增場區"}</h3>
             <div class="fields">
               <label>農場<select id="trace_plot_farm">${farmOptions}</select></label>
               <label>場區名稱<input id="trace_plot_name" value="${this._escape(f.plotName)}" /></label>
@@ -691,11 +712,12 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
               <label>TGAP 類別<select id="trace_plot_tgap_category">${categoryOptions}</select></label>
               <label>面積<input id="trace_plot_area" value="${this._escape(f.plotArea)}" /></label>
               <label>位置<input id="trace_plot_location" value="${this._escape(f.plotLocation)}" /></label>
+              <label>狀態<select id="trace_plot_status">${statusOptions(f.plotStatus || "active")}</select></label>
             </div>
-            <button class="primary full" id="trace-plot-create">建立場區</button>
+            <div class="row-actions"><button class="primary" id="trace-plot-create">建立場區</button><button id="trace-plot-save" ${f.selectedPlotId ? "" : "disabled"}>儲存場區</button><button class="archive" id="trace-plot-archive" ${f.selectedPlotId ? "" : "disabled"}>封存場區</button></div>
           </section>
           <section class="management-section fullrow">
-            <h3>新增生產週期</h3>
+            <h3>${f.selectedCycleId ? "編輯生產週期" : "新增生產週期"}</h3>
             <div class="fields">
               <label>場區<select id="trace_cycle_plot">${plotOptions}</select></label>
               <label>產品<input id="trace_cycle_product" value="${this._escape(f.cycleProduct)}" /></label>
@@ -704,11 +726,13 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
               <label>追溯碼<input id="trace_cycle_trace_code" value="${this._escape(f.cycleTraceCode)}" /></label>
               <label>開始日期<input id="trace_cycle_start" type="date" value="${this._escape(f.cycleStartDate)}" /></label>
               <label>預計採收日<input id="trace_cycle_expected_harvest" type="date" value="${this._escape(f.cycleExpectedHarvestDate)}" /></label>
+              <label>實際採收日<input id="trace_cycle_actual_harvest" type="date" value="${this._escape(f.cycleActualHarvestDate)}" /></label>
+              <label>狀態<select id="trace_cycle_status">${statusOptions(f.cycleStatus || "active")}</select></label>
             </div>
-            <button class="primary full" id="trace-cycle-create">建立生產週期</button>
+            <div class="row-actions"><button class="primary" id="trace-cycle-create">建立生產週期</button><button id="trace-cycle-save" ${f.selectedCycleId ? "" : "disabled"}>儲存生產週期</button><button class="archive" id="trace-cycle-archive" ${f.selectedCycleId ? "" : "disabled"}>封存生產週期</button></div>
           </section>
-          <div class="message fullrow ${this._message.startsWith("建立") && this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
-          <div class="fullrow system-note">現有：${farms.length} 個農場、${plots.length} 個場區、${cycles.length} 個生產週期。建立後可直接在「新增農務作業」的生產週期欄位選用。</div>
+          <div class="message fullrow ${this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
+          <div class="fullrow system-note">現有：${farms.length} 個農場、${plots.length} 個場區、${cycles.length} 個生產週期。可點既有項目載入編輯，也可改狀態為停用或封存。</div>
         </div>
         <div class="actions"><button id="trace-management-close">關閉</button></div>
       </section>
@@ -731,6 +755,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const get = (id) => this.shadowRoot.getElementById(id)?.value || "";
     this._managementForm = {
       ...this._managementForm,
+      farmStatus: get("trace_farm_status") || "active",
       farmName: get("trace_farm_name"),
       farmOperator: get("trace_farm_operator"),
       farmAddress: get("trace_farm_address"),
@@ -741,6 +766,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       plotTgapCategory: get("trace_plot_tgap_category") || "水果類",
       plotArea: get("trace_plot_area"),
       plotLocation: get("trace_plot_location"),
+      plotStatus: get("trace_plot_status") || "active",
       cyclePlotId: get("trace_cycle_plot"),
       cycleProduct: get("trace_cycle_product"),
       cycleVariety: get("trace_cycle_variety"),
@@ -748,11 +774,82 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       cycleTraceCode: get("trace_cycle_trace_code"),
       cycleStartDate: get("trace_cycle_start"),
       cycleExpectedHarvestDate: get("trace_cycle_expected_harvest"),
+      cycleActualHarvestDate: get("trace_cycle_actual_harvest"),
+      cycleStatus: get("trace_cycle_status") || "active",
     };
   }
 
+
+  _selectTraceFarm(farmId) {
+    const farm = this._traceabilityRecords().farms?.[farmId];
+    if (!farm) return;
+    this._managementForm = { ...this._managementForm, selectedFarmId: farm.farm_id, farmName: farm.name || "", farmOperator: farm.operator || "", farmAddress: farm.address || "", farmPhone: farm.phone || "", farmStatus: farm.status || "active", plotFarmId: farm.farm_id };
+    this._message = `已載入農場：${farm.name || farm.farm_id}`;
+    this._render();
+  }
+
+  _selectTracePlot(plotId) {
+    const plot = this._traceabilityRecords().plots?.[plotId];
+    if (!plot) return;
+    this._managementForm = { ...this._managementForm, selectedPlotId: plot.plot_id, plotFarmId: plot.farm_id || "", plotName: plot.name || "", plotProduct: plot.product || "", plotTgapCategory: plot.tgap_category || "水果類", plotArea: plot.area || "", plotLocation: plot.location || "", plotStatus: plot.status || "active", cyclePlotId: plot.plot_id, cycleProduct: this._managementForm.cycleProduct || plot.product || "" };
+    this._message = `已載入場區：${plot.name || plot.plot_id}`;
+    this._render();
+  }
+
+  _selectTraceCycle(cycleId) {
+    const cycle = this._traceabilityRecords().cycles?.[cycleId];
+    if (!cycle) return;
+    this._managementForm = { ...this._managementForm, selectedCycleId: cycle.cycle_id, cyclePlotId: cycle.plot_id || "", cycleProduct: cycle.product || "", cycleVariety: cycle.variety || "", cycleLotNumber: cycle.lot_number || "", cycleTraceCode: cycle.trace_code || "", cycleStartDate: cycle.start_date || "", cycleExpectedHarvestDate: cycle.expected_harvest_date || "", cycleActualHarvestDate: cycle.actual_harvest_date || "", cycleStatus: cycle.status || "active" };
+    this._message = `已載入生產週期：${cycle.product || cycle.cycle_id}`;
+    this._render();
+  }
+
+  _archiveTimestamp() { return new Date().toISOString(); }
+
   _serviceResponsePayload(response) {
     return response?.response || response || {};
+  }
+
+
+  async _updateTraceFarm(statusOverride = "") {
+    this._captureManagementForm();
+    if (!this._managementForm.selectedFarmId) { this._message = "儲存農場失敗：請先點選既有農場。"; this._render(); return; }
+    if (!this._managementForm.farmName.trim()) { this._message = "儲存農場失敗：請輸入農場名稱。"; this._render(); return; }
+    const status = statusOverride || this._managementForm.farmStatus || "active";
+    try {
+      await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "update_farm", service_data: { farm_id: this._managementForm.selectedFarmId, name: this._managementForm.farmName, operator: this._managementForm.farmOperator, address: this._managementForm.farmAddress, phone: this._managementForm.farmPhone, status, archived_at: status === "archived" ? this._archiveTimestamp() : "" }, return_response: true });
+      this._managementForm.farmStatus = status;
+      this._message = status === "archived" ? "已封存農場。" : "已儲存農場。";
+      this._render();
+    } catch (err) { this._message = `儲存農場失敗: ${err?.message || err}`; this._render(); }
+  }
+
+  async _updateTracePlot(statusOverride = "") {
+    this._captureManagementForm();
+    if (!this._managementForm.selectedPlotId) { this._message = "儲存場區失敗：請先點選既有場區。"; this._render(); return; }
+    if (!this._managementForm.plotFarmId) { this._message = "儲存場區失敗：請先選擇農場。"; this._render(); return; }
+    if (!this._managementForm.plotName.trim()) { this._message = "儲存場區失敗：請輸入場區名稱。"; this._render(); return; }
+    const status = statusOverride || this._managementForm.plotStatus || "active";
+    try {
+      await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "update_plot", service_data: { plot_id: this._managementForm.selectedPlotId, farm_id: this._managementForm.plotFarmId, name: this._managementForm.plotName, product: this._managementForm.plotProduct, tgap_category: this._managementForm.plotTgapCategory, area: this._managementForm.plotArea, location: this._managementForm.plotLocation, status, archived_at: status === "archived" ? this._archiveTimestamp() : "" }, return_response: true });
+      this._managementForm.plotStatus = status;
+      this._message = status === "archived" ? "已封存場區。" : "已儲存場區。";
+      this._render();
+    } catch (err) { this._message = `儲存場區失敗: ${err?.message || err}`; this._render(); }
+  }
+
+  async _updateTraceCycle(statusOverride = "") {
+    this._captureManagementForm();
+    if (!this._managementForm.selectedCycleId) { this._message = "儲存生產週期失敗：請先點選既有生產週期。"; this._render(); return; }
+    if (!this._managementForm.cyclePlotId) { this._message = "儲存生產週期失敗：請先選擇場區。"; this._render(); return; }
+    if (!this._managementForm.cycleProduct.trim()) { this._message = "儲存生產週期失敗：請輸入產品。"; this._render(); return; }
+    const status = statusOverride || this._managementForm.cycleStatus || "active";
+    try {
+      await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "update_crop_cycle", service_data: { cycle_id: this._managementForm.selectedCycleId, plot_id: this._managementForm.cyclePlotId, product: this._managementForm.cycleProduct, variety: this._managementForm.cycleVariety, lot_number: this._managementForm.cycleLotNumber, trace_code: this._managementForm.cycleTraceCode, start_date: this._managementForm.cycleStartDate, expected_harvest_date: this._managementForm.cycleExpectedHarvestDate, actual_harvest_date: this._managementForm.cycleActualHarvestDate, status, archived_at: status === "archived" ? this._archiveTimestamp() : "" }, return_response: true });
+      this._managementForm.cycleStatus = status;
+      this._message = status === "archived" ? "已封存生產週期。" : "已儲存生產週期。";
+      this._render();
+    } catch (err) { this._message = `儲存生產週期失敗: ${err?.message || err}`; this._render(); }
   }
 
   async _createTraceFarm() {
@@ -1576,9 +1673,18 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("agri-manage-master-data")?.addEventListener("click", () => this._openManagementDialog());
     this.shadowRoot.getElementById("agri-migrate-legacy")?.addEventListener("click", () => this._migrateLegacyAgriOperations());
     this.shadowRoot.getElementById("trace-management-close")?.addEventListener("click", () => this._closeManagementDialog());
+    this.shadowRoot.querySelectorAll(".trace-select-farm").forEach((button) => button.addEventListener("click", () => this._selectTraceFarm(button.dataset.id)));
+    this.shadowRoot.querySelectorAll(".trace-select-plot").forEach((button) => button.addEventListener("click", () => this._selectTracePlot(button.dataset.id)));
+    this.shadowRoot.querySelectorAll(".trace-select-cycle").forEach((button) => button.addEventListener("click", () => this._selectTraceCycle(button.dataset.id)));
     this.shadowRoot.getElementById("trace-farm-create")?.addEventListener("click", () => this._createTraceFarm());
     this.shadowRoot.getElementById("trace-plot-create")?.addEventListener("click", () => this._createTracePlot());
     this.shadowRoot.getElementById("trace-cycle-create")?.addEventListener("click", () => this._createTraceCycle());
+    this.shadowRoot.getElementById("trace-farm-save")?.addEventListener("click", () => this._updateTraceFarm());
+    this.shadowRoot.getElementById("trace-plot-save")?.addEventListener("click", () => this._updateTracePlot());
+    this.shadowRoot.getElementById("trace-cycle-save")?.addEventListener("click", () => this._updateTraceCycle());
+    this.shadowRoot.getElementById("trace-farm-archive")?.addEventListener("click", () => this._updateTraceFarm("archived"));
+    this.shadowRoot.getElementById("trace-plot-archive")?.addEventListener("click", () => this._updateTracePlot("archived"));
+    this.shadowRoot.getElementById("trace-cycle-archive")?.addEventListener("click", () => this._updateTraceCycle("archived"));
     ["agri_calendar", "agri_cycle", "agri_operation_type", "agri_actual_start", "agri_operator", "agri_material", "agri_quantity", "agri_unit", "agri_sensor_entities", "agri_notes"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureAgriForm());
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureAgriForm());

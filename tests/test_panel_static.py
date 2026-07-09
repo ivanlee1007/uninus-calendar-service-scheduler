@@ -17,3 +17,19 @@ def test_traceability_management_ui_exposes_farm_plot_cycle_creation():
     assert 'service: "create_farm"' in source
     assert 'service: "create_plot"' in source
     assert 'service: "create_crop_cycle"' in source
+
+
+
+def test_traceability_management_ui_exposes_edit_archive_controls():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert "既有農場 / 場區 / 生產週期" in source
+    assert 'id="trace-farm-save"' in source
+    assert 'id="trace-plot-save"' in source
+    assert 'id="trace-cycle-save"' in source
+    assert 'id="trace-farm-archive"' in source
+    assert 'id="trace-plot-archive"' in source
+    assert 'id="trace-cycle-archive"' in source
+    assert 'service: "update_farm"' in source
+    assert 'service: "update_plot"' in source
+    assert 'service: "update_crop_cycle"' in source

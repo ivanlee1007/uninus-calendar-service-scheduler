@@ -44,3 +44,15 @@ class AgriStore:
     async def async_add_operation(self, operation: AgriOperation) -> None:
         self.records.operations[operation.operation_id] = operation
         await self.async_save()
+
+    async def async_update_farm(self, farm: Farm) -> None:
+        self.records.farms[farm.farm_id] = farm
+        await self.async_save()
+
+    async def async_update_plot(self, plot: Plot) -> None:
+        self.records.plots[plot.plot_id] = plot
+        await self.async_save()
+
+    async def async_update_cycle(self, cycle: CropCycle) -> None:
+        self.records.cycles[cycle.cycle_id] = cycle
+        await self.async_save()

@@ -433,3 +433,130 @@ update_agri_operation:
 export_traceability_records:
   name: Export traceability records
   description: Return flattened operation rows and summary for audit/export workflows.
+
+
+update_farm:
+  name: Update traceability farm
+  description: Edit, disable, or archive a farm master-data record.
+  fields:
+    farm_id:
+      required: true
+      selector:
+        text:
+    name:
+      required: true
+      selector:
+        text:
+    operator:
+      required: false
+      selector:
+        text:
+    address:
+      required: false
+      selector:
+        text:
+    phone:
+      required: false
+      selector:
+        text:
+    status:
+      required: false
+      selector:
+        select:
+          options: [active, inactive, archived]
+    archived_at:
+      required: false
+      selector:
+        text:
+
+update_plot:
+  name: Update traceability plot
+  description: Edit, disable, or archive a plot master-data record.
+  fields:
+    plot_id:
+      required: true
+      selector:
+        text:
+    farm_id:
+      required: true
+      selector:
+        text:
+    name:
+      required: true
+      selector:
+        text:
+    product:
+      required: false
+      selector:
+        text:
+    tgap_category:
+      required: false
+      selector:
+        text:
+    area:
+      required: false
+      selector:
+        text:
+    location:
+      required: false
+      selector:
+        text:
+    status:
+      required: false
+      selector:
+        select:
+          options: [active, inactive, archived]
+    archived_at:
+      required: false
+      selector:
+        text:
+
+update_crop_cycle:
+  name: Update traceability production cycle
+  description: Edit, disable, or archive a production cycle / lot.
+  fields:
+    cycle_id:
+      required: true
+      selector:
+        text:
+    plot_id:
+      required: true
+      selector:
+        text:
+    product:
+      required: true
+      selector:
+        text:
+    variety:
+      required: false
+      selector:
+        text:
+    lot_number:
+      required: false
+      selector:
+        text:
+    trace_code:
+      required: false
+      selector:
+        text:
+    start_date:
+      required: false
+      selector:
+        date:
+    expected_harvest_date:
+      required: false
+      selector:
+        date:
+    actual_harvest_date:
+      required: false
+      selector:
+        date:
+    status:
+      required: false
+      selector:
+        select:
+          options: [active, inactive, archived]
+    archived_at:
+      required: false
+      selector:
+        text:

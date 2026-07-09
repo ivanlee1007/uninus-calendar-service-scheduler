@@ -40,7 +40,10 @@ from .const import (
     SERVICE_RELOAD_ACTIONS,
     SERVICE_TEST_ACTION,
     SERVICE_UPDATE_AGRI_OPERATION,
+    SERVICE_UPDATE_CROP_CYCLE,
     SERVICE_UPDATE_EVENT_ACTION,
+    SERVICE_UPDATE_FARM,
+    SERVICE_UPDATE_PLOT,
 )
 from .models import (
     ScheduledAction,
@@ -110,6 +113,28 @@ CREATE_CROP_CYCLE_SCHEMA = vol.Schema(
         vol.Optional("trace_code", default=""): cv.string,
         vol.Optional("start_date", default=""): cv.string,
         vol.Optional("expected_harvest_date", default=""): cv.string,
+    }
+)
+UPDATE_FARM_SCHEMA = CREATE_FARM_SCHEMA.extend(
+    {
+        vol.Required("farm_id"): cv.string,
+        vol.Optional("status"): cv.string,
+        vol.Optional("archived_at"): cv.string,
+    }
+)
+UPDATE_PLOT_SCHEMA = CREATE_PLOT_SCHEMA.extend(
+    {
+        vol.Required("plot_id"): cv.string,
+        vol.Optional("status"): cv.string,
+        vol.Optional("archived_at"): cv.string,
+    }
+)
+UPDATE_CROP_CYCLE_SCHEMA = CREATE_CROP_CYCLE_SCHEMA.extend(
+    {
+        vol.Required("cycle_id"): cv.string,
+        vol.Optional("actual_harvest_date", default=""): cv.string,
+        vol.Optional("status"): cv.string,
+        vol.Optional("archived_at"): cv.string,
     }
 )
 CREATE_AGRI_OPERATION_SCHEMA = vol.Schema(
@@ -487,6 +512,78 @@ def _register_services_once(hass: HomeAssistant) -> None:
         _notify_agri_changed()
         return {"cycle_id": cycle.cycle_id, "cycle": cycle.as_dict()}
 
+    async def _update_farm(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        farm_id = call.data["farm_id"]
+        existing = agri_store.records.farms.get(farm_id)
+        if existing is None:
+            raise vol.Invalid(f"Unknown farm_id {farm_id!r}")
+        farm = Farm(
+            farm_id=farm_id,
+            name=call.data["name"],
+            operator=call.data.get("operator") or "",
+            address=call.data.get("address") or "",
+            phone=call.data.get("phone") or "",
+            status=call.data.get("status") or existing.status,
+            archived_at=call.data.get("archived_at") or existing.archived_at,
+            created_at=existing.created_at,
+        )
+        await agri_store.async_update_farm(farm)
+        _notify_agri_changed()
+        return {"farm_id": farm.farm_id, "farm": farm.as_dict()}
+
+    async def _update_plot(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        plot_id = call.data["plot_id"]
+        existing = agri_store.records.plots.get(plot_id)
+        if existing is None:
+            raise vol.Invalid(f"Unknown plot_id {plot_id!r}")
+        farm_id = call.data["farm_id"]
+        if farm_id not in agri_store.records.farms:
+            raise vol.Invalid(f"Unknown farm_id {farm_id!r}")
+        plot = Plot(
+            plot_id=plot_id,
+            farm_id=farm_id,
+            name=call.data["name"],
+            product=call.data.get("product") or "",
+            tgap_category=call.data.get("tgap_category") or "",
+            area=call.data.get("area") or "",
+            location=call.data.get("location") or "",
+            status=call.data.get("status") or existing.status,
+            archived_at=call.data.get("archived_at") or existing.archived_at,
+            created_at=existing.created_at,
+        )
+        await agri_store.async_update_plot(plot)
+        _notify_agri_changed()
+        return {"plot_id": plot.plot_id, "plot": plot.as_dict()}
+
+    async def _update_crop_cycle(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        cycle_id = call.data["cycle_id"]
+        existing = agri_store.records.cycles.get(cycle_id)
+        if existing is None:
+            raise vol.Invalid(f"Unknown cycle_id {cycle_id!r}")
+        plot_id = call.data["plot_id"]
+        if plot_id not in agri_store.records.plots:
+            raise vol.Invalid(f"Unknown plot_id {plot_id!r}")
+        cycle = CropCycle(
+            cycle_id=cycle_id,
+            plot_id=plot_id,
+            product=call.data["product"],
+            variety=call.data.get("variety") or "",
+            lot_number=call.data.get("lot_number") or "",
+            trace_code=call.data.get("trace_code") or "",
+            start_date=call.data.get("start_date") or "",
+            expected_harvest_date=call.data.get("expected_harvest_date") or "",
+            actual_harvest_date=call.data.get("actual_harvest_date") or existing.actual_harvest_date,
+            status=call.data.get("status") or existing.status,
+            archived_at=call.data.get("archived_at") or existing.archived_at,
+            created_at=existing.created_at,
+        )
+        await agri_store.async_update_cycle(cycle)
+        _notify_agri_changed()
+        return {"cycle_id": cycle.cycle_id, "cycle": cycle.as_dict()}
+
     async def _create_agri_operation(call: ServiceCall) -> dict[str, Any]:
         agri_store: AgriStore = _entry_data(hass)["agri_store"]
         cycle_id = call.data["cycle_id"]
@@ -593,6 +690,13 @@ def _register_services_once(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN,
+        SERVICE_UPDATE_FARM,
+        _update_farm,
+        schema=UPDATE_FARM_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
         SERVICE_CREATE_PLOT,
         _create_plot,
         schema=CREATE_PLOT_SCHEMA,
@@ -600,9 +704,23 @@ def _register_services_once(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN,
+        SERVICE_UPDATE_PLOT,
+        _update_plot,
+        schema=UPDATE_PLOT_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
         SERVICE_CREATE_CROP_CYCLE,
         _create_crop_cycle,
         schema=CREATE_CROP_CYCLE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_UPDATE_CROP_CYCLE,
+        _update_crop_cycle,
+        schema=UPDATE_CROP_CYCLE_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(

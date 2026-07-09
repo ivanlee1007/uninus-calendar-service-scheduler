@@ -179,6 +179,8 @@ class Farm:
     operator: str = ""
     address: str = ""
     phone: str = ""
+    status: str = "active"
+    archived_at: str = ""
     created_at: str | None = None
 
     @classmethod
@@ -191,6 +193,8 @@ class Farm:
             operator=operator,
             address=address,
             phone=phone,
+            status="active",
+            archived_at="",
             created_at=_now(),
         )
 
@@ -202,6 +206,8 @@ class Farm:
             operator=str(raw.get("operator") or ""),
             address=str(raw.get("address") or ""),
             phone=str(raw.get("phone") or ""),
+            status=str(raw.get("status") or "active"),
+            archived_at=str(raw.get("archived_at") or ""),
             created_at=raw.get("created_at"),
         )
 
@@ -212,6 +218,8 @@ class Farm:
             "operator": self.operator,
             "address": self.address,
             "phone": self.phone,
+            "status": self.status,
+            "archived_at": self.archived_at,
             "created_at": self.created_at,
         }
 
@@ -227,6 +235,8 @@ class Plot:
     tgap_category: str = ""
     area: str = ""
     location: str = ""
+    status: str = "active"
+    archived_at: str = ""
     created_at: str | None = None
 
     @classmethod
@@ -248,6 +258,8 @@ class Plot:
             tgap_category=tgap_category,
             area=area,
             location=location,
+            status="active",
+            archived_at="",
             created_at=_now(),
         )
 
@@ -261,6 +273,8 @@ class Plot:
             tgap_category=str(raw.get("tgap_category") or ""),
             area=str(raw.get("area") or ""),
             location=str(raw.get("location") or ""),
+            status=str(raw.get("status") or "active"),
+            archived_at=str(raw.get("archived_at") or ""),
             created_at=raw.get("created_at"),
         )
 
@@ -273,6 +287,8 @@ class Plot:
             "tgap_category": self.tgap_category,
             "area": self.area,
             "location": self.location,
+            "status": self.status,
+            "archived_at": self.archived_at,
             "created_at": self.created_at,
         }
 
@@ -291,6 +307,7 @@ class CropCycle:
     expected_harvest_date: str = ""
     actual_harvest_date: str = ""
     status: str = "active"
+    archived_at: str = ""
     created_at: str | None = None
 
     @classmethod
@@ -330,6 +347,7 @@ class CropCycle:
             expected_harvest_date=str(raw.get("expected_harvest_date") or ""),
             actual_harvest_date=str(raw.get("actual_harvest_date") or ""),
             status=str(raw.get("status") or "active"),
+            archived_at=str(raw.get("archived_at") or ""),
             created_at=raw.get("created_at"),
         )
 
@@ -345,6 +363,7 @@ class CropCycle:
             "expected_harvest_date": self.expected_harvest_date,
             "actual_harvest_date": self.actual_harvest_date,
             "status": self.status,
+            "archived_at": self.archived_at,
             "created_at": self.created_at,
         }
 
