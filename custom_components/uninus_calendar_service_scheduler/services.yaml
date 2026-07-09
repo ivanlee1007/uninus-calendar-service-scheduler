@@ -325,6 +325,100 @@ create_agri_operation:
       selector:
         text:
           multiline: true
+    calendar_entity:
+      required: false
+      selector:
+        entity:
+          domain: calendar
+    calendar_event_uid:
+      required: false
+      selector:
+        text:
+    status:
+      required: false
+      selector:
+        select:
+          options:
+            - planned
+            - completed
+            - skipped
+            - verified
+            - exported
+
+update_agri_operation:
+  name: Update agricultural traceability operation
+  description: Update an existing agricultural operation record and its optional calendar linkage metadata.
+  fields:
+    operation_id:
+      required: true
+      selector:
+        text:
+    cycle_id:
+      required: true
+      selector:
+        text:
+    operation_type:
+      required: true
+      selector:
+        select:
+          options:
+            - 播種/定植
+            - 灌溉
+            - 施肥
+            - 病蟲害防治
+            - 除草
+            - 採收
+            - 分級包裝
+            - 清潔消毒
+            - 自我查核
+            - 異常事件
+    scheduled_start:
+      required: false
+      selector:
+        text:
+    actual_start:
+      required: false
+      selector:
+        text:
+    operator:
+      required: false
+      selector:
+        text:
+    material_name:
+      required: false
+      selector:
+        text:
+    quantity:
+      required: false
+      selector:
+        text:
+    unit:
+      required: false
+      selector:
+        text:
+    sensor_entities:
+      required: false
+      selector:
+        entity:
+          multiple: true
+    sensor_snapshot:
+      required: false
+      selector:
+        object:
+    notes:
+      required: false
+      selector:
+        text:
+          multiline: true
+    calendar_entity:
+      required: false
+      selector:
+        entity:
+          domain: calendar
+    calendar_event_uid:
+      required: false
+      selector:
+        text:
     status:
       required: false
       selector:

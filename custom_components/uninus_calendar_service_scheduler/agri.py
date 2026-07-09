@@ -218,6 +218,8 @@ class AgriOperation:
     unit: str = ""
     sensor_snapshot: dict[str, Any] = field(default_factory=dict)
     notes: str = ""
+    calendar_entity: str = ""
+    calendar_event_uid: str = ""
     status: str = "planned"
     created_at: str | None = None
     record_hash: str = ""
@@ -236,6 +238,8 @@ class AgriOperation:
         unit: str = "",
         sensor_snapshot: dict[str, Any] | None = None,
         notes: str = "",
+        calendar_entity: str = "",
+        calendar_event_uid: str = "",
         status: str | None = None,
     ) -> AgriOperation:
         operation = cls(
@@ -250,6 +254,8 @@ class AgriOperation:
             unit=unit,
             sensor_snapshot=sensor_snapshot or {},
             notes=notes,
+            calendar_entity=calendar_entity,
+            calendar_event_uid=calendar_event_uid,
             status=status or ("completed" if actual_start or sensor_snapshot else "planned"),
             created_at=_now(),
         )
@@ -270,6 +276,8 @@ class AgriOperation:
             unit=str(raw.get("unit") or ""),
             sensor_snapshot=dict(raw.get("sensor_snapshot") or {}),
             notes=str(raw.get("notes") or ""),
+            calendar_entity=str(raw.get("calendar_entity") or ""),
+            calendar_event_uid=str(raw.get("calendar_event_uid") or ""),
             status=str(raw.get("status") or "planned"),
             created_at=raw.get("created_at"),
             record_hash=str(raw.get("record_hash") or ""),
@@ -291,6 +299,8 @@ class AgriOperation:
             "unit": self.unit,
             "sensor_snapshot": self.sensor_snapshot,
             "notes": self.notes,
+            "calendar_entity": self.calendar_entity,
+            "calendar_event_uid": self.calendar_event_uid,
             "status": self.status,
             "created_at": self.created_at,
             "record_hash": self.record_hash,

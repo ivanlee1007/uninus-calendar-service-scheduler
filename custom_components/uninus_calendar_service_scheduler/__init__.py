@@ -18,7 +18,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.typing import ConfigType
 
-from .agri import AgriOperation, CropCycle, Farm, Plot
+from .agri import AgriOperation, CropCycle, Farm, Plot, _stable_hash
 from .agri_storage import AgriStore
 from .const import (
     CARD_FILENAME,
@@ -39,6 +39,7 @@ from .const import (
     SERVICE_EXPORT_TRACEABILITY_RECORDS,
     SERVICE_RELOAD_ACTIONS,
     SERVICE_TEST_ACTION,
+    SERVICE_UPDATE_AGRI_OPERATION,
     SERVICE_UPDATE_EVENT_ACTION,
 )
 from .models import (
@@ -124,7 +125,15 @@ CREATE_AGRI_OPERATION_SCHEMA = vol.Schema(
         vol.Optional("sensor_snapshot", default={}): dict,
         vol.Optional("sensor_entities", default=[]): list,
         vol.Optional("notes", default=""): cv.string,
+        vol.Optional("calendar_entity", default=""): cv.string,
+        vol.Optional("calendar_event_uid", default=""): cv.string,
         vol.Optional("status"): cv.string,
+    }
+)
+
+UPDATE_AGRI_OPERATION_SCHEMA = CREATE_AGRI_OPERATION_SCHEMA.extend(
+    {
+        vol.Required("operation_id"): cv.string,
     }
 )
 
@@ -494,8 +503,42 @@ def _register_services_once(hass: HomeAssistant) -> None:
             unit=call.data.get("unit") or "",
             sensor_snapshot=_sensor_snapshot(call),
             notes=call.data.get("notes") or "",
+            calendar_entity=call.data.get("calendar_entity") or "",
+            calendar_event_uid=call.data.get("calendar_event_uid") or "",
             status=call.data.get("status"),
         )
+        await agri_store.async_add_operation(operation)
+        _notify_agri_changed()
+        return {"operation_id": operation.operation_id, "operation": operation.as_dict()}
+
+
+    async def _update_agri_operation(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        operation_id = call.data["operation_id"]
+        existing = agri_store.records.operations.get(operation_id)
+        if existing is None:
+            raise vol.Invalid(f"Unknown operation_id {operation_id!r}")
+        cycle_id = call.data["cycle_id"]
+        if cycle_id not in agri_store.records.cycles:
+            raise vol.Invalid(f"Unknown cycle_id {cycle_id!r}")
+        operation = AgriOperation(
+            operation_id=operation_id,
+            cycle_id=cycle_id,
+            operation_type=call.data["operation_type"],
+            scheduled_start=call.data.get("scheduled_start") or "",
+            actual_start=call.data.get("actual_start") or "",
+            operator=call.data.get("operator") or "",
+            material_name=call.data.get("material_name") or "",
+            quantity=call.data.get("quantity"),
+            unit=call.data.get("unit") or "",
+            sensor_snapshot=_sensor_snapshot(call),
+            notes=call.data.get("notes") or "",
+            calendar_entity=call.data.get("calendar_entity") or existing.calendar_entity,
+            calendar_event_uid=call.data.get("calendar_event_uid") or existing.calendar_event_uid,
+            status=call.data.get("status") or existing.status,
+            created_at=existing.created_at,
+        )
+        operation.record_hash = _stable_hash(operation.as_dict())
         await agri_store.async_add_operation(operation)
         _notify_agri_changed()
         return {"operation_id": operation.operation_id, "operation": operation.as_dict()}
@@ -567,6 +610,14 @@ def _register_services_once(hass: HomeAssistant) -> None:
         SERVICE_CREATE_AGRI_OPERATION,
         _create_agri_operation,
         schema=CREATE_AGRI_OPERATION_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_UPDATE_AGRI_OPERATION,
+        _update_agri_operation,
+        schema=UPDATE_AGRI_OPERATION_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(

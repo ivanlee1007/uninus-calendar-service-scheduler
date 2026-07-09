@@ -68,6 +68,22 @@ def test_agri_records_roundtrip_with_sensor_snapshot():
     assert loaded.record_hash == operation.record_hash
 
 
+def test_agri_operation_can_link_to_calendar_event_for_visible_editing():
+    operation = AgriOperation.create(
+        cycle_id="cycle_1",
+        operation_type="灌溉",
+        actual_start="2026-03-01T06:03:00+08:00",
+        calendar_entity="calendar.farm",
+        calendar_event_uid="event-123",
+    )
+
+    loaded = AgriOperation.from_dict(operation.as_dict())
+
+    assert loaded.calendar_entity == "calendar.farm"
+    assert loaded.calendar_event_uid == "event-123"
+    assert loaded.as_dict()["calendar_entity"] == "calendar.farm"
+
+
 def test_traceability_record_set_exports_flat_rows_for_audit_package():
     farm = Farm.create(name="綠竹農場", operator="王小農")
     plot = Plot.create(farm_id=farm.farm_id, name="A 區", product="芒果", tgap_category="水果類")

@@ -84,6 +84,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       unit: "",
       sensorEntities: "",
       notes: "",
+      calendar: this._selectedCalendar || "",
+      operationId: "",
+      calendarEventUid: "",
     };
   }
 
@@ -597,6 +600,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       <section class="agri-dialog" role="dialog" aria-modal="true" aria-label="新增農務作業">
         <header>新增農務作業</header>
         <div class="content">
+          <label>顯示日曆<select id="agri_calendar">${this._calendarIds().map((id) => `<option value="${this._escape(id)}" ${id === (f.calendar || this._selectedCalendar) ? "selected" : ""}>${this._escape(this._stateName(id))}</option>`).join("")}</select></label>
           <label>生產週期<select id="agri_cycle">${cycleOptions}</select></label>
           <label>作業類型<select id="agri_operation_type">${typeOptions}</select></label>
           <label>實際時間<input id="agri_actual_start" type="datetime-local" value="${this._escape(f.actualStart)}" /></label>
@@ -629,16 +633,106 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
   _captureAgriForm() {
     const get = (id) => this.shadowRoot.getElementById(id)?.value || "";
-    this._agriForm = { cycleId: get("agri_cycle"), operationType: get("agri_operation_type") || "灌溉", actualStart: get("agri_actual_start"), operator: get("agri_operator"), materialName: get("agri_material"), quantity: get("agri_quantity"), unit: get("agri_unit"), sensorEntities: get("agri_sensor_entities"), notes: get("agri_notes") };
+    this._agriForm = { ...this._agriForm, calendar: get("agri_calendar") || this._selectedCalendar, cycleId: get("agri_cycle"), operationType: get("agri_operation_type") || "灌溉", actualStart: get("agri_actual_start"), operator: get("agri_operator"), materialName: get("agri_material"), quantity: get("agri_quantity"), unit: get("agri_unit"), sensorEntities: get("agri_sensor_entities"), notes: get("agri_notes") };
+  }
+
+  _agriOperationIdFromDescription(description = "") {
+    const match = String(description || "").match(/AGRI_OPERATION_ID:\s*(op_[a-f0-9]+)/i);
+    return match?.[1] || "";
+  }
+
+  _agriOperationById(operationId) {
+    const operations = this._traceabilityRecords().operations || {};
+    return operations[operationId];
+  }
+
+  _agriEventSummary(form) {
+    return `農務：${form.operationType || "作業"}`;
+  }
+
+  _agriCalendarDescription(form, operationId) {
+    const parts = [];
+    if (form.notes) parts.push(String(form.notes).trim());
+    parts.push(`AGRI_OPERATION_ID: ${operationId}`);
+    parts.push("Created by Uninus Agricultural Traceability Assistant");
+    return parts.join("\n\n");
+  }
+
+  _oneHourLaterIso(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return iso;
+    return new Date(date.getTime() + 60 * 60 * 1000).toISOString();
+  }
+
+  _agriServiceData() {
+    const sensorEntities = this._agriForm.sensorEntities.split(",").map((item) => item.trim()).filter(Boolean);
+    return {
+      cycle_id: this._agriForm.cycleId,
+      operation_type: this._agriForm.operationType,
+      actual_start: this._agriForm.actualStart ? this._toIsoWithOffset(this._agriForm.actualStart) : "",
+      operator: this._agriForm.operator,
+      material_name: this._agriForm.materialName,
+      quantity: this._agriForm.quantity,
+      unit: this._agriForm.unit,
+      sensor_entities: sensorEntities,
+      notes: this._agriForm.notes,
+      calendar_entity: this._agriForm.calendar || this._selectedCalendar,
+      calendar_event_uid: this._agriForm.calendarEventUid || "",
+    };
+  }
+
+  async _createAgriCalendarEvent(operationId, serviceData) {
+    if (!serviceData.calendar_entity || !serviceData.actual_start) return;
+    await this._hass.callWS({
+      type: "calendar/event/create",
+      entity_id: serviceData.calendar_entity,
+      event: {
+        summary: this._agriEventSummary(this._agriForm),
+        dtstart: serviceData.actual_start,
+        dtend: this._oneHourLaterIso(serviceData.actual_start),
+        description: this._agriCalendarDescription(this._agriForm, operationId),
+      },
+    });
+  }
+
+  async _updateAgriCalendarEvent(operationId, serviceData) {
+    if (!this._agriForm.calendarEventUid || !serviceData.calendar_entity || !serviceData.actual_start) return;
+    await this._hass.callWS({
+      type: "calendar/event/update",
+      entity_id: serviceData.calendar_entity,
+      uid: this._agriForm.calendarEventUid,
+      event: {
+        summary: this._agriEventSummary(this._agriForm),
+        dtstart: serviceData.actual_start,
+        dtend: this._oneHourLaterIso(serviceData.actual_start),
+        description: this._agriCalendarDescription(this._agriForm, operationId),
+      },
+    });
   }
 
   async _createAgriOperation() {
     this._captureAgriForm();
     if (!this._agriForm.cycleId) { this._message = "請先選擇生產週期。可透過 HA 服務 create_farm/create_plot/create_crop_cycle 建立。"; this._render(); return; }
-    const sensorEntities = this._agriForm.sensorEntities.split(",").map((item) => item.trim()).filter(Boolean);
-    const service_data = { cycle_id: this._agriForm.cycleId, operation_type: this._agriForm.operationType, actual_start: this._agriForm.actualStart ? this._toIsoWithOffset(this._agriForm.actualStart) : "", operator: this._agriForm.operator, material_name: this._agriForm.materialName, quantity: this._agriForm.quantity, unit: this._agriForm.unit, sensor_entities: sensorEntities, notes: this._agriForm.notes };
-    try { await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "create_agri_operation", service_data, return_response: true }); this._message = "已記錄產銷履歷作業。"; this._agriDialogOpen = false; this._agriForm = { ...this._defaultAgriForm(), cycleId: this._agriForm.cycleId }; } catch (err) { this._message = `產銷履歷記錄失敗: ${err?.message || err}`; }
-    this._render();
+    const service_data = this._agriServiceData();
+    try {
+      if (this._agriForm.operationId) {
+        await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "update_agri_operation", service_data: { ...service_data, operation_id: this._agriForm.operationId }, return_response: true });
+        await this._updateAgriCalendarEvent(this._agriForm.operationId, service_data);
+        this._message = "已更新農務作業。";
+      } else {
+        const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "create_agri_operation", service_data, return_response: true });
+        const operationId = response?.response?.operation_id || response?.operation_id || response?.response?.operation?.operation_id;
+        if (operationId) await this._createAgriCalendarEvent(operationId, service_data);
+        this._message = "已記錄產銷履歷作業，並建立 calendar 事件。";
+      }
+      this._agriDialogOpen = false;
+      if (this._agriForm.calendar && !this._selectedCalendars.includes(this._agriForm.calendar)) {
+        this._selectedCalendars = [...this._selectedCalendars, this._agriForm.calendar];
+        this._saveSelectedCalendars();
+      }
+      this._agriForm = { ...this._defaultAgriForm(), calendar: this._agriForm.calendar, cycleId: this._agriForm.cycleId };
+      await this._loadEvents();
+    } catch (err) { this._message = `產銷履歷記錄失敗: ${err?.message || err}`; this._render(); }
   }
 
   async _exportTraceabilityRecords() {
@@ -984,7 +1078,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("agri-cancel")?.addEventListener("click", () => this._closeAgriDialog());
     this.shadowRoot.getElementById("agri-create-operation")?.addEventListener("click", () => this._createAgriOperation());
     this.shadowRoot.getElementById("agri-export")?.addEventListener("click", () => this._exportTraceabilityRecords());
-    ["agri_cycle", "agri_operation_type", "agri_actual_start", "agri_operator", "agri_material", "agri_quantity", "agri_unit", "agri_sensor_entities", "agri_notes"].forEach((id) => {
+    ["agri_calendar", "agri_cycle", "agri_operation_type", "agri_actual_start", "agri_operator", "agri_material", "agri_quantity", "agri_unit", "agri_sensor_entities", "agri_notes"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureAgriForm());
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureAgriForm());
     });
@@ -1130,6 +1224,11 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   _openEventByUid(uid, calendarEntity = "", recurrenceId = "") {
     const event = this._events.find((ev) => ev.uid === uid && (!calendarEntity || ev.__calendarEntity === calendarEntity) && (!recurrenceId || ev.recurrence_id === recurrenceId));
     if (!event) return;
+    const agriOperationId = this._agriOperationIdFromDescription(event.description || "");
+    if (agriOperationId) {
+      this._openAgriOperationById(agriOperationId, event);
+      return;
+    }
     const actionId = this._actionIdFromDescription(event.description || "");
     const storedAction = this._storedAction(actionId);
     this._editingEvent = event;
@@ -1160,6 +1259,33 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     };
     this._dialogOpen = true;
     this._message = actionId ? "" : "此事件沒有綁定 Uninus service action；可修改日曆事件，但不能更新 service action。";
+    this._render();
+  }
+
+  _openAgriOperationById(operationId, event) {
+    const operation = this._agriOperationById(operationId);
+    if (!operation) {
+      this._message = "找不到這筆農務作業；可能是舊 calendar 事件或儲存資料已被移除。";
+      this._render();
+      return;
+    }
+    this._agriForm = {
+      ...this._defaultAgriForm(),
+      operationId,
+      calendar: event.__calendarEntity || operation.calendar_entity || this._selectedCalendar,
+      calendarEventUid: event.uid || operation.calendar_event_uid || "",
+      cycleId: operation.cycle_id || "",
+      operationType: operation.operation_type || "灌溉",
+      actualStart: (operation.actual_start || operation.scheduled_start || "").slice(0, 16),
+      operator: operation.operator || "",
+      materialName: operation.material_name || "",
+      quantity: operation.quantity ?? "",
+      unit: operation.unit || "",
+      sensorEntities: Object.keys(operation.sensor_snapshot || {}).join(", "),
+      notes: operation.notes || "",
+    };
+    this._message = "";
+    this._agriDialogOpen = true;
     this._render();
   }
 
