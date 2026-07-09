@@ -6,6 +6,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._events = [];
     this._message = "";
     this._dialogOpen = false;
+    this._agriDialogOpen = false;
     this._deleteConfirmOpen = false;
     this._editConfirmOpen = false;
     this._pendingUpdatePayload = undefined;
@@ -37,7 +38,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       this._form.calendar = this._selectedCalendar;
     }
     this._ensureHaPickers();
-    if (!this._dialogOpen) this._render();
+    if (!this._dialogOpen && !this._agriDialogOpen) this._render();
     if (!oldHass && this._selectedCalendars.length) this._loadEvents();
   }
 
@@ -542,12 +543,17 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .traceability-card textarea { min-height: 54px; }
       .traceability-card .mini-actions { display: flex; gap: 8px; flex-wrap: wrap; }
       .traceability-card code { font-size: 11px; word-break: break-all; }
+      .traceability-recent { margin-top: 10px; }
+      .traceability-recent p { margin: 6px 0 0; }
       .error { color: var(--error-color); }
 
-      .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9; display: ${this._dialogOpen ? "block" : "none"}; }
-      .dialog { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(860px, calc(100vw - 32px)); max-height: min(860px, calc(100vh - 32px)); overflow: auto; z-index: 10; border-radius: 28px; background: var(--card-background-color); color: var(--primary-text-color); display: ${this._dialogOpen ? "block" : "none"}; box-shadow: 0 24px 38px rgba(0,0,0,.14), 0 9px 46px rgba(0,0,0,.12), 0 11px 15px rgba(0,0,0,.2); }
-      .dialog header { padding: 24px 24px 8px; font-size: 22px; font-weight: 500; }
-      .dialog .content { padding: 0 24px 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+      .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9; display: ${this._dialogOpen || this._agriDialogOpen ? "block" : "none"}; }
+      .dialog, .agri-dialog { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(860px, calc(100vw - 32px)); max-height: min(860px, calc(100vh - 32px)); overflow: auto; z-index: 10; border-radius: 28px; background: var(--card-background-color); color: var(--primary-text-color); box-shadow: 0 24px 38px rgba(0,0,0,.14), 0 9px 46px rgba(0,0,0,.12), 0 11px 15px rgba(0,0,0,.2); }
+      .dialog { display: ${this._dialogOpen ? "block" : "none"}; }
+      .agri-dialog { display: ${this._agriDialogOpen ? "block" : "none"}; width: min(980px, calc(100vw - 32px)); }
+      .dialog header, .agri-dialog header { padding: 24px 24px 8px; font-size: 22px; font-weight: 500; }
+      .dialog .content, .agri-dialog .content { padding: 0 24px 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+      .agri-dialog .content { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .delete-confirm, .edit-confirm { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(360px, calc(100vw - 48px)); z-index: 12; border-radius: 20px; background: var(--card-background-color); color: var(--primary-text-color); box-shadow: 0 18px 34px rgba(0,0,0,.28); padding: 20px 16px 16px; }
       .delete-confirm { display: ${this._deleteConfirmOpen ? "block" : "none"}; }
       .edit-confirm { display: ${this._editConfirmOpen ? "block" : "none"}; }
@@ -562,8 +568,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .checkbox { flex-direction: row; align-items: center; gap: 10px; }
       .checkbox input { width: auto; }
       .actions { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 24px 24px; }
-      @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .side { border-inline-end: 0; border-block-end: 1px solid var(--divider-color); } .day { min-height: 88px; } }
-      @media (max-width: 640px) { .dialog .content { grid-template-columns: 1fr; } .weekday { font-size: 11px; padding: 8px 4px; text-align: center; } .day { min-height: 74px; padding: 4px; } .pill { font-size: 10px; padding: 2px 4px; } }
+      @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .side { border-inline-end: 0; border-block-end: 1px solid var(--divider-color); } .day { min-height: 88px; } .agri-dialog .content { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+      @media (max-width: 640px) { .dialog .content, .agri-dialog .content { grid-template-columns: 1fr; } .weekday { font-size: 11px; padding: 8px 4px; text-align: center; } .day { min-height: 74px; padding: 4px; } .pill { font-size: 10px; padding: 2px 4px; } }
     `;
   }
 
@@ -577,12 +583,48 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
   _traceabilityTemplate() {
     const summary = this._traceabilitySummary();
+    const operations = summary.recent_operations || [];
+    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業</div></div><div class="mini-actions"><button class="primary" id="agri-open-dialog">新增農務作業</button><button id="agri-export">匯出 JSON</button></div><p class="message">左側顯示摘要；作業輸入請使用寬版對話框。</p><div class="traceability-recent"><p class="message">最近 ${operations.length} 筆</p>${operations.slice(0, 3).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("")}</div></section>`;
+  }
+
+  _agriDialogTemplate() {
     const records = this._traceabilityRecords();
     const cycles = Object.values(records.cycles || {});
-    const operations = summary.recent_operations || [];
     const f = this._agriForm || this._defaultAgriForm();
     const cycleOptions = [`<option value="">選擇生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === f.cycleId ? "selected" : ""}>${this._escape(cycle.product || cycle.cycle_id)} ${this._escape(cycle.lot_number || "")}</option>`)).join("");
-    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業</div></div><label>生產週期<select id="agri_cycle">${cycleOptions}</select></label><label>作業類型<select id="agri_operation_type">${["灌溉", "施肥", "病蟲害防治", "採收", "分級包裝", "自我查核", "異常事件"].map((item) => `<option value="${this._escape(item)}" ${item === f.operationType ? "selected" : ""}>${this._escape(item)}</option>`).join("")}</select></label><label>實際時間<input id="agri_actual_start" type="datetime-local" value="${this._escape(f.actualStart)}" /></label><label>操作者<input id="agri_operator" value="${this._escape(f.operator)}" /></label><label>資材/水源<input id="agri_material" value="${this._escape(f.materialName)}" /></label><div class="inline-field"><label>數量<input id="agri_quantity" value="${this._escape(f.quantity)}" /></label><label>單位<input id="agri_unit" value="${this._escape(f.unit)}" /></label></div><label>感測器 entity_id（逗號分隔）<textarea id="agri_sensor_entities">${this._escape(f.sensorEntities)}</textarea></label><label>備註<textarea id="agri_notes">${this._escape(f.notes)}</textarea></label><div class="mini-actions"><button class="primary" id="agri-create-operation">記錄作業</button><button id="agri-export">匯出 JSON</button></div><p class="message">最近 ${operations.length} 筆；完整農場/場區/週期可先由 HA 服務建立。</p>${operations.slice(0, 3).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("")}</section>`;
+    const typeOptions = ["灌溉", "施肥", "病蟲害防治", "採收", "分級包裝", "自我查核", "異常事件"].map((item) => `<option value="${this._escape(item)}" ${item === f.operationType ? "selected" : ""}>${this._escape(item)}</option>`).join("");
+    return `
+      <section class="agri-dialog" role="dialog" aria-modal="true" aria-label="新增農務作業">
+        <header>新增農務作業</header>
+        <div class="content">
+          <label>生產週期<select id="agri_cycle">${cycleOptions}</select></label>
+          <label>作業類型<select id="agri_operation_type">${typeOptions}</select></label>
+          <label>實際時間<input id="agri_actual_start" type="datetime-local" value="${this._escape(f.actualStart)}" /></label>
+          <label>操作者<input id="agri_operator" value="${this._escape(f.operator)}" /></label>
+          <label>資材/水源<input id="agri_material" value="${this._escape(f.materialName)}" /></label>
+          <div class="inline-field"><label>數量<input id="agri_quantity" value="${this._escape(f.quantity)}" /></label><label>單位<input id="agri_unit" value="${this._escape(f.unit)}" /></label></div>
+          <label class="fullrow">感測器 entity_id（逗號分隔）<textarea id="agri_sensor_entities">${this._escape(f.sensorEntities)}</textarea></label>
+          <label class="fullrow">備註<textarea id="agri_notes">${this._escape(f.notes)}</textarea></label>
+          <div class="message fullrow ${this._message.startsWith("產銷履歷記錄失敗") || this._message.startsWith("請先") ? "error" : ""}">${this._escape(this._message)}</div>
+        </div>
+        <div class="actions">
+          <button id="agri-cancel">取消</button>
+          <button class="primary" id="agri-create-operation">記錄作業</button>
+        </div>
+      </section>
+    `;
+  }
+
+  _openAgriDialog() {
+    this._message = "";
+    this._agriDialogOpen = true;
+    this._render();
+  }
+
+  _closeAgriDialog() {
+    this._captureAgriForm();
+    this._agriDialogOpen = false;
+    this._render();
   }
 
   _captureAgriForm() {
@@ -595,7 +637,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     if (!this._agriForm.cycleId) { this._message = "請先選擇生產週期。可透過 HA 服務 create_farm/create_plot/create_crop_cycle 建立。"; this._render(); return; }
     const sensorEntities = this._agriForm.sensorEntities.split(",").map((item) => item.trim()).filter(Boolean);
     const service_data = { cycle_id: this._agriForm.cycleId, operation_type: this._agriForm.operationType, actual_start: this._agriForm.actualStart ? this._toIsoWithOffset(this._agriForm.actualStart) : "", operator: this._agriForm.operator, material_name: this._agriForm.materialName, quantity: this._agriForm.quantity, unit: this._agriForm.unit, sensor_entities: sensorEntities, notes: this._agriForm.notes };
-    try { await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "create_agri_operation", service_data, return_response: true }); this._message = "已記錄產銷履歷作業。"; this._agriForm = { ...this._defaultAgriForm(), cycleId: this._agriForm.cycleId }; } catch (err) { this._message = `產銷履歷記錄失敗: ${err?.message || err}`; }
+    try { await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "create_agri_operation", service_data, return_response: true }); this._message = "已記錄產銷履歷作業。"; this._agriDialogOpen = false; this._agriForm = { ...this._defaultAgriForm(), cycleId: this._agriForm.cycleId }; } catch (err) { this._message = `產銷履歷記錄失敗: ${err?.message || err}`; }
     this._render();
   }
 
@@ -642,6 +684,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       </div>
       <button class="primary fab" id="new-event-fab">＋ 增加行程</button>
       ${this._dialogTemplate()}
+      ${this._agriDialogTemplate()}
     `;
     this._bind();
     const nextCalendarList = this.shadowRoot.querySelector(".calendar-list");
@@ -925,7 +968,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       ev.stopPropagation();
       this._openEventByUid(el.dataset.uid, el.dataset.calendar, el.dataset.recurrenceId || "");
     }));
-    this.shadowRoot.querySelector(".scrim")?.addEventListener("click", () => this._deleteConfirmOpen ? this._closeDeleteConfirm() : (this._editConfirmOpen ? this._closeEditConfirm() : this._closeDialog()));
+    this.shadowRoot.querySelector(".scrim")?.addEventListener("click", () => this._deleteConfirmOpen ? this._closeDeleteConfirm() : (this._editConfirmOpen ? this._closeEditConfirm() : (this._agriDialogOpen ? this._closeAgriDialog() : this._closeDialog())));
     this.shadowRoot.getElementById("cancel")?.addEventListener("click", () => this._closeDialog());
     this.shadowRoot.getElementById("delete-event")?.addEventListener("click", () => this._openDeleteConfirm());
     this.shadowRoot.getElementById("delete-cancel")?.addEventListener("click", () => this._closeDeleteConfirm());
@@ -937,6 +980,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("edit-this-event")?.addEventListener("click", () => this._confirmUpdateCurrentEvent("this"));
     this.shadowRoot.getElementById("edit-future-events")?.addEventListener("click", () => this._confirmUpdateCurrentEvent("future"));
     this.shadowRoot.getElementById("create")?.addEventListener("click", () => this._create());
+    this.shadowRoot.getElementById("agri-open-dialog")?.addEventListener("click", () => this._openAgriDialog());
+    this.shadowRoot.getElementById("agri-cancel")?.addEventListener("click", () => this._closeAgriDialog());
     this.shadowRoot.getElementById("agri-create-operation")?.addEventListener("click", () => this._createAgriOperation());
     this.shadowRoot.getElementById("agri-export")?.addEventListener("click", () => this._exportTraceabilityRecords());
     ["agri_cycle", "agri_operation_type", "agri_actual_start", "agri_operator", "agri_material", "agri_quantity", "agri_unit", "agri_sensor_entities", "agri_notes"].forEach((id) => {
