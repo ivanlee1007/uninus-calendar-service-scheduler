@@ -32,6 +32,7 @@ compose_agri_description = agri.compose_agri_description
 extract_agri_description = agri.extract_agri_description
 verify_agri_payload_hash = agri.verify_agri_payload_hash
 calendar_events_to_traceability_rows = agri.calendar_events_to_traceability_rows
+operation_to_calendar_event_payload = agri.operation_to_calendar_event_payload
 
 
 def test_agri_records_roundtrip_with_sensor_snapshot():
@@ -132,6 +133,38 @@ def test_agri_description_detects_hash_mismatch_after_external_edit():
     assert valid is False
 
 
+def test_legacy_agri_operation_converts_to_calendar_event_payload_with_hidden_json():
+    operation = AgriOperation.create(
+        cycle_id="cycle_1",
+        operation_type="施肥",
+        actual_start="2026-03-02T07:00:00+08:00",
+        operator="王小農",
+        material_name="有機質肥料",
+        quantity="20",
+        unit="kg",
+        notes="legacy storage note",
+    )
+
+    event = operation_to_calendar_event_payload(
+        operation,
+        calendar_entity="calendar.farm",
+        summary_prefix="農務",
+    )
+    notes, payload, valid = extract_agri_description(event["description"])
+
+    assert event["calendar_entity"] == "calendar.farm"
+    assert event["summary"] == "農務：施肥"
+    assert event["dtstart"] == "2026-03-02T07:00:00+08:00"
+    assert event["dtend"] == "2026-03-02T08:00:00+08:00"
+    assert notes == "legacy storage note"
+    assert payload["operation_id"] == operation.operation_id
+    assert payload["cycle_id"] == "cycle_1"
+    assert payload["operation_type"] == "施肥"
+    assert payload["quantity"] == "20"
+    assert payload["unit"] == "kg"
+    assert valid is True
+
+
 def test_calendar_events_with_embedded_agri_json_export_to_traceability_rows():
     description = compose_agri_description(
         human_notes="人類可讀備註",
@@ -172,6 +205,7 @@ def test_calendar_events_with_embedded_agri_json_export_to_traceability_rows():
             "hash_valid": True,
             "version": 1,
             "cycle_id": "cycle_1",
+            "operation_id": "",
             "operation_type": "灌溉",
             "actual_start": "2026-03-01T06:03:00+08:00",
             "operator": "王小農",

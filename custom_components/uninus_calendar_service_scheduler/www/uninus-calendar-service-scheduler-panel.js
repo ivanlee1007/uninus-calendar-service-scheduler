@@ -4,6 +4,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._hass = undefined;
     this._events = [];
+    this._calendarTraceabilityRows = [];
     this._message = "";
     this._dialogOpen = false;
     this._agriDialogOpen = false;
@@ -603,13 +604,30 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   }
 
   _traceabilitySummary() {
-    return this._hass?.states?.["sensor.uninus_calendar_service_scheduler_status"]?.attributes?.traceability || { farm_count: 0, plot_count: 0, cycle_count: 0, operation_count: 0, missing_link_count: 0, recent_operations: [] };
+    const legacy = this._hass?.states?.["sensor.uninus_calendar_service_scheduler_status"]?.attributes?.traceability || { farm_count: 0, plot_count: 0, cycle_count: 0, operation_count: 0, missing_link_count: 0, recent_operations: [] };
+    const calendarRows = this._calendarTraceabilityRows || [];
+    if (!calendarRows.length) return legacy;
+    return {
+      ...legacy,
+      operation_count: calendarRows.length,
+      calendar_operation_count: calendarRows.length,
+      calendar_hash_mismatch_count: calendarRows.filter((row) => !row.hash_valid).length,
+      recent_operations: calendarRows.slice().sort((a, b) => String(b.actual_start || "").localeCompare(String(a.actual_start || ""))).slice(0, 10),
+    };
+  }
+
+  _legacyOperationsNeedingMigration() {
+    const operations = Object.values(this._traceabilityRecords().operations || {});
+    const existingOperationIds = new Set((this._calendarTraceabilityRows || []).map((row) => row.operation_id).filter(Boolean));
+    return operations.filter((op) => op?.operation_id && !op.calendar_event_uid && !existingOperationIds.has(op.operation_id));
   }
 
   _traceabilityTemplate() {
     const summary = this._traceabilitySummary();
     const operations = summary.recent_operations || [];
-    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業</div></div><div class="mini-actions"><button class="primary" id="agri-open-dialog">新增農務作業</button><button id="agri-export">匯出 JSON</button></div><p class="message">農務作業使用同一個 Calendar dialog，系統會把 UNINUS_AGRI_OPERATION_JSON 寫入 description。</p><div class="traceability-recent"><p class="message">最近 ${operations.length} 筆</p>${operations.slice(0, 3).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("")}</div></section>`;
+    const migrationCount = this._legacyOperationsNeedingMigration().length;
+    const sourceLabel = (this._calendarTraceabilityRows || []).length ? "Calendar" : "Legacy";
+    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業 <span class="system-note">${sourceLabel}</span></div></div><div class="mini-actions"><button class="primary" id="agri-open-dialog">新增農務作業</button><button id="agri-export">匯出 JSON</button>${migrationCount ? `<button id="agri-migrate-legacy">移轉舊作業 ${migrationCount}</button>` : ""}</div><p class="message">農務作業以 Calendar Event 裡的 UNINUS_AGRI_OPERATION_JSON 為主；舊 storage 作業可移轉成 Calendar 事件。</p>${summary.calendar_hash_mismatch_count ? `<p class="warning">⚠️ ${summary.calendar_hash_mismatch_count} 筆 Calendar 農務作業 hash 驗證失敗</p>` : ""}<div class="traceability-recent"><p class="message">最近 ${operations.length} 筆</p>${operations.slice(0, 3).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("")}</div></section>`;
   }
 
   _agriDialogTemplate() {
@@ -678,6 +696,66 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     parts.push(`AGRI_OPERATION_ID: ${operationId}`);
     parts.push("Created by Uninus Agricultural Traceability Assistant");
     return parts.join("\n\n");
+  }
+
+
+  _legacyOperationCalendarDescription(op) {
+    const payload = {
+      version: 1,
+      type: "agri_operation",
+      operation_id: op.operation_id || "",
+      cycle_id: op.cycle_id || "",
+      operation_type: op.operation_type || "灌溉",
+      actual_start: op.actual_start || op.scheduled_start || op.created_at || this._toIsoWithOffset(this._localInputValue(new Date())),
+      operator: op.operator || "",
+      material_name: op.material_name || "",
+      quantity: op.quantity ?? "",
+      unit: op.unit || "",
+      sensor_entities: Object.keys(op.sensor_snapshot || {}),
+      legacy_record_hash: op.record_hash || "",
+      created_at: op.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    const parts = [];
+    if (op.notes) parts.push(String(op.notes).trim());
+    // Hash is generated in the async migration method after canonicalization.
+    return { parts, payload };
+  }
+
+  async _legacyOperationCalendarEvent(op, calendarEntity) {
+    const { parts, payload } = this._legacyOperationCalendarDescription(op);
+    payload.record_hash = await this._hashAgriPayload(payload);
+    parts.push(`<!-- UNINUS_AGRI_OPERATION_JSON\n${JSON.stringify(payload)}\nUNINUS_AGRI_OPERATION_JSON -->`);
+    const start = payload.actual_start;
+    return {
+      summary: `農務：${op.operation_type || "作業"}`,
+      dtstart: start,
+      dtend: this._oneHourLaterIso(start),
+      description: parts.join("\n\n"),
+    };
+  }
+
+  async _migrateLegacyAgriOperations() {
+    const pending = this._legacyOperationsNeedingMigration();
+    if (!pending.length) { this._message = "沒有需要移轉的舊農務作業。"; this._render(); return; }
+    const fallbackCalendar = this._selectedCalendar || this._selectedCalendars[0] || this._calendarIds()[0];
+    if (!fallbackCalendar) { this._message = "沒有可用的 Calendar，無法移轉。"; this._render(); return; }
+    let migrated = 0;
+    try {
+      for (const op of pending) {
+        const calendarEntity = op.calendar_entity || fallbackCalendar;
+        const event = await this._legacyOperationCalendarEvent(op, calendarEntity);
+        await this._hass.callWS({ type: "calendar/event/create", entity_id: calendarEntity, event });
+        if (!this._selectedCalendars.includes(calendarEntity)) this._selectedCalendars.push(calendarEntity);
+        migrated += 1;
+      }
+      this._saveSelectedCalendars();
+      this._message = `已移轉 ${migrated} 筆舊農務作業到 Calendar events。`;
+      await this._loadEvents();
+    } catch (err) {
+      this._message = `移轉舊農務作業失敗: ${err?.message || err}`;
+      this._render();
+    }
   }
 
   _oneHourLaterIso(iso) {
@@ -1320,6 +1398,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("agri-cancel")?.addEventListener("click", () => this._closeAgriDialog());
     this.shadowRoot.getElementById("agri-create-operation")?.addEventListener("click", () => this._createAgriOperation());
     this.shadowRoot.getElementById("agri-export")?.addEventListener("click", () => this._exportTraceabilityRecords());
+    this.shadowRoot.getElementById("agri-migrate-legacy")?.addEventListener("click", () => this._migrateLegacyAgriOperations());
     ["agri_calendar", "agri_cycle", "agri_operation_type", "agri_actual_start", "agri_operator", "agri_material", "agri_quantity", "agri_unit", "agri_sensor_entities", "agri_notes"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureAgriForm());
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureAgriForm());
@@ -1653,9 +1732,11 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         return (events || []).map((event) => ({ ...event, __calendarEntity: calendarEntity }));
       }));
       this._events = results.flat().sort((a, b) => String(this._eventStart(a) || "").localeCompare(String(this._eventStart(b) || "")));
+      this._calendarTraceabilityRows = await this._calendarEventTraceabilityRows(this._events);
     } catch (err) {
       this._message = `Error: ${err?.message || err}`;
       this._events = [];
+      this._calendarTraceabilityRows = [];
     } finally {
       this._loading = false;
       if (!this._dialogOpen) this._render();

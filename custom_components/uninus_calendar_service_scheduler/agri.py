@@ -110,6 +110,7 @@ def calendar_events_to_traceability_rows(events: list[dict[str, Any]]) -> list[d
             "hash_valid": hash_valid,
             "version": payload.get("version"),
             "cycle_id": str(payload.get("cycle_id") or ""),
+            "operation_id": str(payload.get("operation_id") or ""),
             "operation_type": str(payload.get("operation_type") or ""),
             "actual_start": str(payload.get("actual_start") or _event_time_value(event.get("start"))),
             "operator": str(payload.get("operator") or ""),
@@ -123,6 +124,50 @@ def calendar_events_to_traceability_rows(events: list[dict[str, Any]]) -> list[d
         }
         rows.append(row)
     return sorted(rows, key=lambda item: str(item.get("actual_start") or ""))
+
+
+def _one_hour_later_iso(iso_value: str) -> str:
+    if not iso_value:
+        return ""
+    parsed = datetime.fromisoformat(iso_value.replace("Z", "+00:00"))
+    return (parsed.timestamp() + 3600) and datetime.fromtimestamp(
+        parsed.timestamp() + 3600, tz=parsed.tzinfo
+    ).isoformat()
+
+
+def operation_to_calendar_event_payload(
+    operation: AgriOperation,
+    *,
+    calendar_entity: str,
+    summary_prefix: str = "農務",
+) -> dict[str, Any]:
+    """Convert a legacy stored AgriOperation to a Calendar event payload."""
+
+    start = operation.actual_start or operation.scheduled_start or operation.created_at or _now()
+    payload = {
+        "type": "agri_operation",
+        "operation_id": operation.operation_id,
+        "cycle_id": operation.cycle_id,
+        "operation_type": operation.operation_type,
+        "actual_start": start,
+        "operator": operation.operator,
+        "material_name": operation.material_name,
+        "quantity": operation.quantity,
+        "unit": operation.unit,
+        "sensor_entities": list((operation.sensor_snapshot or {}).keys()),
+        "legacy_record_hash": operation.record_hash,
+    }
+    return {
+        "calendar_entity": calendar_entity,
+        "summary": f"{summary_prefix}：{operation.operation_type or '作業'}",
+        "dtstart": start,
+        "dtend": _one_hour_later_iso(start),
+        "description": compose_agri_description(
+            human_notes=operation.notes,
+            payload=payload,
+            created_at=operation.created_at,
+        ),
+    }
 
 
 @dataclass(slots=True)
