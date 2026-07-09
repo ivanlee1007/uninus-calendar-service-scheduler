@@ -764,8 +764,55 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     } catch (err) { this._message = `產銷履歷記錄失敗: ${err?.message || err}`; this._render(); }
   }
 
+
+  async _calendarEventTraceabilityRows(events = this._events) {
+    const rows = [];
+    for (const event of events || []) {
+      const parsed = await this._extractAgriDescription(event.description || "");
+      if (!parsed.hasAgri || !parsed.payload || !Object.keys(parsed.payload).length) continue;
+      const payload = parsed.payload;
+      rows.push({
+        source: "calendar_event",
+        calendar_entity: event.__calendarEntity || "",
+        calendar_event_uid: event.uid || "",
+        summary: event.summary || "",
+        notes: parsed.humanNotes || "",
+        hash_valid: parsed.hashValid,
+        version: payload.version,
+        cycle_id: payload.cycle_id || "",
+        operation_type: payload.operation_type || "",
+        actual_start: payload.actual_start || this._eventStart(event) || "",
+        operator: payload.operator || "",
+        material_name: payload.material_name || "",
+        quantity: payload.quantity ?? "",
+        unit: payload.unit || "",
+        sensor_entities: Array.isArray(payload.sensor_entities) ? payload.sensor_entities : [],
+        created_at: payload.created_at || "",
+        updated_at: payload.updated_at || "",
+        record_hash: payload.record_hash || "",
+      });
+    }
+    return rows.sort((a, b) => String(a.actual_start || "").localeCompare(String(b.actual_start || "")));
+  }
+
   async _exportTraceabilityRecords() {
-    try { const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "export_traceability_records", service_data: {}, return_response: true }); this._message = JSON.stringify(response?.response || response, null, 2); } catch (err) { this._message = `匯出失敗: ${err?.message || err}`; }
+    try {
+      const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "export_traceability_records", service_data: {}, return_response: true });
+      const legacy = response?.response || response || {};
+      const calendarRows = await this._calendarEventTraceabilityRows();
+      const exportPayload = {
+        ...legacy,
+        calendar_rows: calendarRows,
+        rows: calendarRows.length ? calendarRows : (legacy.rows || []),
+        summary: {
+          ...(legacy.summary || {}),
+          calendar_operation_count: calendarRows.length,
+          calendar_hash_mismatch_count: calendarRows.filter((row) => !row.hash_valid).length,
+        },
+        export_source: calendarRows.length ? "calendar_events" : "legacy_storage",
+      };
+      this._message = JSON.stringify(exportPayload, null, 2);
+    } catch (err) { this._message = `匯出失敗: ${err?.message || err}`; }
     this._render();
   }
 

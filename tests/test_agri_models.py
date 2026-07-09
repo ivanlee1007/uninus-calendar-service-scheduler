@@ -31,6 +31,7 @@ TraceabilityRecordSet = agri.TraceabilityRecordSet
 compose_agri_description = agri.compose_agri_description
 extract_agri_description = agri.extract_agri_description
 verify_agri_payload_hash = agri.verify_agri_payload_hash
+calendar_events_to_traceability_rows = agri.calendar_events_to_traceability_rows
 
 
 def test_agri_records_roundtrip_with_sensor_snapshot():
@@ -129,6 +130,60 @@ def test_agri_description_detects_hash_mismatch_after_external_edit():
 
     assert payload["quantity"] == 90
     assert valid is False
+
+
+def test_calendar_events_with_embedded_agri_json_export_to_traceability_rows():
+    description = compose_agri_description(
+        human_notes="人類可讀備註",
+        payload={
+            "cycle_id": "cycle_1",
+            "operation_type": "灌溉",
+            "actual_start": "2026-03-01T06:03:00+08:00",
+            "operator": "王小農",
+            "material_name": "地下水",
+            "quantity": "60",
+            "unit": "秒",
+            "sensor_entities": ["sensor.soil_moisture"],
+        },
+        created_at="2026-03-01T06:04:00+08:00",
+        updated_at="2026-03-01T06:04:00+08:00",
+    )
+
+    rows = calendar_events_to_traceability_rows(
+        [
+            {
+                "uid": "event-1",
+                "summary": "農務：灌溉",
+                "description": description,
+                "start": {"dateTime": "2026-03-01T06:03:00+08:00"},
+                "__calendarEntity": "calendar.farm",
+            },
+            {"uid": "event-2", "summary": "一般行程", "description": "no agri"},
+        ]
+    )
+
+    assert rows == [
+        {
+            "source": "calendar_event",
+            "calendar_entity": "calendar.farm",
+            "calendar_event_uid": "event-1",
+            "summary": "農務：灌溉",
+            "notes": "人類可讀備註",
+            "hash_valid": True,
+            "version": 1,
+            "cycle_id": "cycle_1",
+            "operation_type": "灌溉",
+            "actual_start": "2026-03-01T06:03:00+08:00",
+            "operator": "王小農",
+            "material_name": "地下水",
+            "quantity": "60",
+            "unit": "秒",
+            "sensor_entities": ["sensor.soil_moisture"],
+            "created_at": "2026-03-01T06:04:00+08:00",
+            "updated_at": "2026-03-01T06:04:00+08:00",
+            "record_hash": rows[0]["record_hash"],
+        }
+    ]
 
 
 def test_traceability_record_set_exports_flat_rows_for_audit_package():

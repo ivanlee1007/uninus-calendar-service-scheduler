@@ -87,6 +87,44 @@ def extract_agri_description(description: str) -> tuple[str, dict[str, Any], boo
     return human_notes, payload, verify_agri_payload_hash(payload)
 
 
+def _event_time_value(value: Any) -> str:
+    if isinstance(value, dict):
+        return str(value.get("dateTime") or value.get("date") or "")
+    return str(value or "")
+
+
+def calendar_events_to_traceability_rows(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Convert Calendar events containing UNINUS_AGRI_OPERATION_JSON to export rows."""
+
+    rows: list[dict[str, Any]] = []
+    for event in events:
+        notes, payload, hash_valid = extract_agri_description(str(event.get("description") or ""))
+        if not payload:
+            continue
+        row = {
+            "source": "calendar_event",
+            "calendar_entity": str(event.get("__calendarEntity") or event.get("calendar_entity") or ""),
+            "calendar_event_uid": str(event.get("uid") or ""),
+            "summary": str(event.get("summary") or ""),
+            "notes": notes,
+            "hash_valid": hash_valid,
+            "version": payload.get("version"),
+            "cycle_id": str(payload.get("cycle_id") or ""),
+            "operation_type": str(payload.get("operation_type") or ""),
+            "actual_start": str(payload.get("actual_start") or _event_time_value(event.get("start"))),
+            "operator": str(payload.get("operator") or ""),
+            "material_name": str(payload.get("material_name") or ""),
+            "quantity": payload.get("quantity"),
+            "unit": str(payload.get("unit") or ""),
+            "sensor_entities": list(payload.get("sensor_entities") or []),
+            "created_at": str(payload.get("created_at") or ""),
+            "updated_at": str(payload.get("updated_at") or ""),
+            "record_hash": str(payload.get("record_hash") or ""),
+        }
+        rows.append(row)
+    return sorted(rows, key=lambda item: str(item.get("actual_start") or ""))
+
+
 @dataclass(slots=True)
 class Farm:
     """A farm/operator participating in traceability records."""
