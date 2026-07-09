@@ -861,6 +861,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         hash_valid: parsed.hashValid,
         version: payload.version,
         cycle_id: payload.cycle_id || "",
+        operation_id: payload.operation_id || "",
         operation_type: payload.operation_type || "",
         actual_start: payload.actual_start || this._eventStart(event) || "",
         operator: payload.operator || "",
