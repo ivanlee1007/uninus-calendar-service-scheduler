@@ -659,9 +659,16 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   }
 
   _oneHourLaterIso(iso) {
+    const match = String(iso || "").match(/^(.*T)(\d{2}):(\d{2})(:\d{2})?([+-]\d{2}:\d{2}|Z)?$/);
+    if (!match) return iso;
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return iso;
-    return new Date(date.getTime() + 60 * 60 * 1000).toISOString();
+    const shifted = new Date(date.getTime() + 60 * 60 * 1000);
+    const offset = match[5] || "";
+    if (offset === "Z") return shifted.toISOString();
+    if (!offset) return this._localInputValue(shifted);
+    const local = new Date(shifted.getTime() + shifted.getTimezoneOffset() * 60000);
+    return `${local.getFullYear()}-${this._pad(local.getMonth() + 1)}-${this._pad(local.getDate())}T${this._pad(local.getHours())}:${this._pad(local.getMinutes())}:00${offset}`;
   }
 
   _agriServiceData() {
