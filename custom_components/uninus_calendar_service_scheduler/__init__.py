@@ -18,6 +18,8 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.typing import ConfigType
 
+from .agri import AgriOperation, CropCycle, Farm, Plot
+from .agri_storage import AgriStore
 from .const import (
     CARD_FILENAME,
     CARD_RESOURCE_URL,
@@ -28,8 +30,13 @@ from .const import (
     PANEL_URL,
     PANEL_URL_PATH,
     PANEL_WEBCOMPONENT,
+    SERVICE_CREATE_AGRI_OPERATION,
+    SERVICE_CREATE_CROP_CYCLE,
     SERVICE_CREATE_EVENT_ACTION,
+    SERVICE_CREATE_FARM,
+    SERVICE_CREATE_PLOT,
     SERVICE_DELETE_EVENT_ACTION,
+    SERVICE_EXPORT_TRACEABILITY_RECORDS,
     SERVICE_RELOAD_ACTIONS,
     SERVICE_TEST_ACTION,
     SERVICE_UPDATE_EVENT_ACTION,
@@ -75,6 +82,52 @@ UPDATE_SCHEMA = CREATE_SCHEMA.extend(
     }
 )
 
+CREATE_FARM_SCHEMA = vol.Schema(
+    {
+        vol.Required("name"): cv.string,
+        vol.Optional("operator", default=""): cv.string,
+        vol.Optional("address", default=""): cv.string,
+        vol.Optional("phone", default=""): cv.string,
+    }
+)
+CREATE_PLOT_SCHEMA = vol.Schema(
+    {
+        vol.Required("farm_id"): cv.string,
+        vol.Required("name"): cv.string,
+        vol.Optional("product", default=""): cv.string,
+        vol.Optional("tgap_category", default=""): cv.string,
+        vol.Optional("area", default=""): cv.string,
+        vol.Optional("location", default=""): cv.string,
+    }
+)
+CREATE_CROP_CYCLE_SCHEMA = vol.Schema(
+    {
+        vol.Required("plot_id"): cv.string,
+        vol.Required("product"): cv.string,
+        vol.Optional("variety", default=""): cv.string,
+        vol.Optional("lot_number", default=""): cv.string,
+        vol.Optional("trace_code", default=""): cv.string,
+        vol.Optional("start_date", default=""): cv.string,
+        vol.Optional("expected_harvest_date", default=""): cv.string,
+    }
+)
+CREATE_AGRI_OPERATION_SCHEMA = vol.Schema(
+    {
+        vol.Required("cycle_id"): cv.string,
+        vol.Required("operation_type"): cv.string,
+        vol.Optional("scheduled_start", default=""): cv.string,
+        vol.Optional("actual_start", default=""): cv.string,
+        vol.Optional("operator", default=""): cv.string,
+        vol.Optional("material_name", default=""): cv.string,
+        vol.Optional("quantity"): object,
+        vol.Optional("unit", default=""): cv.string,
+        vol.Optional("sensor_snapshot", default={}): dict,
+        vol.Optional("sensor_entities", default=[]): list,
+        vol.Optional("notes", default=""): cv.string,
+        vol.Optional("status"): cv.string,
+    }
+)
+
 
 def _entry_data(hass: HomeAssistant) -> dict[str, Any]:
     return hass.data.setdefault(DOMAIN, {})
@@ -104,10 +157,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
     store = ActionStore(hass)
     await store.async_load()
+    agri_store = AgriStore(hass)
+    await agri_store.async_load()
     scheduler = CalendarServiceScheduler(hass, store)
     data = _entry_data(hass)
     data["entry"] = entry
     data["store"] = store
+    data["agri_store"] = agri_store
     data["scheduler"] = scheduler
 
     await scheduler.async_reload()
@@ -355,6 +411,102 @@ def _register_services_once(hass: HomeAssistant) -> None:
         await scheduler.async_reload()
         return scheduler.state_attributes()
 
+    def _sensor_snapshot(call: ServiceCall) -> dict[str, Any]:
+        snapshot = dict(call.data.get("sensor_snapshot") or {})
+        for entity_id in call.data.get("sensor_entities") or []:
+            state = hass.states.get(str(entity_id))
+            if state is None:
+                snapshot[str(entity_id)] = {"state": None, "available": False}
+                continue
+            snapshot[str(entity_id)] = {
+                "state": state.state,
+                "unit": state.attributes.get("unit_of_measurement"),
+                "friendly_name": state.attributes.get("friendly_name"),
+                "available": True,
+            }
+        return snapshot
+
+    def _notify_agri_changed() -> None:
+        scheduler: CalendarServiceScheduler | None = _entry_data(hass).get("scheduler")
+        if scheduler is not None:
+            scheduler._notify()  # noqa: SLF001 - reuse existing status sensor listener path
+
+    async def _create_farm(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        farm = Farm.create(
+            name=call.data["name"],
+            operator=call.data.get("operator") or "",
+            address=call.data.get("address") or "",
+            phone=call.data.get("phone") or "",
+        )
+        await agri_store.async_add_farm(farm)
+        _notify_agri_changed()
+        return {"farm_id": farm.farm_id, "farm": farm.as_dict()}
+
+    async def _create_plot(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        farm_id = call.data["farm_id"]
+        if farm_id not in agri_store.records.farms:
+            raise vol.Invalid(f"Unknown farm_id {farm_id!r}")
+        plot = Plot.create(
+            farm_id=farm_id,
+            name=call.data["name"],
+            product=call.data.get("product") or "",
+            tgap_category=call.data.get("tgap_category") or "",
+            area=call.data.get("area") or "",
+            location=call.data.get("location") or "",
+        )
+        await agri_store.async_add_plot(plot)
+        _notify_agri_changed()
+        return {"plot_id": plot.plot_id, "plot": plot.as_dict()}
+
+    async def _create_crop_cycle(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        plot_id = call.data["plot_id"]
+        if plot_id not in agri_store.records.plots:
+            raise vol.Invalid(f"Unknown plot_id {plot_id!r}")
+        cycle = CropCycle.create(
+            plot_id=plot_id,
+            product=call.data["product"],
+            variety=call.data.get("variety") or "",
+            lot_number=call.data.get("lot_number") or "",
+            trace_code=call.data.get("trace_code") or "",
+            start_date=call.data.get("start_date") or "",
+            expected_harvest_date=call.data.get("expected_harvest_date") or "",
+        )
+        await agri_store.async_add_cycle(cycle)
+        _notify_agri_changed()
+        return {"cycle_id": cycle.cycle_id, "cycle": cycle.as_dict()}
+
+    async def _create_agri_operation(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        cycle_id = call.data["cycle_id"]
+        if cycle_id not in agri_store.records.cycles:
+            raise vol.Invalid(f"Unknown cycle_id {cycle_id!r}")
+        operation = AgriOperation.create(
+            cycle_id=cycle_id,
+            operation_type=call.data["operation_type"],
+            scheduled_start=call.data.get("scheduled_start") or "",
+            actual_start=call.data.get("actual_start") or "",
+            operator=call.data.get("operator") or "",
+            material_name=call.data.get("material_name") or "",
+            quantity=call.data.get("quantity"),
+            unit=call.data.get("unit") or "",
+            sensor_snapshot=_sensor_snapshot(call),
+            notes=call.data.get("notes") or "",
+            status=call.data.get("status"),
+        )
+        await agri_store.async_add_operation(operation)
+        _notify_agri_changed()
+        return {"operation_id": operation.operation_id, "operation": operation.as_dict()}
+
+    async def _export_traceability_records(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        return {
+            "rows": agri_store.records.export_operation_rows(),
+            "summary": agri_store.records.state_attributes(),
+        }
+
     hass.services.async_register(
         DOMAIN,
         SERVICE_CREATE_EVENT_ACTION,
@@ -387,6 +539,40 @@ def _register_services_once(hass: HomeAssistant) -> None:
         DOMAIN,
         SERVICE_RELOAD_ACTIONS,
         _reload,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CREATE_FARM,
+        _create_farm,
+        schema=CREATE_FARM_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CREATE_PLOT,
+        _create_plot,
+        schema=CREATE_PLOT_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CREATE_CROP_CYCLE,
+        _create_crop_cycle,
+        schema=CREATE_CROP_CYCLE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CREATE_AGRI_OPERATION,
+        _create_agri_operation,
+        schema=CREATE_AGRI_OPERATION_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_EXPORT_TRACEABILITY_RECORDS,
+        _export_traceability_records,
         supports_response=SupportsResponse.ONLY,
     )
     data["services_registered"] = True

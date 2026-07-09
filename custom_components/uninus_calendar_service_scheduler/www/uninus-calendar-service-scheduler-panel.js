@@ -21,6 +21,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._haEntityPickerReady = false;
     this._actionOverrides = new Map();
     this._calendarListScrollTop = 0;
+    this._agriForm = this._defaultAgriForm();
   }
 
   set hass(hass) {
@@ -71,6 +72,20 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     };
   }
 
+  _defaultAgriForm() {
+    return {
+      cycleId: "",
+      operationType: "灌溉",
+      actualStart: this._localInputValue(new Date()),
+      operator: "",
+      materialName: "",
+      quantity: "",
+      unit: "",
+      sensorEntities: "",
+      notes: "",
+    };
+  }
+
   async _ensureHaPickers() {
     if (this._helpersPromise) return this._helpersPromise;
     this._helpersPromise = (async () => {
@@ -96,6 +111,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   }
 
   _calendarIds() {
+
     return Object.keys(this._hass?.states || {})
       .filter((id) => id.startsWith("calendar."))
       .sort();
@@ -517,8 +533,16 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .pill .time { opacity: .88; margin-inline-end: 4px; }
       .empty { padding: 24px; text-align: center; color: var(--secondary-text-color); }
       .message { color: var(--secondary-text-color); white-space: pre-wrap; }
+      .traceability-card { border: 1px solid var(--divider-color); border-radius: 14px; padding: 12px; margin-top: 14px; background: var(--card-background-color); }
+      .traceability-card h2 { font-size: 16px; margin: 0 0 8px; }
+      .traceability-card .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 10px; }
+      .traceability-card .stat { border-radius: 10px; background: var(--secondary-background-color); padding: 8px; font-size: 12px; }
+      .traceability-card .stat b { display: block; font-size: 18px; }
+      .traceability-card textarea { min-height: 54px; }
+      .traceability-card .mini-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+      .traceability-card code { font-size: 11px; word-break: break-all; }
       .error { color: var(--error-color); }
-      .fab { position: fixed; right: 24px; bottom: 24px; z-index: 4; border-radius: 28px; min-width: 136px; box-shadow: 0 6px 16px rgba(0,0,0,.28); }
+
       .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9; display: ${this._dialogOpen ? "block" : "none"}; }
       .dialog { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(860px, calc(100vw - 32px)); max-height: min(860px, calc(100vh - 32px)); overflow: auto; z-index: 10; border-radius: 28px; background: var(--card-background-color); color: var(--primary-text-color); display: ${this._dialogOpen ? "block" : "none"}; box-shadow: 0 24px 38px rgba(0,0,0,.14), 0 9px 46px rgba(0,0,0,.12), 0 11px 15px rgba(0,0,0,.2); }
       .dialog header { padding: 24px 24px 8px; font-size: 22px; font-weight: 500; }
@@ -542,6 +566,43 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     `;
   }
 
+  _traceabilityRecords() {
+    return this._hass?.states?.["sensor.uninus_calendar_service_scheduler_status"]?.attributes?.traceability_records || { farms: {}, plots: {}, cycles: {}, operations: {} };
+  }
+
+  _traceabilitySummary() {
+    return this._hass?.states?.["sensor.uninus_calendar_service_scheduler_status"]?.attributes?.traceability || { farm_count: 0, plot_count: 0, cycle_count: 0, operation_count: 0, missing_link_count: 0, recent_operations: [] };
+  }
+
+  _traceabilityTemplate() {
+    const summary = this._traceabilitySummary();
+    const records = this._traceabilityRecords();
+    const cycles = Object.values(records.cycles || {});
+    const operations = summary.recent_operations || [];
+    const f = this._agriForm || this._defaultAgriForm();
+    const cycleOptions = [`<option value="">選擇生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === f.cycleId ? "selected" : ""}>${this._escape(cycle.product || cycle.cycle_id)} ${this._escape(cycle.lot_number || "")}</option>`)).join("");
+    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業</div></div><label>生產週期<select id="agri_cycle">${cycleOptions}</select></label><label>作業類型<select id="agri_operation_type">${["灌溉", "施肥", "病蟲害防治", "採收", "分級包裝", "自我查核", "異常事件"].map((item) => `<option value="${this._escape(item)}" ${item === f.operationType ? "selected" : ""}>${this._escape(item)}</option>`).join("")}</select></label><label>實際時間<input id="agri_actual_start" type="datetime-local" value="${this._escape(f.actualStart)}" /></label><label>操作者<input id="agri_operator" value="${this._escape(f.operator)}" /></label><label>資材/水源<input id="agri_material" value="${this._escape(f.materialName)}" /></label><div class="inline-field"><label>數量<input id="agri_quantity" value="${this._escape(f.quantity)}" /></label><label>單位<input id="agri_unit" value="${this._escape(f.unit)}" /></label></div><label>感測器 entity_id（逗號分隔）<textarea id="agri_sensor_entities">${this._escape(f.sensorEntities)}</textarea></label><label>備註<textarea id="agri_notes">${this._escape(f.notes)}</textarea></label><div class="mini-actions"><button class="primary" id="agri-create-operation">記錄作業</button><button id="agri-export">匯出 JSON</button></div><p class="message">最近 ${operations.length} 筆；完整農場/場區/週期可先由 HA 服務建立。</p>${operations.slice(0, 3).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("")}</section>`;
+  }
+
+  _captureAgriForm() {
+    const get = (id) => this.shadowRoot.getElementById(id)?.value || "";
+    this._agriForm = { cycleId: get("agri_cycle"), operationType: get("agri_operation_type") || "灌溉", actualStart: get("agri_actual_start"), operator: get("agri_operator"), materialName: get("agri_material"), quantity: get("agri_quantity"), unit: get("agri_unit"), sensorEntities: get("agri_sensor_entities"), notes: get("agri_notes") };
+  }
+
+  async _createAgriOperation() {
+    this._captureAgriForm();
+    if (!this._agriForm.cycleId) { this._message = "請先選擇生產週期。可透過 HA 服務 create_farm/create_plot/create_crop_cycle 建立。"; this._render(); return; }
+    const sensorEntities = this._agriForm.sensorEntities.split(",").map((item) => item.trim()).filter(Boolean);
+    const service_data = { cycle_id: this._agriForm.cycleId, operation_type: this._agriForm.operationType, actual_start: this._agriForm.actualStart ? this._toIsoWithOffset(this._agriForm.actualStart) : "", operator: this._agriForm.operator, material_name: this._agriForm.materialName, quantity: this._agriForm.quantity, unit: this._agriForm.unit, sensor_entities: sensorEntities, notes: this._agriForm.notes };
+    try { await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "create_agri_operation", service_data, return_response: true }); this._message = "已記錄產銷履歷作業。"; this._agriForm = { ...this._defaultAgriForm(), cycleId: this._agriForm.cycleId }; } catch (err) { this._message = `產銷履歷記錄失敗: ${err?.message || err}`; }
+    this._render();
+  }
+
+  async _exportTraceabilityRecords() {
+    try { const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "export_traceability_records", service_data: {}, return_response: true }); this._message = JSON.stringify(response?.response || response, null, 2); } catch (err) { this._message = `匯出失敗: ${err?.message || err}`; }
+    this._render();
+  }
+
   _render() {
     if (!this.shadowRoot) return;
     const previousCalendarList = this.shadowRoot.querySelector(".calendar-list");
@@ -562,6 +623,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <button class="primary full" id="new-event-side">新增服務排程行程</button>
           <button class="full" id="refresh">重新整理</button>
           <p class="message">獨立 panel：不修改 Home Assistant 原生 /calendar。</p>
+          ${this._traceabilityTemplate()}
         </aside>
         <main class="main">
           <div class="monthbar">
@@ -874,6 +936,12 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("edit-this-event")?.addEventListener("click", () => this._confirmUpdateCurrentEvent("this"));
     this.shadowRoot.getElementById("edit-future-events")?.addEventListener("click", () => this._confirmUpdateCurrentEvent("future"));
     this.shadowRoot.getElementById("create")?.addEventListener("click", () => this._create());
+    this.shadowRoot.getElementById("agri-create-operation")?.addEventListener("click", () => this._createAgriOperation());
+    this.shadowRoot.getElementById("agri-export")?.addEventListener("click", () => this._exportTraceabilityRecords());
+    ["agri_cycle", "agri_operation_type", "agri_actual_start", "agri_operator", "agri_material", "agri_quantity", "agri_unit", "agri_sensor_entities", "agri_notes"].forEach((id) => {
+      this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureAgriForm());
+      this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureAgriForm());
+    });
     ["calendar", "summary", "location", "start", "end", "recurrence", "recurrence_interval", "recurrence_monthly_mode", "recurrence_end", "recurrence_until", "recurrence_count", "rrule_custom", "start_service", "start_entity", "start_data", "end_service", "end_entity", "end_data", "description"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureForm());
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureForm());

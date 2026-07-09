@@ -25,6 +25,7 @@ def _load_module(name):
 const = _load_module("const")
 models = _load_module("models")
 recurrence = _load_module("recurrence")
+agri = _load_module("agri")
 
 ACTION_MARKER = const.ACTION_MARKER
 ScheduledAction = models.ScheduledAction
@@ -33,6 +34,11 @@ normalize_allowed_services = models.normalize_allowed_services
 split_service = models.split_service
 next_occurrence_start = recurrence.next_occurrence_start
 next_phase_time = recurrence.next_phase_time
+Farm = agri.Farm
+Plot = agri.Plot
+CropCycle = agri.CropCycle
+AgriOperation = agri.AgriOperation
+TraceabilityRecordSet = agri.TraceabilityRecordSet
 
 
 def test_split_service():

@@ -170,3 +170,172 @@ test_action:
 reload_actions:
   name: Reload actions
   description: Rebuild timers from stored actions.
+
+create_farm:
+  name: Create traceability farm
+  description: Create a farm/operator record for agricultural traceability.
+  fields:
+    name:
+      required: true
+      selector:
+        text:
+    operator:
+      required: false
+      selector:
+        text:
+    address:
+      required: false
+      selector:
+        text:
+    phone:
+      required: false
+      selector:
+        text:
+
+create_plot:
+  name: Create traceability plot
+  description: Create a field, facility, pond, house, or production site under a farm.
+  fields:
+    farm_id:
+      required: true
+      selector:
+        text:
+    name:
+      required: true
+      selector:
+        text:
+    product:
+      required: false
+      selector:
+        text:
+    tgap_category:
+      required: false
+      selector:
+        select:
+          options:
+            - 農糧
+            - 水果類
+            - 蔬菜類
+            - 水稻
+            - 雜糧類
+            - 畜禽
+            - 水產
+            - 分裝流通
+            - 林產品
+    area:
+      required: false
+      selector:
+        text:
+    location:
+      required: false
+      selector:
+        text:
+
+create_crop_cycle:
+  name: Create traceability production cycle
+  description: Create a production cycle or lot for traceability records.
+  fields:
+    plot_id:
+      required: true
+      selector:
+        text:
+    product:
+      required: true
+      selector:
+        text:
+    variety:
+      required: false
+      selector:
+        text:
+    lot_number:
+      required: false
+      selector:
+        text:
+    trace_code:
+      required: false
+      selector:
+        text:
+    start_date:
+      required: false
+      selector:
+        date:
+    expected_harvest_date:
+      required: false
+      selector:
+        date:
+
+create_agri_operation:
+  name: Create agricultural traceability operation
+  description: Record a planned or completed production operation, optionally snapshotting Home Assistant entities.
+  fields:
+    cycle_id:
+      required: true
+      selector:
+        text:
+    operation_type:
+      required: true
+      selector:
+        select:
+          options:
+            - 播種/定植
+            - 灌溉
+            - 施肥
+            - 病蟲害防治
+            - 除草
+            - 採收
+            - 分級包裝
+            - 清潔消毒
+            - 自我查核
+            - 異常事件
+    scheduled_start:
+      required: false
+      selector:
+        text:
+    actual_start:
+      required: false
+      selector:
+        text:
+    operator:
+      required: false
+      selector:
+        text:
+    material_name:
+      required: false
+      selector:
+        text:
+    quantity:
+      required: false
+      selector:
+        text:
+    unit:
+      required: false
+      selector:
+        text:
+    sensor_entities:
+      required: false
+      selector:
+        entity:
+          multiple: true
+    sensor_snapshot:
+      required: false
+      selector:
+        object:
+    notes:
+      required: false
+      selector:
+        text:
+          multiline: true
+    status:
+      required: false
+      selector:
+        select:
+          options:
+            - planned
+            - completed
+            - skipped
+            - verified
+            - exported
+
+export_traceability_records:
+  name: Export traceability records
+  description: Return flattened operation rows and summary for audit/export workflows.

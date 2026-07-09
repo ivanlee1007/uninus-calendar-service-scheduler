@@ -9,7 +9,7 @@ from dateutil.rrule import rrulestr
 try:
     from homeassistant.util import dt as dt_util
 except ModuleNotFoundError:  # pragma: no cover - lightweight test fallback
-    from datetime import timezone
+    from datetime import UTC
 
     class _DtUtil:
         @staticmethod
@@ -21,17 +21,17 @@ except ModuleNotFoundError:  # pragma: no cover - lightweight test fallback
 
         @staticmethod
         def as_local(value: datetime) -> datetime:
-            return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+            return value if value.tzinfo else value.replace(tzinfo=UTC)
 
         @staticmethod
         def as_utc(value: datetime) -> datetime:
             if value.tzinfo is None:
-                value = value.replace(tzinfo=timezone.utc)
-            return value.astimezone(timezone.utc)
+                value = value.replace(tzinfo=UTC)
+            return value.astimezone(UTC)
 
         @staticmethod
         def utcnow() -> datetime:
-            return datetime.now(timezone.utc)
+            return datetime.now(UTC)
 
     dt_util = _DtUtil()
 
