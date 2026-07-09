@@ -28,6 +28,9 @@ Plot = agri.Plot
 CropCycle = agri.CropCycle
 AgriOperation = agri.AgriOperation
 TraceabilityRecordSet = agri.TraceabilityRecordSet
+compose_agri_description = agri.compose_agri_description
+extract_agri_description = agri.extract_agri_description
+verify_agri_payload_hash = agri.verify_agri_payload_hash
 
 
 def test_agri_records_roundtrip_with_sensor_snapshot():
@@ -82,6 +85,50 @@ def test_agri_operation_can_link_to_calendar_event_for_visible_editing():
     assert loaded.calendar_entity == "calendar.farm"
     assert loaded.calendar_event_uid == "event-123"
     assert loaded.as_dict()["calendar_entity"] == "calendar.farm"
+
+
+def test_agri_description_embeds_hidden_json_with_metadata_and_verifies_hash():
+    description = compose_agri_description(
+        human_notes="今天土壤偏乾，所以延長灌溉。",
+        payload={
+            "cycle_id": "cycle_1",
+            "operation_type": "灌溉",
+            "actual_start": "2026-03-01T06:03:00+08:00",
+            "operator": "王小農",
+            "material_name": "地下水",
+            "quantity": 60,
+            "unit": "秒",
+            "sensor_entities": ["sensor.soil_moisture"],
+        },
+        created_at="2026-03-01T06:04:00+08:00",
+        updated_at="2026-03-01T06:04:00+08:00",
+    )
+
+    extracted_notes, payload, valid = extract_agri_description(description)
+
+    assert extracted_notes == "今天土壤偏乾，所以延長灌溉。"
+    assert payload["version"] == 1
+    assert payload["created_at"] == "2026-03-01T06:04:00+08:00"
+    assert payload["updated_at"] == "2026-03-01T06:04:00+08:00"
+    assert len(payload["record_hash"]) == 64
+    assert valid is True
+    assert verify_agri_payload_hash(payload) is True
+    assert "UNINUS_AGRI_OPERATION_JSON" in description
+
+
+def test_agri_description_detects_hash_mismatch_after_external_edit():
+    description = compose_agri_description(
+        human_notes="原始備註",
+        payload={"cycle_id": "cycle_1", "operation_type": "灌溉", "quantity": 60},
+        created_at="2026-03-01T06:04:00+08:00",
+        updated_at="2026-03-01T06:04:00+08:00",
+    )
+    tampered = description.replace('"quantity":60', '"quantity":90')
+
+    _notes, payload, valid = extract_agri_description(tampered)
+
+    assert payload["quantity"] == 90
+    assert valid is False
 
 
 def test_traceability_record_set_exports_flat_rows_for_audit_package():

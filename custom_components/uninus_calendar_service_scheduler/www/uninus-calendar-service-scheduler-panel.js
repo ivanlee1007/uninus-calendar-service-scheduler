@@ -70,6 +70,23 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       recurrenceId: null,
       data: "",
       description: "",
+      eventType: "normal",
+      agri: this._defaultAgriFields(),
+      agriHashValid: true,
+      agriHashChecked: false,
+    };
+  }
+
+  _defaultAgriFields() {
+    return {
+      cycleId: "",
+      operationType: "灌溉",
+      actualStart: this._localInputValue(new Date()),
+      operator: "",
+      materialName: "",
+      quantity: "",
+      unit: "",
+      sensorEntities: "",
     };
   }
 
@@ -531,10 +548,15 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .day-list { display: flex; flex-direction: column; gap: 8px; }
       .day-event { border-inline-start: 4px solid var(--primary-color); border-radius: 10px; padding: 10px 12px; background: var(--secondary-background-color); text-align: start; }
       .day-event.service { border-inline-start-color: var(--success-color, #43a047); }
+      .day-event.agri { border-inline-start-color: var(--warning-color, #fb8c00); }
       .day-event .event-title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .day-event .event-time { color: var(--secondary-text-color); font-size: 12px; margin-bottom: 3px; }
       .pill { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 6px; padding: 3px 6px; margin: 3px 0; font-size: 12px; background: var(--primary-color); color: var(--text-primary-color); text-align: start; }
       .pill.service { background: var(--success-color, #43a047); color: white; }
+      .pill.agri { background: var(--warning-color, #fb8c00); color: white; }
+      .agri-fields { border: 1px solid var(--divider-color); border-radius: 14px; padding: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .warning { color: var(--error-color, #dc3545); font-weight: 700; }
+      .system-note { color: var(--secondary-text-color); font-size: 12px; }
       .pill .time { opacity: .88; margin-inline-end: 4px; }
       .empty { padding: 24px; text-align: center; color: var(--secondary-text-color); }
       .message { color: var(--secondary-text-color); white-space: pre-wrap; }
@@ -587,7 +609,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   _traceabilityTemplate() {
     const summary = this._traceabilitySummary();
     const operations = summary.recent_operations || [];
-    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業</div></div><div class="mini-actions"><button class="primary" id="agri-open-dialog">新增農務作業</button><button id="agri-export">匯出 JSON</button></div><p class="message">左側顯示摘要；作業輸入請使用寬版對話框。</p><div class="traceability-recent"><p class="message">最近 ${operations.length} 筆</p>${operations.slice(0, 3).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("")}</div></section>`;
+    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業</div></div><div class="mini-actions"><button class="primary" id="agri-open-dialog">新增農務作業</button><button id="agri-export">匯出 JSON</button></div><p class="message">農務作業使用同一個 Calendar dialog，系統會把 UNINUS_AGRI_OPERATION_JSON 寫入 description。</p><div class="traceability-recent"><p class="message">最近 ${operations.length} 筆</p>${operations.slice(0, 3).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("")}</div></section>`;
   }
 
   _agriDialogTemplate() {
@@ -764,7 +786,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <summary>${this._escape(this._selectedCalendarLabel())}</summary>
             <div class="calendar-list">${this._calendarChecklist()}</div>
           </details>
-          <button class="primary full" id="new-event-side">新增服務排程行程</button>
+          <button class="primary full" id="new-event-side">新增 Calendar 事件</button>
           <button class="full" id="refresh">重新整理</button>
           <p class="message">獨立 panel：不修改 Home Assistant 原生 /calendar。</p>
           ${this._traceabilityTemplate()}
@@ -941,20 +963,101 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return `${startTime} - ${end.slice(11, 16)}`;
   }
 
+
+  _agriJsonBlock(description = "") {
+    const match = String(description || "").match(/\n*<!--\s*UNINUS_AGRI_OPERATION_JSON\s*([\s\S]*?)\s*UNINUS_AGRI_OPERATION_JSON\s*-->/);
+    return match ? match[1].trim() : "";
+  }
+
+  _hasAgriJson(description = "") {
+    return Boolean(this._agriJsonBlock(description));
+  }
+
+  _humanDescription(description = "") {
+    return String(description || "").replace(/\n*<!--\s*UNINUS_AGRI_OPERATION_JSON\s*[\s\S]*?\s*UNINUS_AGRI_OPERATION_JSON\s*-->/, "").trim();
+  }
+
+  _stableJson(value) {
+    if (Array.isArray(value)) return `[${value.map((item) => this._stableJson(item)).join(",")}]`;
+    if (value && typeof value === "object") {
+      return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${this._stableJson(value[key])}`).join(",")}}`;
+    }
+    return JSON.stringify(value);
+  }
+
+  async _sha256(text) {
+    const bytes = new TextEncoder().encode(text);
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  async _hashAgriPayload(payload) {
+    const clone = { ...(payload || {}) };
+    delete clone.record_hash;
+    return this._sha256(this._stableJson(clone));
+  }
+
+  async _extractAgriDescription(description = "") {
+    const raw = this._agriJsonBlock(description);
+    if (!raw) return { humanNotes: String(description || "").trim(), payload: {}, hashValid: false, hasAgri: false };
+    try {
+      const payload = JSON.parse(raw);
+      const expected = await this._hashAgriPayload(payload);
+      return { humanNotes: this._humanDescription(description), payload, hashValid: Boolean(payload.record_hash) && payload.record_hash === expected, hasAgri: true };
+    } catch (_err) {
+      return { humanNotes: this._humanDescription(description), payload: {}, hashValid: false, hasAgri: true };
+    }
+  }
+
+  _agriPayloadFromForm(form = this._form) {
+    const agri = form.agri || {};
+    return {
+      version: 1,
+      type: "agri_operation",
+      cycle_id: agri.cycleId || "",
+      operation_type: agri.operationType || "灌溉",
+      actual_start: form.allDay ? this._dateOnly(form.start) : this._toIsoWithOffset(form.start),
+      operator: agri.operator || "",
+      material_name: agri.materialName || "",
+      quantity: agri.quantity || "",
+      unit: agri.unit || "",
+      sensor_entities: String(agri.sensorEntities || "").split(",").map((item) => item.trim()).filter(Boolean),
+    };
+  }
+
+  async _composeAgriDescription(form = this._form, existingPayload = {}) {
+    const now = new Date().toISOString();
+    const payload = {
+      ...this._agriPayloadFromForm(form),
+      created_at: existingPayload.created_at || now,
+      updated_at: now,
+    };
+    payload.record_hash = await this._hashAgriPayload(payload);
+    const parts = [];
+    if (form.description?.trim()) parts.push(form.description.trim());
+    parts.push(`<!-- UNINUS_AGRI_OPERATION_JSON\n${JSON.stringify(payload)}\nUNINUS_AGRI_OPERATION_JSON -->`);
+    return parts.join("\n\n");
+  }
+
+  _eventKind(ev) {
+    const desc = ev.description || "";
+    if (this._hasAgriJson(desc) || this._agriOperationIdFromDescription(desc)) return "agri";
+    if (this._actionIdFromDescription(desc)) return "service";
+    return "normal";
+  }
+
   _eventPill(ev) {
     const desc = ev.description || "";
-    const actionId = this._actionIdFromDescription(desc);
-    const isService = Boolean(actionId);
+    const kind = this._eventKind(ev);
     const time = this._formatEventTime(ev);
-    return `<button class="pill ${isService ? "service" : ""}" data-uid="${this._escape(ev.uid || "")}" data-recurrence-id="${this._escape(ev.recurrence_id || "")}" data-calendar="${this._escape(ev.__calendarEntity || this._selectedCalendar || "")}" title="${this._escape(ev.summary || "")}">${time ? `<span class="time">${time}</span>` : ""}${this._escape(ev.summary || "(No title)")}</button>`;
+    return `<button class="pill ${kind}" data-uid="${this._escape(ev.uid || "")}" data-recurrence-id="${this._escape(ev.recurrence_id || "")}" data-calendar="${this._escape(ev.__calendarEntity || this._selectedCalendar || "")}" title="${this._escape(ev.summary || "")}">${time ? `<span class="time">${time}</span>` : ""}${this._escape(ev.summary || "(No title)")}</button>`;
   }
 
   _dayEvent(ev) {
     const desc = ev.description || "";
-    const actionId = this._actionIdFromDescription(desc);
-    const isService = Boolean(actionId);
+    const kind = this._eventKind(ev);
     const time = this._formatEventTime(ev, true) || "全天";
-    return `<button class="day-event ${isService ? "service" : ""}" data-uid="${this._escape(ev.uid || "")}" data-recurrence-id="${this._escape(ev.recurrence_id || "")}" data-calendar="${this._escape(ev.__calendarEntity || this._selectedCalendar || "")}" title="${this._escape(ev.summary || "")}"><div class="event-time">${this._escape(time)}</div><div class="event-title">${this._escape(ev.summary || "(No title)")}</div></button>`;
+    return `<button class="day-event ${kind}" data-uid="${this._escape(ev.uid || "")}" data-recurrence-id="${this._escape(ev.recurrence_id || "")}" data-calendar="${this._escape(ev.__calendarEntity || this._selectedCalendar || "")}" title="${this._escape(ev.summary || "")}"><div class="event-time">${this._escape(time)}</div><div class="event-title">${this._escape(ev.summary || "(No title)")}</div></button>`;
   }
 
   _isRecurringCurrentEvent() {
@@ -990,20 +1093,49 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     </section>`;
   }
 
+  _eventTypeOptions(selected = "normal") {
+    return [["normal", "一般行程"], ["service", "服務排程"], ["agri", "農務作業"]]
+      .map(([value, label]) => `<option value="${value}" ${value === selected ? "selected" : ""}>${label}</option>`)
+      .join("");
+  }
+
+  _agriFieldsTemplate() {
+    const records = this._traceabilityRecords();
+    const cycles = Object.values(records.cycles || {});
+    const agri = this._form.agri || this._defaultAgriFields();
+    const cycleOptions = [`<option value="">選擇生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === agri.cycleId ? "selected" : ""}>${this._escape(cycle.product || cycle.cycle_id)} ${this._escape(cycle.lot_number || "")}</option>`)).join("");
+    const typeOptions = ["灌溉", "施肥", "病蟲害防治", "採收", "分級包裝", "自我查核", "異常事件"].map((item) => `<option value="${this._escape(item)}" ${item === agri.operationType ? "selected" : ""}>${this._escape(item)}</option>`).join("");
+    return `<fieldset class="agri-fields fullrow">
+      <legend>農務作業欄位</legend>
+      <label>生產週期<select id="agri_cycle">${cycleOptions}</select></label>
+      <label>作業類型<select id="agri_operation_type">${typeOptions}</select></label>
+      <label>操作者<input id="agri_operator" value="${this._escape(agri.operator)}" /></label>
+      <label>資材/水源<input id="agri_material" value="${this._escape(agri.materialName)}" /></label>
+      <div class="inline-field"><label>數量<input id="agri_quantity" value="${this._escape(agri.quantity)}" /></label><label>單位<input id="agri_unit" value="${this._escape(agri.unit)}" /></label></div>
+      <label class="fullrow">感測器 entity_id（逗號分隔；必要 snapshot/evidence 之後另存）<textarea id="agri_sensor_entities">${this._escape(agri.sensorEntities)}</textarea></label>
+      <div class="system-note fullrow">UNINUS_AGRI_OPERATION_JSON 會由系統寫入 description，不會直接顯示或讓使用者手動編輯。</div>
+      ${this._form.agriHashChecked && !this._form.agriHashValid ? `<div class="warning fullrow">⚠️ 農務 JSON record_hash 驗證失敗，這筆事件可能曾被外部修改。</div>` : ""}
+    </fieldset>`;
+  }
+
   _dialogTemplate() {
     const f = this._form;
+    const isService = f.eventType === "service";
+    const isAgri = f.eventType === "agri";
+    const title = this._editingEvent ? "編輯 Calendar 事件" : "新增 Calendar 事件";
     return `
       <div class="scrim"></div>
-      <section class="dialog" role="dialog" aria-modal="true" aria-label="新增服務排程行程">
-        <header>${this._editingEvent ? "編輯服務排程行程" : "新增服務排程行程"}</header>
+      <section class="dialog" role="dialog" aria-modal="true" aria-label="${title}">
+        <header>${title}</header>
         <div class="content">
           <div class="native-control">
             ${this._haEntityPickerReady
               ? `<ha-entity-picker id="calendar" label="Calendar" show-entity-id></ha-entity-picker>`
               : `<label>Calendar<select id="calendar">${this._calendarOptions(f.calendar)}</select></label>`}
           </div>
+          <label>事件類型<select id="event_type">${this._eventTypeOptions(f.eventType || "normal")}</select></label>
           <label>Summary
-            <input id="summary" value="${this._escape(f.summary)}" placeholder="例如：開啟夜間模式" />
+            <input id="summary" value="${this._escape(f.summary)}" placeholder="例如：農務：灌溉" />
           </label>
           <label class="fullrow">Location
             <input id="location" value="${this._escape(f.location)}" placeholder="選填，與原生 Calendar location 對應" />
@@ -1016,17 +1148,18 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <input id="end" type="${f.allDay ? "date" : "datetime-local"}" value="${this._escape(f.end)}" />
           </label>
           ${this._recurrenceTemplate()}
-          ${this._actionSection("start", "行程開始 Service Action", f.service, f.target, f.data, "行程開始時間觸發；留空表示開始時不執行 service action。")}
-          ${this._actionSection("end", "行程結束 Service Action", f.endService, f.endTarget, f.endData, "行程結束時間觸發；留空表示結束時不執行 service action。")}
-          <label class="fullrow">Description
-            <textarea id="description" placeholder="會顯示在 Local Calendar 事件描述中">${this._escape(f.description)}</textarea>
+          ${isAgri ? this._agriFieldsTemplate() : ""}
+          ${isService ? this._actionSection("start", "行程開始 Service Action", f.service, f.target, f.data, "行程開始時間觸發；留空表示開始時不執行 service action。") : ""}
+          ${isService ? this._actionSection("end", "行程結束 Service Action", f.endService, f.endTarget, f.endData, "行程結束時間觸發；留空表示結束時不執行 service action。") : ""}
+          <label class="fullrow">${isAgri ? "人類備註（可編輯）" : "Description"}
+            <textarea id="description" placeholder="${isAgri ? "這裡只顯示人類備註；系統 JSON 會隱藏產生" : "會顯示在 Local Calendar 事件描述中"}">${this._escape(f.description)}</textarea>
           </label>
           <div class="message fullrow ${this._message.startsWith("Error:") ? "error" : ""}">${this._escape(this._message)}</div>
         </div>
         <div class="actions">
           ${this._editingEvent ? `<button id="delete-event">刪除行程</button>` : ""}
           <button id="cancel">取消</button>
-          <button class="primary" id="create">${this._editingEvent ? "儲存修改" : "建立行程與服務"}</button>
+          <button class="primary" id="create">${this._editingEvent ? "儲存修改" : "建立行程"}</button>
         </div>
       </section>
       ${this._deleteConfirmTemplate()}
@@ -1081,7 +1214,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("edit-this-event")?.addEventListener("click", () => this._confirmUpdateCurrentEvent("this"));
     this.shadowRoot.getElementById("edit-future-events")?.addEventListener("click", () => this._confirmUpdateCurrentEvent("future"));
     this.shadowRoot.getElementById("create")?.addEventListener("click", () => this._create());
-    this.shadowRoot.getElementById("agri-open-dialog")?.addEventListener("click", () => this._openAgriDialog());
+    this.shadowRoot.getElementById("agri-open-dialog")?.addEventListener("click", () => this._openDialog(undefined, "agri"));
     this.shadowRoot.getElementById("agri-cancel")?.addEventListener("click", () => this._closeAgriDialog());
     this.shadowRoot.getElementById("agri-create-operation")?.addEventListener("click", () => this._createAgriOperation());
     this.shadowRoot.getElementById("agri-export")?.addEventListener("click", () => this._exportTraceabilityRecords());
@@ -1089,11 +1222,11 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureAgriForm());
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureAgriForm());
     });
-    ["calendar", "summary", "location", "start", "end", "recurrence", "recurrence_interval", "recurrence_monthly_mode", "recurrence_end", "recurrence_until", "recurrence_count", "rrule_custom", "start_service", "start_entity", "start_data", "end_service", "end_entity", "end_data", "description"].forEach((id) => {
+    ["calendar", "event_type", "summary", "location", "start", "end", "recurrence", "recurrence_interval", "recurrence_monthly_mode", "recurrence_end", "recurrence_until", "recurrence_count", "rrule_custom", "start_service", "start_entity", "start_data", "end_service", "end_entity", "end_data", "description", "agri_cycle", "agri_operation_type", "agri_operator", "agri_material", "agri_quantity", "agri_unit", "agri_sensor_entities"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureForm());
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureForm());
     });
-    ["recurrence", "recurrence_end", "start"].forEach((id) => {
+    ["event_type", "recurrence", "recurrence_end", "start"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => {
         this._captureForm();
         this._render();
@@ -1184,8 +1317,19 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         if (endInput) endInput.value = endValue;
       }
     }
+    const agri = {
+      cycleId: get("agri_cycle") || this._form.agri?.cycleId || "",
+      operationType: get("agri_operation_type") || this._form.agri?.operationType || "灌溉",
+      actualStart: startValue,
+      operator: get("agri_operator") || this._form.agri?.operator || "",
+      materialName: get("agri_material") || this._form.agri?.materialName || "",
+      quantity: get("agri_quantity") || this._form.agri?.quantity || "",
+      unit: get("agri_unit") || this._form.agri?.unit || "",
+      sensorEntities: get("agri_sensor_entities") || this._form.agri?.sensorEntities || "",
+    };
     this._form = {
       calendar: get("calendar"),
+      eventType: get("event_type") || this._form.eventType || "normal",
       summary: get("summary"),
       location: get("location"),
       allDay,
@@ -1204,6 +1348,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       recurrenceId: this._form.recurrenceId || null,
       data: dataText,
       description: get("description"),
+      agri,
+      agriHashValid: this._form.agriHashValid ?? true,
+      agriHashChecked: this._form.agriHashChecked ?? false,
     };
   }
 
@@ -1228,30 +1375,28 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._render();
   }
 
-  _openEventByUid(uid, calendarEntity = "", recurrenceId = "") {
+  async _openEventByUid(uid, calendarEntity = "", recurrenceId = "") {
     const event = this._events.find((ev) => ev.uid === uid && (!calendarEntity || ev.__calendarEntity === calendarEntity) && (!recurrenceId || ev.recurrence_id === recurrenceId));
     if (!event) return;
-    const agriOperationId = this._agriOperationIdFromDescription(event.description || "");
-    if (agriOperationId) {
-      this._openAgriOperationById(agriOperationId, event);
-      return;
-    }
+    const agriInfo = await this._extractAgriDescription(event.description || "");
     const actionId = this._actionIdFromDescription(event.description || "");
     const storedAction = this._storedAction(actionId);
     this._editingEvent = event;
     const start = this._eventStart(event) || "";
     const end = this._eventEnd(event) || start;
     const isAllDay = Boolean(event.start?.date);
+    const agriPayload = agriInfo.payload || {};
     this._form = {
       ...this._defaultForm(),
       calendar: event.__calendarEntity || storedAction?.calendar_entity || this._selectedCalendar,
+      eventType: agriInfo.hasAgri ? "agri" : (actionId ? "service" : "normal"),
       summary: event.summary || "",
       location: event.location || "",
       allDay: isAllDay,
       start: isAllDay ? start.slice(0, 10) : start.slice(0, 16),
       end: isAllDay ? end.slice(0, 10) : end.slice(0, 16),
       rrule: event.rrule || "",
-      description: this._cleanDescription(event.description || ""),
+      description: agriInfo.hasAgri ? agriInfo.humanNotes : this._cleanDescription(event.description || ""),
       actionId,
       uid: event.uid || "",
       recurrenceId: event.recurrence_id || null,
@@ -1263,9 +1408,21 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       endTarget: storedAction?.end_target || {},
       endData: JSON.stringify(storedAction?.end_data || {}, null, 2),
       endServiceAction: { action: storedAction?.end_service || "", target: storedAction?.end_target || {}, data: storedAction?.end_data || {} },
+      agri: agriInfo.hasAgri ? {
+        cycleId: agriPayload.cycle_id || "",
+        operationType: agriPayload.operation_type || "灌溉",
+        actualStart: (agriPayload.actual_start || start).slice(0, 16),
+        operator: agriPayload.operator || "",
+        materialName: agriPayload.material_name || "",
+        quantity: agriPayload.quantity ?? "",
+        unit: agriPayload.unit || "",
+        sensorEntities: Array.isArray(agriPayload.sensor_entities) ? agriPayload.sensor_entities.join(", ") : "",
+      } : this._defaultAgriFields(),
+      agriHashValid: agriInfo.hasAgri ? agriInfo.hashValid : true,
+      agriHashChecked: Boolean(agriInfo.hasAgri),
     };
     this._dialogOpen = true;
-    this._message = actionId ? "" : "此事件沒有綁定 Uninus service action；可修改日曆事件，但不能更新 service action。";
+    this._message = (!agriInfo.hasAgri && !actionId && this._editingEvent) ? "此事件沒有綁定 Uninus service action；可修改日曆事件，但不能更新 service action。" : "";
     this._render();
   }
 
@@ -1348,9 +1505,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return this._form.recurrenceId ?? this._editingEvent?.recurrence_id ?? actionEvent?.recurrence_id;
   }
 
-  _openDialog(dateKey) {
+  _openDialog(dateKey, eventType = "normal") {
     this._editingEvent = undefined;
     this._form = this._defaultForm();
+    this._form.eventType = eventType;
     this._form.calendar = this._selectedCalendar;
     if (dateKey) {
       this._form.start = `${dateKey}T09:00`;
@@ -1687,24 +1845,28 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     try {
       this._captureForm();
       const f = this._form;
-      const serviceData = f.service && f.data ? JSON.parse(f.data) : {};
-      const endServiceData = f.endService && f.endData ? JSON.parse(f.endData) : {};
+      const isService = f.eventType === "service";
+      const isAgri = f.eventType === "agri";
+      const serviceData = isService && f.service && f.data ? JSON.parse(f.data) : {};
+      const endServiceData = isService && f.endService && f.endData ? JSON.parse(f.endData) : {};
+      const existingAgri = isAgri && this._editingEvent ? (await this._extractAgriDescription(this._editingEvent.description || "")).payload : {};
       const payload = {
         calendar_entity: f.calendar,
-        summary: f.summary,
+        summary: f.summary || (isAgri ? `農務：${f.agri?.operationType || "作業"}` : ""),
         start: f.allDay ? `${this._dateOnly(f.start)}T00:00:00` : this._toIsoWithOffset(f.start),
         end: f.allDay ? `${this._exclusiveAllDayEndDate(f.start, f.end)}T00:00:00` : this._toIsoWithOffset(f.end),
         all_day: f.allDay,
         location: f.location,
         rrule: f.rrule,
-        service: f.service,
-        target: f.target || {},
+        service: isService ? f.service : "",
+        target: isService ? (f.target || {}) : {},
         data: serviceData,
-        end_service: f.endService,
-        end_target: f.endTarget || {},
+        end_service: isService ? f.endService : "",
+        end_target: isService ? (f.endTarget || {}) : {},
         end_data: endServiceData,
-        description: f.description,
+        description: isAgri ? await this._composeAgriDescription(f, existingAgri) : f.description,
       };
+      if (isAgri && !f.agri?.cycleId) throw new Error("農務作業需要選擇生產週期");
       for (const field of ["calendar_entity", "summary", "start"]) {
         if (!payload[field]) throw new Error(`${field} is required`);
       }

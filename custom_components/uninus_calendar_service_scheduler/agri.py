@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -22,6 +23,68 @@ def _stable_hash(payload: dict[str, Any]) -> str:
     relevant = {key: value for key, value in payload.items() if key != "record_hash"}
     raw = json.dumps(relevant, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+AGRI_DESCRIPTION_MARKER = "UNINUS_AGRI_OPERATION_JSON"
+_AGRI_DESCRIPTION_RE = re.compile(
+    rf"\n*<!--\s*{AGRI_DESCRIPTION_MARKER}\s*(.*?)\s*{AGRI_DESCRIPTION_MARKER}\s*-->",
+    re.DOTALL,
+)
+
+
+def _payload_with_hash(payload: dict[str, Any]) -> dict[str, Any]:
+    next_payload = dict(payload)
+    next_payload["record_hash"] = _stable_hash(next_payload)
+    return next_payload
+
+
+def verify_agri_payload_hash(payload: dict[str, Any]) -> bool:
+    """Return whether an embedded agri JSON payload still matches record_hash."""
+
+    record_hash = str(payload.get("record_hash") or "")
+    return bool(record_hash) and record_hash == _stable_hash(dict(payload))
+
+
+def compose_agri_description(
+    *,
+    human_notes: str = "",
+    payload: dict[str, Any],
+    created_at: str | None = None,
+    updated_at: str | None = None,
+) -> str:
+    """Compose editable human notes plus hidden system-managed agri JSON."""
+
+    now = _now()
+    next_payload = {
+        "version": 1,
+        **dict(payload),
+        "created_at": created_at or payload.get("created_at") or now,
+        "updated_at": updated_at or now,
+    }
+    next_payload = _payload_with_hash(next_payload)
+    raw = json.dumps(next_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    parts = []
+    if human_notes.strip():
+        parts.append(human_notes.strip())
+    parts.append(f"<!-- {AGRI_DESCRIPTION_MARKER}\n{raw}\n{AGRI_DESCRIPTION_MARKER} -->")
+    return "\n\n".join(parts)
+
+
+def extract_agri_description(description: str) -> tuple[str, dict[str, Any], bool]:
+    """Extract human notes, agri payload, and hash validity from description."""
+
+    raw_description = str(description or "")
+    match = _AGRI_DESCRIPTION_RE.search(raw_description)
+    if not match:
+        return raw_description.strip(), {}, False
+    human_notes = _AGRI_DESCRIPTION_RE.sub("", raw_description).strip()
+    try:
+        payload = json.loads(match.group(1).strip())
+    except json.JSONDecodeError:
+        return human_notes, {}, False
+    if not isinstance(payload, dict):
+        return human_notes, {}, False
+    return human_notes, payload, verify_agri_payload_hash(payload)
 
 
 @dataclass(slots=True)
