@@ -505,6 +505,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       button { border: 0; border-radius: 20px; padding: 10px 16px; cursor: pointer; font-weight: 600; background: var(--secondary-background-color); color: var(--primary-text-color); }
       button.primary { background: var(--primary-color); color: var(--text-primary-color); }
       button.full { width: 100%; margin-top: 6px; }
+      .fab { position: fixed; right: 24px; bottom: 24px; z-index: 4; box-shadow: 0 6px 16px rgba(0,0,0,.22); }
       .monthbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
       .monthbar h2 { margin: 0; font-weight: 500; font-size: 22px; text-align: center; flex: 1; }
       .nav { display: flex; gap: 8px; align-items: center; }
