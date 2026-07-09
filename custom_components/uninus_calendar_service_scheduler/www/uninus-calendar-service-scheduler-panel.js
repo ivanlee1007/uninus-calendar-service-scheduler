@@ -1940,7 +1940,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       }
       this._dialogOpen = false;
       this._editingEvent = undefined;
-      this._message = wasEditing ? "已更新行程。" : ((payload.service || payload.end_service) ? "已建立行程與開始/結束服務排程。" : "已建立行程。此行程不會執行 service action。");
+      this._message = wasEditing ? "已更新行程。" : (isAgri ? "已建立農務作業 Calendar 事件。" : ((payload.service || payload.end_service) ? "已建立行程與開始/結束服務排程。" : "已建立行程。此行程不會執行 service action。"));
       await this._loadEvents();
     } catch (err) {
       this._message = `Error: ${err?.message || err}`;
