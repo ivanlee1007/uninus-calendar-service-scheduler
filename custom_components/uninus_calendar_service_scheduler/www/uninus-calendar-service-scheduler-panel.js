@@ -8,6 +8,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._message = "";
     this._dialogOpen = false;
     this._agriDialogOpen = false;
+    this._managementDialogOpen = false;
     this._deleteConfirmOpen = false;
     this._editConfirmOpen = false;
     this._pendingUpdatePayload = undefined;
@@ -24,6 +25,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._actionOverrides = new Map();
     this._calendarListScrollTop = 0;
     this._agriForm = this._defaultAgriForm();
+    this._managementForm = this._defaultManagementForm();
   }
 
   set hass(hass) {
@@ -39,7 +41,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       this._form.calendar = this._selectedCalendar;
     }
     this._ensureHaPickers();
-    if (!this._dialogOpen && !this._agriDialogOpen) this._render();
+    if (!this._dialogOpen && !this._agriDialogOpen && !this._managementDialogOpen) this._render();
     if (!oldHass && this._selectedCalendars.length) this._loadEvents();
   }
 
@@ -105,6 +107,28 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       calendar: this._selectedCalendar || "",
       operationId: "",
       calendarEventUid: "",
+    };
+  }
+
+  _defaultManagementForm() {
+    return {
+      farmName: "",
+      farmOperator: "",
+      farmAddress: "",
+      farmPhone: "",
+      plotFarmId: "",
+      plotName: "",
+      plotProduct: "",
+      plotTgapCategory: "水果類",
+      plotArea: "",
+      plotLocation: "",
+      cyclePlotId: "",
+      cycleProduct: "",
+      cycleVariety: "",
+      cycleLotNumber: "",
+      cycleTraceCode: "",
+      cycleStartDate: this._dateInputValue(new Date()),
+      cycleExpectedHarvestDate: "",
     };
   }
 
@@ -573,13 +597,17 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .traceability-recent p { margin: 6px 0 0; }
       .error { color: var(--error-color); }
 
-      .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9; display: ${this._dialogOpen || this._agriDialogOpen ? "block" : "none"}; }
-      .dialog, .agri-dialog { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(860px, calc(100vw - 32px)); max-height: min(860px, calc(100vh - 32px)); overflow: auto; z-index: 10; border-radius: 28px; background: var(--card-background-color); color: var(--primary-text-color); box-shadow: 0 24px 38px rgba(0,0,0,.14), 0 9px 46px rgba(0,0,0,.12), 0 11px 15px rgba(0,0,0,.2); }
+      .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9; display: ${this._dialogOpen || this._agriDialogOpen || this._managementDialogOpen ? "block" : "none"}; }
+      .dialog, .agri-dialog, .management-dialog { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(860px, calc(100vw - 32px)); max-height: min(860px, calc(100vh - 32px)); overflow: auto; z-index: 10; border-radius: 28px; background: var(--card-background-color); color: var(--primary-text-color); box-shadow: 0 24px 38px rgba(0,0,0,.14), 0 9px 46px rgba(0,0,0,.12), 0 11px 15px rgba(0,0,0,.2); }
       .dialog { display: ${this._dialogOpen ? "block" : "none"}; }
       .agri-dialog { display: ${this._agriDialogOpen ? "block" : "none"}; width: min(980px, calc(100vw - 32px)); }
-      .dialog header, .agri-dialog header { padding: 24px 24px 8px; font-size: 22px; font-weight: 500; }
-      .dialog .content, .agri-dialog .content { padding: 0 24px 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+      .management-dialog { display: ${this._managementDialogOpen ? "block" : "none"}; width: min(1060px, calc(100vw - 32px)); }
+      .dialog header, .agri-dialog header, .management-dialog header { padding: 24px 24px 8px; font-size: 22px; font-weight: 500; }
+      .dialog .content, .agri-dialog .content, .management-dialog .content { padding: 0 24px 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
       .agri-dialog .content { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .management-section { border: 1px solid var(--divider-color); border-radius: 16px; padding: 14px; background: var(--card-background-color); }
+      .management-section h3 { margin: 0 0 10px; font-size: 16px; }
+      .management-section .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
       .delete-confirm, .edit-confirm { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(360px, calc(100vw - 48px)); z-index: 12; border-radius: 20px; background: var(--card-background-color); color: var(--primary-text-color); box-shadow: 0 18px 34px rgba(0,0,0,.28); padding: 20px 16px 16px; }
       .delete-confirm { display: ${this._deleteConfirmOpen ? "block" : "none"}; }
       .edit-confirm { display: ${this._editConfirmOpen ? "block" : "none"}; }
@@ -594,8 +622,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .checkbox { flex-direction: row; align-items: center; gap: 10px; }
       .checkbox input { width: auto; }
       .actions { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 24px 24px; }
-      @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .side { border-inline-end: 0; border-block-end: 1px solid var(--divider-color); } .day { min-height: 88px; } .agri-dialog .content { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-      @media (max-width: 640px) { .dialog .content, .agri-dialog .content { grid-template-columns: 1fr; } .weekday { font-size: 11px; padding: 8px 4px; text-align: center; } .day { min-height: 74px; padding: 4px; } .pill { font-size: 10px; padding: 2px 4px; } }
+      @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .side { border-inline-end: 0; border-block-end: 1px solid var(--divider-color); } .day { min-height: 88px; } .agri-dialog .content { grid-template-columns: repeat(2, minmax(0, 1fr)); } .management-section .fields { grid-template-columns: 1fr; } }
+      @media (max-width: 640px) { .dialog .content, .agri-dialog .content, .management-dialog .content { grid-template-columns: 1fr; } .weekday { font-size: 11px; padding: 8px 4px; text-align: center; } .day { min-height: 74px; padding: 4px; } .pill { font-size: 10px; padding: 2px 4px; } }
     `;
   }
 
@@ -627,7 +655,149 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const operations = summary.recent_operations || [];
     const migrationCount = this._legacyOperationsNeedingMigration().length;
     const sourceLabel = (this._calendarTraceabilityRows || []).length ? "Calendar" : "Legacy";
-    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業 <span class="system-note">${sourceLabel}</span></div></div><div class="mini-actions"><button class="primary" id="agri-open-dialog">新增農務作業</button><button id="agri-export">匯出 JSON</button>${migrationCount ? `<button id="agri-migrate-legacy">移轉舊作業 ${migrationCount}</button>` : ""}</div><p class="message">農務作業以 Calendar Event 裡的 UNINUS_AGRI_OPERATION_JSON 為主；舊 storage 作業可移轉成 Calendar 事件。</p>${summary.calendar_hash_mismatch_count ? `<p class="warning">⚠️ ${summary.calendar_hash_mismatch_count} 筆 Calendar 農務作業 hash 驗證失敗</p>` : ""}<div class="traceability-recent"><p class="message">最近 ${operations.length} 筆</p>${operations.slice(0, 3).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("")}</div></section>`;
+    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業 <span class="system-note">${sourceLabel}</span></div></div><div class="mini-actions"><button class="primary" id="agri-open-dialog">新增農務作業</button><button id="agri-manage-master-data">農場 / 場區 / 生產週期管理</button><button id="agri-export">匯出 JSON</button>${migrationCount ? `<button id="agri-migrate-legacy">移轉舊作業 ${migrationCount}</button>` : ""}</div><p class="message">農務作業以 Calendar Event 裡的 UNINUS_AGRI_OPERATION_JSON 為主；舊 storage 作業可移轉成 Calendar 事件。</p>${summary.calendar_hash_mismatch_count ? `<p class="warning">⚠️ ${summary.calendar_hash_mismatch_count} 筆 Calendar 農務作業 hash 驗證失敗</p>` : ""}<div class="traceability-recent"><p class="message">最近 ${operations.length} 筆</p>${operations.slice(0, 3).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("")}</div></section>`;
+  }
+
+
+  _managementDialogTemplate() {
+    const records = this._traceabilityRecords();
+    const farms = Object.values(records.farms || {});
+    const plots = Object.values(records.plots || {});
+    const cycles = Object.values(records.cycles || {});
+    const f = this._managementForm || this._defaultManagementForm();
+    const farmOptions = [`<option value="">選擇農場</option>`].concat(farms.map((farm) => `<option value="${this._escape(farm.farm_id)}" ${farm.farm_id === f.plotFarmId ? "selected" : ""}>${this._escape(farm.name || farm.farm_id)}</option>`)).join("");
+    const plotOptions = [`<option value="">選擇場區</option>`].concat(plots.map((plot) => `<option value="${this._escape(plot.plot_id)}" ${plot.plot_id === f.cyclePlotId ? "selected" : ""}>${this._escape(plot.name || plot.plot_id)} ${this._escape(plot.product || "")}</option>`)).join("");
+    const categoryOptions = ["農糧", "水果類", "蔬菜類", "水稻", "雜糧類", "畜禽", "水產", "分裝流通", "林產品"].map((item) => `<option value="${this._escape(item)}" ${item === f.plotTgapCategory ? "selected" : ""}>${this._escape(item)}</option>`).join("");
+    return `
+      <section class="management-dialog" role="dialog" aria-modal="true" aria-label="農場 / 場區 / 生產週期管理">
+        <header>農場 / 場區 / 生產週期管理</header>
+        <div class="content">
+          <section class="management-section fullrow">
+            <h3>新增農場</h3>
+            <div class="fields">
+              <label>農場名稱<input id="trace_farm_name" value="${this._escape(f.farmName)}" /></label>
+              <label>經營者<input id="trace_farm_operator" value="${this._escape(f.farmOperator)}" /></label>
+              <label>地址<input id="trace_farm_address" value="${this._escape(f.farmAddress)}" /></label>
+              <label>電話<input id="trace_farm_phone" value="${this._escape(f.farmPhone)}" /></label>
+            </div>
+            <button class="primary full" id="trace-farm-create">建立農場</button>
+          </section>
+          <section class="management-section fullrow">
+            <h3>新增場區</h3>
+            <div class="fields">
+              <label>農場<select id="trace_plot_farm">${farmOptions}</select></label>
+              <label>場區名稱<input id="trace_plot_name" value="${this._escape(f.plotName)}" /></label>
+              <label>產品<input id="trace_plot_product" value="${this._escape(f.plotProduct)}" /></label>
+              <label>TGAP 類別<select id="trace_plot_tgap_category">${categoryOptions}</select></label>
+              <label>面積<input id="trace_plot_area" value="${this._escape(f.plotArea)}" /></label>
+              <label>位置<input id="trace_plot_location" value="${this._escape(f.plotLocation)}" /></label>
+            </div>
+            <button class="primary full" id="trace-plot-create">建立場區</button>
+          </section>
+          <section class="management-section fullrow">
+            <h3>新增生產週期</h3>
+            <div class="fields">
+              <label>場區<select id="trace_cycle_plot">${plotOptions}</select></label>
+              <label>產品<input id="trace_cycle_product" value="${this._escape(f.cycleProduct)}" /></label>
+              <label>品種<input id="trace_cycle_variety" value="${this._escape(f.cycleVariety)}" /></label>
+              <label>批號<input id="trace_cycle_lot" value="${this._escape(f.cycleLotNumber)}" /></label>
+              <label>追溯碼<input id="trace_cycle_trace_code" value="${this._escape(f.cycleTraceCode)}" /></label>
+              <label>開始日期<input id="trace_cycle_start" type="date" value="${this._escape(f.cycleStartDate)}" /></label>
+              <label>預計採收日<input id="trace_cycle_expected_harvest" type="date" value="${this._escape(f.cycleExpectedHarvestDate)}" /></label>
+            </div>
+            <button class="primary full" id="trace-cycle-create">建立生產週期</button>
+          </section>
+          <div class="message fullrow ${this._message.startsWith("建立") && this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
+          <div class="fullrow system-note">現有：${farms.length} 個農場、${plots.length} 個場區、${cycles.length} 個生產週期。建立後可直接在「新增農務作業」的生產週期欄位選用。</div>
+        </div>
+        <div class="actions"><button id="trace-management-close">關閉</button></div>
+      </section>
+    `;
+  }
+
+  _openManagementDialog() {
+    this._message = "";
+    this._managementDialogOpen = true;
+    this._render();
+  }
+
+  _closeManagementDialog() {
+    this._captureManagementForm();
+    this._managementDialogOpen = false;
+    this._render();
+  }
+
+  _captureManagementForm() {
+    const get = (id) => this.shadowRoot.getElementById(id)?.value || "";
+    this._managementForm = {
+      ...this._managementForm,
+      farmName: get("trace_farm_name"),
+      farmOperator: get("trace_farm_operator"),
+      farmAddress: get("trace_farm_address"),
+      farmPhone: get("trace_farm_phone"),
+      plotFarmId: get("trace_plot_farm"),
+      plotName: get("trace_plot_name"),
+      plotProduct: get("trace_plot_product"),
+      plotTgapCategory: get("trace_plot_tgap_category") || "水果類",
+      plotArea: get("trace_plot_area"),
+      plotLocation: get("trace_plot_location"),
+      cyclePlotId: get("trace_cycle_plot"),
+      cycleProduct: get("trace_cycle_product"),
+      cycleVariety: get("trace_cycle_variety"),
+      cycleLotNumber: get("trace_cycle_lot"),
+      cycleTraceCode: get("trace_cycle_trace_code"),
+      cycleStartDate: get("trace_cycle_start"),
+      cycleExpectedHarvestDate: get("trace_cycle_expected_harvest"),
+    };
+  }
+
+  _serviceResponsePayload(response) {
+    return response?.response || response || {};
+  }
+
+  async _createTraceFarm() {
+    this._captureManagementForm();
+    if (!this._managementForm.farmName.trim()) { this._message = "建立農場失敗：請輸入農場名稱。"; this._render(); return; }
+    try {
+      const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "create_farm", service_data: { name: this._managementForm.farmName, operator: this._managementForm.farmOperator, address: this._managementForm.farmAddress, phone: this._managementForm.farmPhone }, return_response: true });
+      const payload = this._serviceResponsePayload(response);
+      const farmId = payload.farm_id || payload.farm?.farm_id || "";
+      this._managementForm.plotFarmId = farmId || this._managementForm.plotFarmId;
+      this._managementForm.farmName = "";
+      this._message = `已建立農場${farmId ? `：${farmId}` : ""}`;
+      this._render();
+    } catch (err) { this._message = `建立農場失敗: ${err?.message || err}`; this._render(); }
+  }
+
+  async _createTracePlot() {
+    this._captureManagementForm();
+    if (!this._managementForm.plotFarmId) { this._message = "建立場區失敗：請先選擇農場。"; this._render(); return; }
+    if (!this._managementForm.plotName.trim()) { this._message = "建立場區失敗：請輸入場區名稱。"; this._render(); return; }
+    try {
+      const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "create_plot", service_data: { farm_id: this._managementForm.plotFarmId, name: this._managementForm.plotName, product: this._managementForm.plotProduct, tgap_category: this._managementForm.plotTgapCategory, area: this._managementForm.plotArea, location: this._managementForm.plotLocation }, return_response: true });
+      const payload = this._serviceResponsePayload(response);
+      const plotId = payload.plot_id || payload.plot?.plot_id || "";
+      this._managementForm.cyclePlotId = plotId || this._managementForm.cyclePlotId;
+      this._managementForm.cycleProduct = this._managementForm.cycleProduct || this._managementForm.plotProduct;
+      this._managementForm.plotName = "";
+      this._message = `已建立場區${plotId ? `：${plotId}` : ""}`;
+      this._render();
+    } catch (err) { this._message = `建立場區失敗: ${err?.message || err}`; this._render(); }
+  }
+
+  async _createTraceCycle() {
+    this._captureManagementForm();
+    if (!this._managementForm.cyclePlotId) { this._message = "建立生產週期失敗：請先選擇場區。"; this._render(); return; }
+    if (!this._managementForm.cycleProduct.trim()) { this._message = "建立生產週期失敗：請輸入產品。"; this._render(); return; }
+    try {
+      const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "create_crop_cycle", service_data: { plot_id: this._managementForm.cyclePlotId, product: this._managementForm.cycleProduct, variety: this._managementForm.cycleVariety, lot_number: this._managementForm.cycleLotNumber, trace_code: this._managementForm.cycleTraceCode, start_date: this._managementForm.cycleStartDate, expected_harvest_date: this._managementForm.cycleExpectedHarvestDate }, return_response: true });
+      const payload = this._serviceResponsePayload(response);
+      const cycleId = payload.cycle_id || payload.cycle?.cycle_id || "";
+      this._agriForm.cycleId = cycleId || this._agriForm.cycleId;
+      this._managementForm.cycleLotNumber = "";
+      this._message = `已建立生產週期${cycleId ? `：${cycleId}` : ""}`;
+      this._render();
+    } catch (err) { this._message = `建立生產週期失敗: ${err?.message || err}`; this._render(); }
   }
 
   _agriDialogTemplate() {
@@ -937,6 +1107,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       <button class="primary fab" id="new-event-fab">＋ 增加行程</button>
       ${this._dialogTemplate()}
       ${this._agriDialogTemplate()}
+      ${this._managementDialogTemplate()}
     `;
     this._bind();
     const nextCalendarList = this.shadowRoot.querySelector(".calendar-list");
@@ -1402,7 +1573,12 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("agri-cancel")?.addEventListener("click", () => this._closeAgriDialog());
     this.shadowRoot.getElementById("agri-create-operation")?.addEventListener("click", () => this._createAgriOperation());
     this.shadowRoot.getElementById("agri-export")?.addEventListener("click", () => this._exportTraceabilityRecords());
+    this.shadowRoot.getElementById("agri-manage-master-data")?.addEventListener("click", () => this._openManagementDialog());
     this.shadowRoot.getElementById("agri-migrate-legacy")?.addEventListener("click", () => this._migrateLegacyAgriOperations());
+    this.shadowRoot.getElementById("trace-management-close")?.addEventListener("click", () => this._closeManagementDialog());
+    this.shadowRoot.getElementById("trace-farm-create")?.addEventListener("click", () => this._createTraceFarm());
+    this.shadowRoot.getElementById("trace-plot-create")?.addEventListener("click", () => this._createTracePlot());
+    this.shadowRoot.getElementById("trace-cycle-create")?.addEventListener("click", () => this._createTraceCycle());
     ["agri_calendar", "agri_cycle", "agri_operation_type", "agri_actual_start", "agri_operator", "agri_material", "agri_quantity", "agri_unit", "agri_sensor_entities", "agri_notes"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureAgriForm());
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureAgriForm());
