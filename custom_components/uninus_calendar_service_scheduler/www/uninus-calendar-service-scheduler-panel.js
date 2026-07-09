@@ -759,16 +759,19 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   }
 
   _oneHourLaterIso(iso) {
-    const match = String(iso || "").match(/^(.*T)(\d{2}):(\d{2})(:\d{2})?([+-]\d{2}:\d{2}|Z)?$/);
+    const value = String(iso || "");
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?([+-]\d{2}:\d{2}|Z)?$/);
     if (!match) return iso;
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return iso;
-    const shifted = new Date(date.getTime() + 60 * 60 * 1000);
-    const offset = match[5] || "";
-    if (offset === "Z") return shifted.toISOString();
-    if (!offset) return this._localInputValue(shifted);
-    const local = new Date(shifted.getTime() + shifted.getTimezoneOffset() * 60000);
-    return `${local.getFullYear()}-${this._pad(local.getMonth() + 1)}-${this._pad(local.getDate())}T${this._pad(local.getHours())}:${this._pad(local.getMinutes())}:00${offset}`;
+    if (match[7] === "Z") {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return iso;
+      return new Date(date.getTime() + 60 * 60 * 1000).toISOString();
+    }
+    const offset = match[7] || "";
+    const local = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]), Number(match[5]), Number(match[6] || 0));
+    if (Number.isNaN(local.getTime())) return iso;
+    local.setHours(local.getHours() + 1);
+    return `${local.getFullYear()}-${this._pad(local.getMonth() + 1)}-${this._pad(local.getDate())}T${this._pad(local.getHours())}:${this._pad(local.getMinutes())}:${this._pad(local.getSeconds())}${offset}`;
   }
 
   _agriServiceData() {
