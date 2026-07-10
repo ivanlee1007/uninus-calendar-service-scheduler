@@ -663,7 +663,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .workbench-overview-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1.6fr); gap: 14px; align-items: start; }
       .workbench-overview-grid > div { min-width: 0; }
       .workbench-overview-left, .workbench-overview-middle, .workbench-overview-right { border: 1px solid var(--divider-color); border-radius: 12px; padding: 10px; }
-      .workbench-overview-middle { min-height: 248px; }
+      .workbench-overview-middle { min-height: 248px; margin-top: 0; }
       .traceability-card .scope-row { margin: 10px 0; }
       .traceability-status { padding: 8px 10px; border-radius: 12px; background: var(--secondary-background-color); margin: 8px 0; }
       .traceability-status.compact { width: 100%; text-align: start; border-radius: 12px; padding: 9px 10px; margin: 8px 0 10px; background: var(--secondary-background-color); color: var(--primary-text-color); }

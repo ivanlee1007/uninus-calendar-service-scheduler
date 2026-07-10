@@ -80,6 +80,7 @@ def test_workbench_overview_uses_three_columns_without_duplicate_title():
     assert 'workbench-overview-right' in overview
     assert overview.index('workbench-overview-middle') < overview.index('最近作業') < overview.index('workbench-overview-right')
     assert '.workbench-overview-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1.6fr);' in source
+    assert '.workbench-overview-middle { min-height: 248px; margin-top: 0; }' in source
 
 
 
