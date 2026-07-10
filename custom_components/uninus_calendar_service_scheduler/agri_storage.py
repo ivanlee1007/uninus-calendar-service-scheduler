@@ -74,3 +74,9 @@ class AgriStore:
         if deleted:
             await self.async_save()
         return deleted
+
+    async def async_clear(self) -> dict[str, int]:
+        """Clear all persisted traceability records."""
+        summary = self.records.clear()
+        await self.async_save()
+        return summary

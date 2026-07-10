@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import logging
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,7 @@ from .const import (
     PANEL_URL,
     PANEL_URL_PATH,
     PANEL_WEBCOMPONENT,
+    SERVICE_CLEAR_TRACEABILITY_DATA,
     SERVICE_CREATE_AGRI_OPERATION,
     SERVICE_CREATE_CROP_CYCLE,
     SERVICE_CREATE_EVENT_ACTION,
@@ -194,6 +196,9 @@ EXPORT_TRACEABILITY_PACKAGE_SCHEMA = vol.Schema(
     {
         vol.Optional("cycle_id", default=""): cv.string,
     }
+)
+CLEAR_TRACEABILITY_DATA_SCHEMA = vol.Schema(
+    {vol.Required("confirm"): cv.boolean}
 )
 
 
@@ -713,6 +718,68 @@ def _register_services_once(hass: HomeAssistant) -> None:
         _notify_agri_changed()
         return {"evidence_id": evidence.evidence_id, "evidence": evidence.as_dict()}
 
+    async def _clear_traceability_calendar_events() -> dict[str, int]:
+        """Delete only Calendar events that are explicitly marked as traceability operations."""
+        from homeassistant.components.calendar import (  # imported lazily for test/runtime compatibility
+            DATA_COMPONENT as CALENDAR_DATA_COMPONENT,
+        )
+        from homeassistant.components.calendar import (
+            CalendarEntityFeature,
+        )
+        from homeassistant.util import dt as dt_util
+
+        component = hass.data.get(CALENDAR_DATA_COMPONENT)
+        if component is None:
+            return {"deleted": 0, "matched": 0}
+        start = dt_util.as_local(dt_util.utcnow() - datetime.timedelta(days=36525))
+        end = dt_util.as_local(dt_util.utcnow() + datetime.timedelta(days=36525))
+        deleted = 0
+        matched = 0
+        failures: list[str] = []
+        for entity_id in hass.states.async_entity_ids("calendar"):
+            entity = component.get_entity(entity_id)
+            if entity is None:
+                continue
+            try:
+                events = await entity.async_get_events(hass, start, end)
+            except Exception as err:  # calendar platform capability varies
+                failures.append(f"{entity_id}: 無法讀取事件 ({err})")
+                continue
+            trace_events = [
+                event
+                for event in events
+                if "AGRI_OPERATION_ID:" in (event.description or "")
+                or "UNINUS_AGRI_OPERATION_JSON" in (event.description or "")
+            ]
+            matched += len(trace_events)
+            if not trace_events:
+                continue
+            if not entity.supported_features & CalendarEntityFeature.DELETE_EVENT:
+                failures.append(f"{entity_id}: 不支援刪除 {len(trace_events)} 筆履歷 Calendar events")
+                continue
+            for event in trace_events:
+                try:
+                    await entity.async_delete_event(event.uid)
+                    deleted += 1
+                except Exception as err:  # avoid silently leaving orphaned history
+                    failures.append(f"{entity_id}/{event.uid}: 刪除失敗 ({err})")
+        if failures:
+            raise vol.Invalid("；".join(failures))
+        return {"deleted": deleted, "matched": matched}
+
+    async def _clear_traceability_data(call: ServiceCall) -> dict[str, Any]:
+        if not call.data.get("confirm"):
+            raise vol.Invalid("Clear traceability data requires confirm: true")
+        calendar_summary = await _clear_traceability_calendar_events()
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        records_summary = await agri_store.async_clear()
+        _notify_agri_changed()
+        return {
+            "cleared": True,
+            "calendar_events": calendar_summary,
+            "records": records_summary,
+        }
+
     async def _export_traceability_records(call: ServiceCall) -> dict[str, Any]:
         agri_store: AgriStore = _entry_data(hass)["agri_store"]
         return {
@@ -827,7 +894,8 @@ def _register_services_once(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN,
-        SERVICE_CREATE_AGRI_OPERATION,
+        SERVICE_CLEAR_TRACEABILITY_DATA,
+    SERVICE_CREATE_AGRI_OPERATION,
         _create_agri_operation,
         schema=CREATE_AGRI_OPERATION_SCHEMA,
         supports_response=SupportsResponse.ONLY,
@@ -845,6 +913,13 @@ def _register_services_once(hass: HomeAssistant) -> None:
         SERVICE_CREATE_EVIDENCE,
         _create_evidence,
         schema=CREATE_EVIDENCE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CLEAR_TRACEABILITY_DATA,
+        _clear_traceability_data,
+        schema=CLEAR_TRACEABILITY_DATA_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(

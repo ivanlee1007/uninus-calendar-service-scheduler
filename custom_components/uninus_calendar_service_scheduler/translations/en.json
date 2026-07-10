@@ -15,11 +15,24 @@
     "step": {
       "init": {
         "title": "Uninus Calendar Service Scheduler options",
+        "description": "Configure scheduler options. Selecting clear traceability data requires a second confirmation step.",
         "data": {
           "default_calendar": "Default calendar",
-          "allowed_services": "Allowed services, one per line. Supports domain.* wildcards."
+          "allowed_services": "Allowed services, one per line. Supports domain.* wildcards.",
+          "clear_traceability_data": "Clear traceability data"
+        }
+      },
+      "confirm_clear_traceability": {
+        "title": "Confirm clearing traceability data",
+        "description": "This permanently deletes farms, plots, crop cycles, agricultural operations, and evidence stored by this integration. It also deletes Calendar events marked as traceability operations. Ordinary Calendar events and data from other integrations are not deleted.",
+        "data": {
+          "confirm_clear_traceability_data": "I understand this cannot be undone; clear all traceability data"
         }
       }
+    },
+    "error": {
+      "confirmation_required": "Select the confirmation checkbox to continue.",
+      "clear_failed": "Could not clear traceability data. The reset was not completed; check Home Assistant logs and retry."
     }
   }
 }

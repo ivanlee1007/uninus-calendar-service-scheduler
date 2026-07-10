@@ -4,7 +4,7 @@ from __future__ import annotations
 
 DOMAIN = "uninus_calendar_service_scheduler"
 NAME = "Uninus Calendar Service Scheduler"
-VERSION = "0.4.56"
+VERSION = "0.4.57"
 
 CARD_FILENAME = "uninus-calendar-service-scheduler-card.js"
 CARD_RESOURCE_URL = f"/{DOMAIN}/{CARD_FILENAME}?v={VERSION}"
@@ -16,6 +16,8 @@ PANEL_WEBCOMPONENT = "uninus-calendar-service-scheduler-panel"
 CONF_ALLOWED_SERVICES = "allowed_services"
 CONF_DEFAULT_CALENDAR = "default_calendar"
 CONF_SCAN_DAYS_AHEAD = "scan_days_ahead"
+CONF_CLEAR_TRACEABILITY_DATA = "clear_traceability_data"
+CONF_CONFIRM_CLEAR_TRACEABILITY_DATA = "confirm_clear_traceability_data"
 
 # Legacy allowlist kept for backward compatibility. Empty means unrestricted.
 DEFAULT_ALLOWED_SERVICES = []
@@ -59,6 +61,7 @@ SERVICE_UPDATE_AGRI_OPERATION = "update_agri_operation"
 SERVICE_CREATE_EVIDENCE = "create_evidence"
 SERVICE_EXPORT_TRACEABILITY_PACKAGE = "export_traceability_package"
 SERVICE_EXPORT_TRACEABILITY_RECORDS = "export_traceability_records"
+SERVICE_CLEAR_TRACEABILITY_DATA = "clear_traceability_data"
 
 STORAGE_KEY = f"{DOMAIN}.actions"
 STORAGE_VERSION = 1

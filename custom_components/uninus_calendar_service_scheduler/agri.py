@@ -617,6 +617,22 @@ class TraceabilityRecordSet:
                 count += 1
         return count
 
+    def clear(self) -> dict[str, int]:
+        """Erase all traceability records and return the pre-clear counts."""
+        summary = {
+            "farm_count": len(self.farms),
+            "plot_count": len(self.plots),
+            "cycle_count": len(self.cycles),
+            "operation_count": len(self.operations),
+            "evidence_count": len(self.evidence),
+        }
+        self.farms.clear()
+        self.plots.clear()
+        self.cycles.clear()
+        self.operations.clear()
+        self.evidence.clear()
+        return summary
+
     def deletion_blockers(self, kind: str, record_id: str) -> list[str]:
         """Return traceability references that make a hard delete unsafe."""
         if kind == "farm":

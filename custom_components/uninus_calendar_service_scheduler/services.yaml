@@ -627,3 +627,12 @@ delete_crop_cycle:
       required: true
       selector:
         text:
+
+clear_traceability_data:
+  name: Clear all traceability data
+  description: Permanently clear this integration's traceability master data, operations, evidence, and Calendar events marked as traceability operations. Requires explicit confirmation.
+  fields:
+    confirm:
+      required: true
+      selector:
+        boolean:

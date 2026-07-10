@@ -457,3 +457,32 @@ def test_traceability_records_block_cycle_delete_when_operation_or_evidence_is_l
     assert records.deletion_blockers("cycle", cycle.cycle_id) == ["農務作業 1 筆", "佐證資料 1 筆"]
     assert records.delete_unlinked("cycle", cycle.cycle_id) is False
     assert cycle.cycle_id in records.cycles
+
+
+
+def test_traceability_records_clear_returns_to_empty_new_install_state():
+    farm = Farm.create(name="待清空農場")
+    plot = Plot.create(farm_id=farm.farm_id, name="待清空場區")
+    cycle = CropCycle.create(plot_id=plot.plot_id, product="芒果")
+    operation = AgriOperation.create(cycle_id=cycle.cycle_id, operation_type="灌溉")
+    evidence = EvidenceRecord.create(operation_id=operation.operation_id, title="待清空佐證")
+    records = TraceabilityRecordSet(
+        farms={farm.farm_id: farm},
+        plots={plot.plot_id: plot},
+        cycles={cycle.cycle_id: cycle},
+        operations={operation.operation_id: operation},
+        evidence={evidence.evidence_id: evidence},
+    )
+
+    summary = records.clear()
+
+    assert summary == {
+        "farm_count": 1,
+        "plot_count": 1,
+        "cycle_count": 1,
+        "operation_count": 1,
+        "evidence_count": 1,
+    }
+    assert records.as_dict() == {
+        "farms": {}, "plots": {}, "cycles": {}, "operations": {}, "evidence": {}
+    }
