@@ -123,6 +123,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       selectedPlotId: "",
       selectedCycleId: "",
       managementSearch: "",
+      managementSearchApplied: "",
       managementStatusFilter: "active",
       cycleLimit: "25",
       farmStatus: "active",
@@ -879,7 +880,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   _filteredManagementRecords() {
     const records = this._traceabilityRecords();
     const f = this._managementForm || this._defaultManagementForm();
-    const query = String(f.managementSearch || "").trim().toLowerCase();
+    const query = String(f.managementSearchApplied || "").trim().toLowerCase();
     const status = f.managementStatusFilter || "active";
     const matches = (item, fields) => !query || fields.some((field) => String(item[field] || "").toLowerCase().includes(query));
     const statusMatches = (item) => status === "all" || (item.status || "active") === status;
@@ -915,8 +916,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       <section class="workbench-section trace-management-inline" aria-label="農場 / 場區 / 生產週期管理">
         <section class="management-section fullrow">
           <h3>尋找與選取</h3>
+          <div class="fullrow system-note">只有無關聯資料才能刪除：農場不可有場區、場區不可有生產週期、生產週期不可有農務作業或佐證資料；有關聯時請改用封存。</div>
+          <div class="message fullrow ${this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
           <div class="fields">
-            <label>搜尋<input id="trace-management-search" value="${this._escape(f.managementSearch || "")}" placeholder="農場、場區、批號、追溯碼" /></label>
+            <label>搜尋<input id="trace-management-search" value="${this._escape(f.managementSearch || "")}" placeholder="農場、場區、批號、追溯碼" /></label><div class="row-actions"><button class="primary" id="trace-management-apply-search">搜尋</button></div>
             <label>狀態<select id="trace-management-status-filter">${filterStatusOptions}</select></label>
             <label>生產週期顯示上限<select id="trace-cycle-page-size">${limitOptions}</select></label>
             <div class="fullrow system-note">目前篩選：${farms.length} 個農場、${plots.length} 個場區、${cycles.length} / ${filtered.totalCycles} 個生產週期；週期清單${cycles.length > visibleCycles.length ? `只顯示前 ${visibleCycles.length} 筆，請縮小搜尋或選擇場區。` : "未超過顯示上限。"}</div>
@@ -966,8 +969,6 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           </div>
           <div class="row-actions"><button class="primary" id="trace-cycle-create">建立生產週期</button><button id="trace-cycle-save" ${f.selectedCycleId ? "" : "disabled"}>儲存生產週期</button><button class="archive" id="trace-cycle-archive" ${f.selectedCycleId ? "" : "disabled"}>封存生產週期</button><button class="archive" id="trace-cycle-delete" ${f.selectedCycleId ? "" : "disabled"}>安全刪除</button></div>
         </section>
-        <div class="fullrow system-note">只有無關聯資料才能刪除：農場不可有場區、場區不可有生產週期、生產週期不可有農務作業或佐證資料；有關聯時請改用封存。</div>
-        <div class="message fullrow ${this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
       </section>
     `;
   }
@@ -1001,6 +1002,13 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       cycleActualHarvestDate: get("trace_cycle_actual_harvest"),
       cycleStatus: get("trace_cycle_status") || "active",
     };
+  }
+
+
+  _applyManagementSearch() {
+    this._captureManagementForm();
+    this._managementForm = { ...this._managementForm, managementSearchApplied: this._managementForm.managementSearch || "" };
+    this._render();
   }
 
 
@@ -2156,7 +2164,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("trace-evidence-create")?.addEventListener("click", () => this._createEvidenceRecord());
     const managementSearch = this.shadowRoot.getElementById("trace-management-search");
     managementSearch?.addEventListener("input", () => this._captureManagementForm());
-    managementSearch?.addEventListener("change", () => { this._captureManagementForm(); this._render(); });
+    managementSearch?.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); this._applyManagementSearch(); } });
+    this.shadowRoot.getElementById("trace-management-apply-search")?.addEventListener("click", () => this._applyManagementSearch());
     this.shadowRoot.getElementById("trace_farm_name")?.addEventListener("input", () => this._captureManagementForm());
     this.shadowRoot.getElementById("trace_farm_name")?.addEventListener("change", () => this._applyFarmNameComboboxSelection());
     this.shadowRoot.getElementById("trace_plot_name")?.addEventListener("input", () => this._captureManagementForm());

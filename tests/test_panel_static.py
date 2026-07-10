@@ -203,9 +203,9 @@ def test_master_data_management_is_inline_in_workbench_not_second_dialog():
     assert "trace-management-close" not in source
 
 
-def test_master_data_management_removes_duplicate_heading_and_keeps_search_focus():
+def test_master_data_management_removes_duplicate_heading_and_uses_explicit_search():
     source = PANEL_JS.read_text(encoding="utf-8")
-    template_start = source.index("_managementContentTemplate()")
+    template_start = source.index("\n  _managementContentTemplate()")
     template_end = source.index("_captureManagementForm()", template_start)
     template = source[template_start:template_end]
     bind_start = source.index('const managementSearch = this.shadowRoot.getElementById("trace-management-search")')
@@ -214,9 +214,27 @@ def test_master_data_management_removes_duplicate_heading_and_keeps_search_focus
 
     assert "資料管理：農場 / 場區 / 生產週期管理" not in template
     assert "避免一次列出大量生產週期" not in template
+    assert 'id="trace-management-apply-search"' in template
+    assert 'managementSearchApplied' in source
+    assert 'const query = String(f.managementSearchApplied || "").trim().toLowerCase();' in source
     assert 'managementSearch?.addEventListener("input"' in bind_block
     assert 'managementSearch?.addEventListener("input", () => this._captureManagementForm())' in bind_block
     assert 'managementSearch?.addEventListener("input", () => { this._captureManagementForm(); this._render(); })' not in bind_block
+    assert 'getElementById("trace-management-apply-search")?.addEventListener("click", () => this._applyManagementSearch())' in bind_block
+
+
+def test_master_data_messages_are_near_search_controls_not_bottom():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    template_start = source.index("\n  _managementContentTemplate()")
+    template_end = source.index("_captureManagementForm()", template_start)
+    template = source[template_start:template_end]
+
+    delete_note = "只有無關聯資料才能刪除"
+    message = 'class="message fullrow ${this._message.includes("失敗") ? "error" : ""}"'
+    assert template.index(delete_note) < template.index('<div class="fields">')
+    assert template.index(message) < template.index('<div class="fields">')
+    assert template.rfind(delete_note) == template.index(delete_note)
+    assert template.rfind(message) == template.index(message)
 
 
 def test_master_data_management_uses_scalable_hierarchy_filters_not_flat_all_cycles():
@@ -234,7 +252,7 @@ def test_master_data_management_uses_scalable_hierarchy_filters_not_flat_all_cyc
 
 def test_identity_fields_are_editable_comboboxes_for_create_or_edit():
     source = PANEL_JS.read_text(encoding="utf-8")
-    template_start = source.index("_managementContentTemplate()")
+    template_start = source.index("\n  _managementContentTemplate()")
     template_end = source.index("_captureManagementForm()", template_start)
     template = source[template_start:template_end]
 
