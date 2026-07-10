@@ -384,3 +384,37 @@ def test_traceability_export_package_filters_by_cycle_id_and_related_evidence():
     assert "LOT-A" in package["csv"]
     assert "LOT-B" not in package["csv"]
     assert package["evidence"][0]["evidence_id"] == ev_a.evidence_id
+
+
+
+def test_traceability_export_package_includes_minimal_integrity_checks():
+    farm = Farm.create(name="綠竹農場", operator="王小農")
+    plot = Plot.create(farm_id=farm.farm_id, name="A 區", product="芒果")
+    cycle = CropCycle.create(plot_id=plot.plot_id, product="芒果", lot_number="LOT-OK")
+    operation = AgriOperation.create(cycle_id=cycle.cycle_id, operation_type="灌溉", actual_start="2026-02-01T07:00:00+08:00")
+    evidence = EvidenceRecord.create(operation_id=operation.operation_id, title="土壤濕度", content={"after": 32})
+    records = TraceabilityRecordSet(
+        farms={farm.farm_id: farm},
+        plots={plot.plot_id: plot},
+        cycles={cycle.cycle_id: cycle},
+        operations={operation.operation_id: operation},
+        evidence={evidence.evidence_id: evidence},
+    )
+
+    package = traceability_export_package(records, cycle_id=cycle.cycle_id)
+
+    assert package["integrity"]["ok"] is True
+    assert package["integrity"]["warning_count"] == 0
+    check_ids = {item["id"] for item in package["integrity"]["checks"]}
+    assert {"has_farm", "has_plot", "has_cycle", "has_operations", "has_evidence", "rows_match_cycle"} <= check_ids
+
+
+def test_traceability_export_package_integrity_warns_for_missing_evidence_and_empty_cycle():
+    cycle = CropCycle.create(plot_id="plot_missing", product="芒果", lot_number="LOT-WARN")
+    records = TraceabilityRecordSet(cycles={cycle.cycle_id: cycle})
+
+    package = traceability_export_package(records, cycle_id=cycle.cycle_id)
+
+    assert package["integrity"]["ok"] is False
+    failed_ids = {item["id"] for item in package["integrity"]["checks"] if item["status"] == "warning"}
+    assert {"has_farm", "has_plot", "has_operations", "has_evidence"} <= failed_ids

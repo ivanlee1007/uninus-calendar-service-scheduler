@@ -69,3 +69,21 @@ def test_panel_exposes_cycle_filtered_export_controls():
     assert "下載此週期 CSV" in source
     assert "_selectedExportCycleId" in source
     assert "_downloadTraceabilityCycleCsv" in source
+
+
+
+def test_panel_exposes_mvp_evidence_list_json_download_and_integrity_controls():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert "最近佐證資料" in source
+    assert "traceability-evidence-list" in source
+    assert "content_hash" in source
+    assert 'id="agri-download-json"' in source
+    assert 'id="agri-download-cycle-json"' in source
+    assert "下載 JSON" in source
+    assert "下載此週期 JSON" in source
+    assert "_downloadTraceabilityJson" in source
+    assert "_downloadTraceabilityCycleJson" in source
+    assert "匯出前檢查" in source
+    assert "traceability-integrity" in source
+    assert "_traceabilityIntegrity" in source

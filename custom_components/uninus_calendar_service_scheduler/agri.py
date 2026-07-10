@@ -680,6 +680,32 @@ def traceability_export_package(
     writer.writeheader()
     writer.writerows(rows)
     evidence_rows = [item.as_dict() for item in source_records.evidence.values()]
+    cycle = records.cycles.get(cycle_id) if cycle_id else None
+    plot = records.plots.get(cycle.plot_id) if cycle else None
+    farm = records.farms.get(plot.farm_id) if plot else None
+    check_defs = [
+        ("has_farm", "農場資料", bool(farm) if cycle_id else bool(records.farms)),
+        ("has_plot", "場區資料", bool(plot) if cycle_id else bool(records.plots)),
+        ("has_cycle", "生產週期資料", bool(cycle) if cycle_id else bool(records.cycles)),
+        ("has_operations", "農務作業", bool(rows)),
+        ("has_evidence", "佐證資料", bool(evidence_rows)),
+        (
+            "rows_match_cycle",
+            "匯出 rows 屬於指定生產週期",
+            all(row.get("cycle_id") == cycle_id for row in rows) if cycle_id else True,
+        ),
+        ("missing_links", "農場/場區/週期連結", source_records.missing_link_count() == 0),
+    ]
+    checks = [
+        {
+            "id": check_id,
+            "label": label,
+            "status": "ok" if passed else "warning",
+            "message": "OK" if passed else f"缺少或不完整：{label}",
+        }
+        for check_id, label, passed in check_defs
+    ]
+    warning_count = sum(1 for item in checks if item["status"] != "ok")
     return {
         "export_type": "traceability_export_package",
         "generated_at": _now(),
@@ -687,10 +713,17 @@ def traceability_export_package(
         "rows": rows,
         "csv": buffer.getvalue(),
         "csv_filename": f"traceability-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv",
+        "json_filename": f"traceability-package-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json",
         "evidence": evidence_rows,
+        "integrity": {
+            "ok": warning_count == 0,
+            "warning_count": warning_count,
+            "checks": checks,
+        },
         "summary": {
             "operation_count": len(rows),
             "evidence_count": len(evidence_rows),
             "missing_link_count": source_records.missing_link_count(),
+            "integrity_warning_count": warning_count,
         },
     }

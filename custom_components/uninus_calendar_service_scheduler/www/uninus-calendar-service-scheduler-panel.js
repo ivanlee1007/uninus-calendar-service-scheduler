@@ -679,6 +679,47 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return operations.filter((op) => op?.operation_id && !op.calendar_event_uid && !existingOperationIds.has(op.operation_id));
   }
 
+  _evidenceRows(cycleId = "") {
+    const records = this._traceabilityRecords();
+    const evidence = Object.values(records.evidence || {});
+    if (!cycleId) return evidence;
+    const operations = records.operations || {};
+    const operationIds = new Set(Object.values(operations).filter((op) => op.cycle_id === cycleId).map((op) => op.operation_id));
+    return evidence.filter((item) => operationIds.has(item.operation_id));
+  }
+
+  _traceabilityIntegrity(cycleId = "") {
+    const records = this._traceabilityRecords();
+    const cycles = records.cycles || {};
+    const plots = records.plots || {};
+    const farms = records.farms || {};
+    const operations = Object.values(records.operations || {}).filter((op) => !cycleId || op.cycle_id === cycleId);
+    const evidence = this._evidenceRows(cycleId);
+    const cycle = cycleId ? cycles[cycleId] : undefined;
+    const plot = cycle ? plots[cycle.plot_id] : undefined;
+    const farm = plot ? farms[plot.farm_id] : undefined;
+    const calendarRows = (this._calendarTraceabilityRows || []).filter((row) => !cycleId || row.cycle_id === cycleId);
+    const checks = [
+      { id: "has_farm", label: "農場資料", ok: cycleId ? Boolean(farm) : Boolean(Object.keys(farms).length) },
+      { id: "has_plot", label: "場區資料", ok: cycleId ? Boolean(plot) : Boolean(Object.keys(plots).length) },
+      { id: "has_cycle", label: "生產週期資料", ok: cycleId ? Boolean(cycle) : Boolean(Object.keys(cycles).length) },
+      { id: "has_operations", label: "農務作業", ok: operations.length > 0 || calendarRows.length > 0 },
+      { id: "has_evidence", label: "佐證資料", ok: evidence.length > 0 },
+      { id: "hash_valid", label: "Calendar hash 驗證", ok: calendarRows.every((row) => row.hash_valid !== false) },
+      { id: "rows_match_cycle", label: "rows 屬於指定生產週期", ok: !cycleId || calendarRows.every((row) => row.cycle_id === cycleId) },
+    ].map((item) => ({ ...item, status: item.ok ? "ok" : "warning", message: item.ok ? "OK" : `缺少或不完整：${item.label}` }));
+    return { ok: checks.every((item) => item.ok), warning_count: checks.filter((item) => !item.ok).length, checks };
+  }
+
+  _integrityTemplate(integrity) {
+    return `<div class="traceability-integrity"><b>匯出前檢查</b>${integrity.checks.map((item) => `<p class="${item.ok ? "message" : "warning"}">${item.ok ? "✅" : "⚠️"} ${this._escape(item.label)}</p>`).join("")}</div>`;
+  }
+
+  _evidenceListTemplate(cycleId = "") {
+    const evidence = this._evidenceRows(cycleId).slice().sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || ""))).slice(0, 5);
+    return `<div class="traceability-evidence-list"><b>最近佐證資料</b>${evidence.length ? evidence.map((item) => `<p><code>${this._escape(item.evidence_type || "evidence")}</code> ${this._escape(item.title || item.evidence_id || "")}${item.source_entity ? ` <span class="system-note">${this._escape(item.source_entity)}</span>` : ""}${item.content_hash ? ` <span class="system-note">hash ${this._escape(String(item.content_hash).slice(0, 12))}</span>` : ""}</p>`).join("") : `<p class="warning">尚無佐證資料</p>`}</div>`;
+  }
+
   _traceabilityTemplate() {
     const summary = this._traceabilitySummary();
     const operations = summary.recent_operations || [];
@@ -687,10 +728,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const cycles = Object.values(this._traceabilityRecords().cycles || {});
     const selectedCycleId = this._selectedExportCycleId || "";
     const cycleOptions = [`<option value="">全部生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === selectedCycleId ? "selected" : ""}>${this._escape(cycle.product || "週期")} ${this._escape(cycle.lot_number || cycle.trace_code || cycle.cycle_id)}</option>`)).join("");
-    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業 <span class="system-note">${sourceLabel}</span></div></div><div class="mini-actions"><button class="primary" id="agri-open-dialog">新增農務作業</button><button id="agri-manage-master-data">農場 / 場區 / 生產週期管理</button><button id="agri-open-evidence">新增佐證資料</button><button id="agri-export">匯出 JSON</button><button id="agri-download-csv">下載 CSV</button>${migrationCount ? `<button id="agri-migrate-legacy">移轉舊作業 ${migrationCount}</button>` : ""}</div><label class="fullrow">依生產週期匯出<select id="trace_export_cycle">${cycleOptions}</select></label><div class="mini-actions"><button id="agri-export-cycle">匯出此週期</button><button id="agri-download-cycle-csv">下載此週期 CSV</button></div><p class="message">農務作業以 Calendar Event 裡的 UNINUS_AGRI_OPERATION_JSON 為主；舊 storage 作業可移轉成 Calendar 事件。</p>${summary.calendar_hash_mismatch_count ? `<p class="warning">⚠️ ${summary.calendar_hash_mismatch_count} 筆 Calendar 農務作業 hash 驗證失敗</p>` : ""}<div class="traceability-recent"><p class="message">最近 ${operations.length} 筆</p>${operations.slice(0, 3).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("")}</div></section>`;
+    const integrity = this._traceabilityIntegrity(selectedCycleId);
+    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業 <span class="system-note">${sourceLabel}</span></div></div><div class="mini-actions"><button class="primary" id="agri-open-dialog">新增農務作業</button><button id="agri-manage-master-data">農場 / 場區 / 生產週期管理</button><button id="agri-open-evidence">新增佐證資料</button><button id="agri-export">匯出 JSON</button><button id="agri-download-json">下載 JSON</button><button id="agri-download-csv">下載 CSV</button>${migrationCount ? `<button id="agri-migrate-legacy">移轉舊作業 ${migrationCount}</button>` : ""}</div><label class="fullrow">依生產週期匯出<select id="trace_export_cycle">${cycleOptions}</select></label><div class="mini-actions"><button id="agri-export-cycle">匯出此週期</button><button id="agri-download-cycle-json">下載此週期 JSON</button><button id="agri-download-cycle-csv">下載此週期 CSV</button></div>${this._integrityTemplate(integrity)}${this._evidenceListTemplate(selectedCycleId)}<p class="message">農務作業以 Calendar Event 裡的 UNINUS_AGRI_OPERATION_JSON 為主；舊 storage 作業可移轉成 Calendar 事件。</p>${summary.calendar_hash_mismatch_count ? `<p class="warning">⚠️ ${summary.calendar_hash_mismatch_count} 筆 Calendar 農務作業 hash 驗證失敗</p>` : ""}<div class="traceability-recent"><p class="message">最近 ${operations.length} 筆</p>${operations.slice(0, 3).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("")}</div></section>`;
   }
-
-
 
   _evidenceDialogTemplate() {
     const records = this._traceabilityRecords();
@@ -1264,6 +1304,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       csv_filename: csvFilename,
       evidence,
       filter: { cycle_id: cycleId },
+      integrity: traceability_export_package.integrity || this._traceabilityIntegrity(cycleId),
       summary: {
         ...(legacy.summary || {}),
         ...(traceability_export_package.summary || {}),
@@ -1273,6 +1314,28 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       },
       export_source: calendarRows.length ? "calendar_events" : "legacy_storage",
     };
+  }
+
+  async _downloadTraceabilityJson(cycleId = "") {
+    try {
+      const exportPayload = cycleId ? (this._lastCycleExportPayload || await this._traceabilityExportPayload(cycleId)) : (this._lastExportPayload || await this._traceabilityExportPayload());
+      if (cycleId) this._lastCycleExportPayload = exportPayload;
+      else this._lastExportPayload = exportPayload;
+      const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      const lot = this._traceabilityRecords().cycles?.[cycleId]?.lot_number || cycleId || "all";
+      link.download = exportPayload.traceability_export_package?.json_filename || `traceability-package-${lot}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      this._message = `已下載 JSON：${link.download}`;
+    } catch (err) { this._message = `下載 JSON 失敗: ${err?.message || err}`; }
+    this._render();
+  }
+
+  async _downloadTraceabilityCycleJson() {
+    await this._downloadTraceabilityJson(this._selectedExportCycleId || "");
   }
 
   async _downloadTraceabilityCsv(cycleId = "") {
@@ -1812,8 +1875,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("agri-cancel")?.addEventListener("click", () => this._closeAgriDialog());
     this.shadowRoot.getElementById("agri-create-operation")?.addEventListener("click", () => this._createAgriOperation());
     this.shadowRoot.getElementById("agri-export")?.addEventListener("click", () => this._exportTraceabilityRecords());
+    this.shadowRoot.getElementById("agri-download-json")?.addEventListener("click", () => this._downloadTraceabilityJson());
     this.shadowRoot.getElementById("agri-download-csv")?.addEventListener("click", () => this._downloadTraceabilityCsv());
     this.shadowRoot.getElementById("agri-export-cycle")?.addEventListener("click", () => this._exportTraceabilityRecords(this._selectedExportCycleId || ""));
+    this.shadowRoot.getElementById("agri-download-cycle-json")?.addEventListener("click", () => this._downloadTraceabilityCycleJson());
     this.shadowRoot.getElementById("agri-download-cycle-csv")?.addEventListener("click", () => this._downloadTraceabilityCycleCsv());
     this.shadowRoot.getElementById("agri-open-evidence")?.addEventListener("click", () => this._openEvidenceDialog());
     this.shadowRoot.getElementById("agri-manage-master-data")?.addEventListener("click", () => this._openManagementDialog());
