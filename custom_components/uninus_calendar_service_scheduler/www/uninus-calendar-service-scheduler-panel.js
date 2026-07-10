@@ -731,13 +731,12 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
   _traceabilityTemplate() {
     const summary = this._traceabilitySummary();
-    const migrationCount = this._legacyOperationsNeedingMigration().length;
     const cycles = Object.values(this._traceabilityRecords().cycles || {});
     const selectedCycleId = this._selectedExportCycleId || "";
     const cycleOptions = [`<option value="">全部生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === selectedCycleId ? "selected" : ""}>${this._escape(cycle.product || "週期")} ${this._escape(cycle.lot_number || cycle.trace_code || cycle.cycle_id)}</option>`)).join("");
     const integrity = this._traceabilityIntegrity(selectedCycleId);
     const statusText = integrity.ok ? "✅ 可匯出" : `⚠️ ${integrity.warning_count} 項需檢查`;
-    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業</div></div><label class="scope-row">目前週期<select id="trace_export_cycle">${cycleOptions}</select></label><div class="traceability-status">${this._escape(statusText)}</div><div class="mini-actions"><button class="primary" id="agri-open-dialog">＋ 農務作業</button><button id="agri-open-workbench">產銷履歷工作台</button>${migrationCount ? `<button id="agri-migrate-legacy">移轉舊作業 ${migrationCount}</button>` : ""}</div></section>`;
+    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業</div></div><label class="scope-row">目前週期<select id="trace_export_cycle">${cycleOptions}</select></label><div class="traceability-status">${this._escape(statusText)}</div><div class="mini-actions"><button class="primary" id="agri-open-dialog">＋ 農務作業</button><button id="agri-open-workbench">產銷履歷工作台</button></div></section>`;
   }
 
   _openTraceabilityWorkbench(tab = "overview") {
@@ -789,7 +788,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       return `<section class="workbench-section"><h3>匯出</h3><label>匯出範圍<select id="trace_export_cycle_workbench">${cycleOptions}</select></label>${this._integrityTemplate(this._traceabilityIntegrity(selectedCycleId))}<div class="mini-actions"><button class="primary" id="agri-download-json">下載 JSON Package</button><button id="agri-download-csv">下載 CSV</button><button id="agri-export">預覽 JSON</button></div></section>`;
     }
     const operations = this._traceabilitySummary().recent_operations || [];
-    return `<section class="workbench-section"><h3>總覽</h3><div class="workbench-grid"><div>${this._integrityTemplate(this._traceabilityIntegrity(this._selectedExportCycleId || ""))}</div><div>${this._evidenceListTemplate(this._selectedExportCycleId || "")}</div></div><div class="traceability-recent"><b>最近作業</b>${operations.slice(0, 5).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("") || `<p class="message">尚無農務作業</p>`}</div></section>`;
+    const migrationCount = this._legacyOperationsNeedingMigration().length;
+    return `<section class="workbench-section"><h3>總覽</h3><div class="workbench-grid"><div>${this._integrityTemplate(this._traceabilityIntegrity(this._selectedExportCycleId || ""))}</div><div>${this._evidenceListTemplate(this._selectedExportCycleId || "")}</div></div><div class="traceability-recent"><b>最近作業</b>${operations.slice(0, 5).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("") || `<p class="message">尚無農務作業</p>`}</div>${migrationCount ? `<div class="mini-actions"><button id="agri-migrate-legacy">移轉舊作業 ${migrationCount}</button></div>` : ""}</section>`;
   }
 
   _evidenceDialogTemplate() {
@@ -1448,7 +1448,6 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           </details>
           <button class="primary full" id="new-event-side">新增 Calendar 事件</button>
           <button class="full" id="refresh">重新整理</button>
-          <p class="message">獨立 panel：不修改 Home Assistant 原生 /calendar。</p>
           ${this._traceabilityTemplate()}
         </aside>
         <main class="main">
