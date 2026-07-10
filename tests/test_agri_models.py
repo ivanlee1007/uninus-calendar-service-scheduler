@@ -287,6 +287,96 @@ def test_traceability_record_set_state_summary_counts_missing_required_links():
 
 
 
+def test_crop_cycle_identity_generates_missing_lot_and_trace_code():
+    farm = Farm.create(name="靜安農場")
+    plot = Plot.create(farm_id=farm.farm_id, name="A 區", product="番茄")
+    existing = CropCycle.create(
+        plot_id=plot.plot_id,
+        product="番茄",
+        variety="",
+        lot_number="LOT-20260710-001",
+        trace_code="TRACE-20260710-001",
+        start_date="2026-07-10",
+    )
+    records = TraceabilityRecordSet(
+        farms={farm.farm_id: farm},
+        plots={plot.plot_id: plot},
+        cycles={existing.cycle_id: existing},
+    )
+
+    lot_number, trace_code = records.prepare_cycle_identity(
+        plot_id=plot.plot_id,
+        product="小黃瓜",
+        variety="綠寶",
+        start_date="2026-07-10",
+        lot_number="",
+        trace_code="",
+    )
+
+    assert lot_number == "LOT-20260710-002"
+    assert trace_code == "TRACE-20260710-002"
+
+
+def test_crop_cycle_identity_rejects_unidentifiable_duplicate_cycle():
+    farm = Farm.create(name="靜安農場")
+    plot = Plot.create(farm_id=farm.farm_id, name="A 區", product="番茄")
+    existing = CropCycle.create(
+        plot_id=plot.plot_id,
+        product="番茄",
+        variety="玉女",
+        lot_number="LOT-20260710-001",
+        trace_code="TRACE-20260710-001",
+        start_date="2026-07-10",
+    )
+    records = TraceabilityRecordSet(
+        farms={farm.farm_id: farm},
+        plots={plot.plot_id: plot},
+        cycles={existing.cycle_id: existing},
+    )
+
+    try:
+        records.prepare_cycle_identity(
+            plot_id=plot.plot_id,
+            product="番茄",
+            variety="玉女",
+            start_date="2026-07-10",
+            lot_number="LOT-20260710-002",
+            trace_code="TRACE-20260710-002",
+        )
+    except ValueError as err:
+        assert "相同場區、產品、品種與開始日期" in str(err)
+    else:
+        raise AssertionError("duplicate crop cycle should be rejected")
+
+
+def test_crop_cycle_identity_rejects_duplicate_trace_code():
+    farm = Farm.create(name="靜安農場")
+    plot = Plot.create(farm_id=farm.farm_id, name="A 區", product="番茄")
+    existing = CropCycle.create(
+        plot_id=plot.plot_id,
+        product="番茄",
+        variety="玉女",
+        lot_number="LOT-20260710-001",
+        trace_code="TRACE-20260710-001",
+        start_date="2026-07-10",
+    )
+    records = TraceabilityRecordSet(cycles={existing.cycle_id: existing})
+
+    try:
+        records.prepare_cycle_identity(
+            plot_id=plot.plot_id,
+            product="小黃瓜",
+            variety="綠寶",
+            start_date="2026-07-11",
+            lot_number="LOT-20260711-001",
+            trace_code="TRACE-20260710-001",
+        )
+    except ValueError as err:
+        assert "追溯碼已存在" in str(err)
+    else:
+        raise AssertionError("duplicate trace code should be rejected")
+
+
 def test_master_data_records_support_editing_and_archival_status():
     farm = Farm.create(name="舊農場", operator="王小農")
     plot = Plot.create(farm_id=farm.farm_id, name="A 區", product="芒果")

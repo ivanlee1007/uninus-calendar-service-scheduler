@@ -633,6 +633,55 @@ class TraceabilityRecordSet:
         self.evidence.clear()
         return summary
 
+    def prepare_cycle_identity(
+        self,
+        *,
+        plot_id: str,
+        product: str,
+        variety: str = "",
+        start_date: str = "",
+        lot_number: str = "",
+        trace_code: str = "",
+        exclude_cycle_id: str = "",
+    ) -> tuple[str, str]:
+        """Return non-empty lot/trace identifiers and reject ambiguous duplicates."""
+        plot_id = str(plot_id or "").strip()
+        product_key = str(product or "").strip().casefold()
+        variety_key = str(variety or "").strip().casefold()
+        start_key = str(start_date or "").strip()
+        lot_number = str(lot_number or "").strip()
+        trace_code = str(trace_code or "").strip()
+        comparable = [
+            cycle for cycle in self.cycles.values()
+            if cycle.cycle_id != exclude_cycle_id
+        ]
+        for cycle in comparable:
+            if trace_code and str(cycle.trace_code or "").strip().casefold() == trace_code.casefold():
+                raise ValueError("追溯碼已存在，請使用唯一追溯碼。")
+            if lot_number and cycle.plot_id == plot_id and str(cycle.lot_number or "").strip().casefold() == lot_number.casefold():
+                raise ValueError("同一場區的批號已存在，請使用唯一批號。")
+            if (
+                cycle.plot_id == plot_id
+                and str(cycle.product or "").strip().casefold() == product_key
+                and str(cycle.variety or "").strip().casefold() == variety_key
+                and str(cycle.start_date or "").strip() == start_key
+            ):
+                raise ValueError("相同場區、產品、品種與開始日期的生產週期已存在，請改用既有週期或調整批次資訊。")
+        date_token = re.sub(r"\D", "", start_key)[:8] or re.sub(r"\D", "", _now())[:8]
+        existing_lots = {str(cycle.lot_number or "").strip().casefold() for cycle in comparable if cycle.plot_id == plot_id}
+        existing_traces = {str(cycle.trace_code or "").strip().casefold() for cycle in comparable}
+        seq = 1
+        if not lot_number or not trace_code:
+            while True:
+                candidate_lot = lot_number or f"LOT-{date_token}-{seq:03d}"
+                candidate_trace = trace_code or f"TRACE-{date_token}-{seq:03d}"
+                if candidate_lot.casefold() not in existing_lots and candidate_trace.casefold() not in existing_traces:
+                    lot_number = candidate_lot
+                    trace_code = candidate_trace
+                    break
+                seq += 1
+        return lot_number, trace_code
+
     def deletion_blockers(self, kind: str, record_id: str) -> list[str]:
         """Return traceability references that make a hard delete unsafe."""
         if kind == "farm":

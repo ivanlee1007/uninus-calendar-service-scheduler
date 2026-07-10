@@ -1161,14 +1161,69 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     } catch (err) { this._message = `儲存場區失敗: ${err?.message || err}`; this._render(); }
   }
 
+  _traceCycleDateToken(startDate = "") {
+    const digits = String(startDate || new Date().toISOString()).replace(/\D/g, "").slice(0, 8);
+    return digits || new Date().toISOString().slice(0, 10).replace(/\D/g, "");
+  }
+
+  _findDuplicateTraceCycle({ plotId, product, variety = "", startDate = "", lotNumber = "", traceCode = "", excludeCycleId = "" }) {
+    const productKey = String(product || "").trim().toLowerCase();
+    const varietyKey = String(variety || "").trim().toLowerCase();
+    const startKey = String(startDate || "").trim();
+    const lotKey = String(lotNumber || "").trim().toLowerCase();
+    const traceKey = String(traceCode || "").trim().toLowerCase();
+    return Object.values(this._traceabilityRecords().cycles || {}).find((cycle) => {
+      if (cycle.cycle_id === excludeCycleId) return false;
+      if (traceKey && String(cycle.trace_code || "").trim().toLowerCase() === traceKey) return true;
+      if (lotKey && cycle.plot_id === plotId && String(cycle.lot_number || "").trim().toLowerCase() === lotKey) return true;
+      return cycle.plot_id === plotId
+        && String(cycle.product || "").trim().toLowerCase() === productKey
+        && String(cycle.variety || "").trim().toLowerCase() === varietyKey
+        && String(cycle.start_date || "").trim() === startKey;
+    }) || null;
+  }
+
+  _prepareTraceCycleIdentity(excludeCycleId = "") {
+    const plotId = this._managementForm.cyclePlotId;
+    const product = this._managementForm.cycleProduct;
+    const variety = this._managementForm.cycleVariety;
+    const startDate = this._managementForm.cycleStartDate;
+    let lotNumber = String(this._managementForm.cycleLotNumber || "").trim();
+    let traceCode = String(this._managementForm.cycleTraceCode || "").trim();
+    const duplicate = this._findDuplicateTraceCycle({ plotId, product, variety, startDate, lotNumber, traceCode, excludeCycleId });
+    if (duplicate) {
+      const duplicateTrace = traceCode && String(duplicate.trace_code || "").trim().toLowerCase() === traceCode.toLowerCase();
+      const duplicateLot = lotNumber && duplicate.plot_id === plotId && String(duplicate.lot_number || "").trim().toLowerCase() === lotNumber.toLowerCase();
+      const reason = duplicateTrace ? "追溯碼已存在" : duplicateLot ? "同一場區的批號已存在" : "相同場區、產品、品種與開始日期的生產週期已存在";
+      return { ok: false, message: `${reason}，請改用既有週期或調整批次資訊。` };
+    }
+    const dateToken = this._traceCycleDateToken(startDate);
+    const existingLots = new Set(Object.values(this._traceabilityRecords().cycles || {}).filter((cycle) => cycle.cycle_id !== excludeCycleId && cycle.plot_id === plotId).map((cycle) => String(cycle.lot_number || "").trim().toLowerCase()));
+    const existingTraces = new Set(Object.values(this._traceabilityRecords().cycles || {}).filter((cycle) => cycle.cycle_id !== excludeCycleId).map((cycle) => String(cycle.trace_code || "").trim().toLowerCase()));
+    for (let seq = 1; seq < 1000 && (!lotNumber || !traceCode); seq += 1) {
+      const candidateLot = lotNumber || `LOT-${dateToken}-${String(seq).padStart(3, "0")}`;
+      const candidateTrace = traceCode || `TRACE-${dateToken}-${String(seq).padStart(3, "0")}`;
+      if (!existingLots.has(candidateLot.toLowerCase()) && !existingTraces.has(candidateTrace.toLowerCase())) {
+        lotNumber = candidateLot;
+        traceCode = candidateTrace;
+        break;
+      }
+    }
+    this._managementForm.cycleLotNumber = lotNumber;
+    this._managementForm.cycleTraceCode = traceCode;
+    return { ok: true, lotNumber, traceCode };
+  }
+
   async _updateTraceCycle(statusOverride = "") {
     this._captureManagementForm();
     if (!this._managementForm.selectedCycleId) { this._message = "儲存生產週期失敗：請先點選既有生產週期。"; this._render(); return; }
     if (!this._managementForm.cyclePlotId) { this._message = "儲存生產週期失敗：請先選擇場區。"; this._render(); return; }
     if (!this._managementForm.cycleProduct.trim()) { this._message = "儲存生產週期失敗：請輸入產品。"; this._render(); return; }
     const status = statusOverride || this._managementForm.cycleStatus || "active";
+    const cycleIdentity = this._prepareTraceCycleIdentity(this._managementForm.selectedCycleId);
+    if (!cycleIdentity.ok) { this._message = `儲存生產週期失敗：${cycleIdentity.message}`; this._render(); return; }
     try {
-      await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "update_crop_cycle", service_data: { cycle_id: this._managementForm.selectedCycleId, plot_id: this._managementForm.cyclePlotId, product: this._managementForm.cycleProduct, variety: this._managementForm.cycleVariety, lot_number: this._managementForm.cycleLotNumber, trace_code: this._managementForm.cycleTraceCode, start_date: this._managementForm.cycleStartDate, expected_harvest_date: this._managementForm.cycleExpectedHarvestDate, actual_harvest_date: this._managementForm.cycleActualHarvestDate, status, archived_at: status === "archived" ? this._archiveTimestamp() : "" }, return_response: true });
+      await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "update_crop_cycle", service_data: { cycle_id: this._managementForm.selectedCycleId, plot_id: this._managementForm.cyclePlotId, product: this._managementForm.cycleProduct, variety: this._managementForm.cycleVariety, lot_number: cycleIdentity.lotNumber, trace_code: cycleIdentity.traceCode, start_date: this._managementForm.cycleStartDate, expected_harvest_date: this._managementForm.cycleExpectedHarvestDate, actual_harvest_date: this._managementForm.cycleActualHarvestDate, status, archived_at: status === "archived" ? this._archiveTimestamp() : "" }, return_response: true });
       this._managementForm.cycleStatus = status;
       this._message = status === "archived" ? "已封存生產週期。" : "已儲存生產週期。";
       this._render();
@@ -1209,8 +1264,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._captureManagementForm();
     if (!this._managementForm.cyclePlotId) { this._message = "建立生產週期失敗：請先選擇場區。"; this._render(); return; }
     if (!this._managementForm.cycleProduct.trim()) { this._message = "建立生產週期失敗：請輸入產品。"; this._render(); return; }
+    const cycleIdentity = this._prepareTraceCycleIdentity();
+    if (!cycleIdentity.ok) { this._message = `建立生產週期失敗：${cycleIdentity.message}`; this._render(); return; }
     try {
-      const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "create_crop_cycle", service_data: { plot_id: this._managementForm.cyclePlotId, product: this._managementForm.cycleProduct, variety: this._managementForm.cycleVariety, lot_number: this._managementForm.cycleLotNumber, trace_code: this._managementForm.cycleTraceCode, start_date: this._managementForm.cycleStartDate, expected_harvest_date: this._managementForm.cycleExpectedHarvestDate }, return_response: true });
+      const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "create_crop_cycle", service_data: { plot_id: this._managementForm.cyclePlotId, product: this._managementForm.cycleProduct, variety: this._managementForm.cycleVariety, lot_number: cycleIdentity.lotNumber, trace_code: cycleIdentity.traceCode, start_date: this._managementForm.cycleStartDate, expected_harvest_date: this._managementForm.cycleExpectedHarvestDate }, return_response: true });
       const payload = this._serviceResponsePayload(response);
       const cycleId = payload.cycle_id || payload.cycle?.cycle_id || "";
       this._agriForm.cycleId = cycleId || this._agriForm.cycleId;

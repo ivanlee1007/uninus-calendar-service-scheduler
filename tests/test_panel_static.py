@@ -4,6 +4,20 @@ PANEL_JS = Path(
     "custom_components/uninus_calendar_service_scheduler/www/"
     "uninus-calendar-service-scheduler-panel.js"
 )
+INIT_PY = Path("custom_components/uninus_calendar_service_scheduler/__init__.py")
+
+
+def test_cycle_create_update_apply_identity_generation_and_duplicate_guard():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert "_prepareTraceCycleIdentity" in source
+    assert "_findDuplicateTraceCycle" in source
+    assert "LOT-" in source
+    assert "TRACE-" in source
+    assert "相同場區、產品、品種與開始日期" in source
+    assert "trace_code: cycleIdentity.traceCode" in source
+    assert "lot_number: cycleIdentity.lotNumber" in source
+    assert "prepare_cycle_identity" in INIT_PY.read_text(encoding="utf-8")
 
 
 def test_traceability_management_ui_exposes_farm_plot_cycle_creation():

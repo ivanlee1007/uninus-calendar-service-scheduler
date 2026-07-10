@@ -538,12 +538,23 @@ def _register_services_once(hass: HomeAssistant) -> None:
         plot_id = call.data["plot_id"]
         if plot_id not in agri_store.records.plots:
             raise vol.Invalid(f"Unknown plot_id {plot_id!r}")
+        try:
+            lot_number, trace_code = agri_store.records.prepare_cycle_identity(
+                plot_id=plot_id,
+                product=call.data["product"],
+                variety=call.data.get("variety") or "",
+                start_date=call.data.get("start_date") or "",
+                lot_number=call.data.get("lot_number") or "",
+                trace_code=call.data.get("trace_code") or "",
+            )
+        except ValueError as err:
+            raise vol.Invalid(str(err)) from err
         cycle = CropCycle.create(
             plot_id=plot_id,
             product=call.data["product"],
             variety=call.data.get("variety") or "",
-            lot_number=call.data.get("lot_number") or "",
-            trace_code=call.data.get("trace_code") or "",
+            lot_number=lot_number,
+            trace_code=trace_code,
             start_date=call.data.get("start_date") or "",
             expected_harvest_date=call.data.get("expected_harvest_date") or "",
         )
@@ -605,13 +616,25 @@ def _register_services_once(hass: HomeAssistant) -> None:
         plot_id = call.data["plot_id"]
         if plot_id not in agri_store.records.plots:
             raise vol.Invalid(f"Unknown plot_id {plot_id!r}")
+        try:
+            lot_number, trace_code = agri_store.records.prepare_cycle_identity(
+                plot_id=plot_id,
+                product=call.data["product"],
+                variety=call.data.get("variety") or "",
+                start_date=call.data.get("start_date") or "",
+                lot_number=call.data.get("lot_number") or "",
+                trace_code=call.data.get("trace_code") or "",
+                exclude_cycle_id=cycle_id,
+            )
+        except ValueError as err:
+            raise vol.Invalid(str(err)) from err
         cycle = CropCycle(
             cycle_id=cycle_id,
             plot_id=plot_id,
             product=call.data["product"],
             variety=call.data.get("variety") or "",
-            lot_number=call.data.get("lot_number") or "",
-            trace_code=call.data.get("trace_code") or "",
+            lot_number=lot_number,
+            trace_code=trace_code,
             start_date=call.data.get("start_date") or "",
             expected_harvest_date=call.data.get("expected_harvest_date") or "",
             actual_harvest_date=call.data.get("actual_harvest_date") or existing.actual_harvest_date,
