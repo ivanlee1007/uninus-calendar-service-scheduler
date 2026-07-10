@@ -16,6 +16,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._deleteConfirmOpen = false;
     this._editConfirmOpen = false;
     this._pendingUpdatePayload = undefined;
+    this._calendarCreateDialogOpen = false;
+    this._calendarCreateForm = { name: "", importMode: "create_empty", icsFileName: "" };
     this._selectedCalendar = "";
     this._selectedCalendars = [];
     this._loading = false;
@@ -625,13 +627,14 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .traceability-recent p { margin: 6px 0 0; }
       .error { color: var(--error-color); }
 
-      .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9; display: ${this._dialogOpen || this._agriDialogOpen || this._traceabilityWorkbenchOpen ? "block" : "none"}; }
-      .dialog, .agri-dialog, .traceability-workbench { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(860px, calc(100vw - 32px)); max-height: min(860px, calc(100vh - 32px)); overflow: auto; z-index: 10; border-radius: 28px; background: var(--card-background-color); color: var(--primary-text-color); box-shadow: 0 24px 38px rgba(0,0,0,.14), 0 9px 46px rgba(0,0,0,.12), 0 11px 15px rgba(0,0,0,.2); }
+      .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9; display: ${this._dialogOpen || this._agriDialogOpen || this._traceabilityWorkbenchOpen || this._calendarCreateDialogOpen ? "block" : "none"}; }
+      .dialog, .agri-dialog, .traceability-workbench, .calendar-create-dialog { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(860px, calc(100vw - 32px)); max-height: min(860px, calc(100vh - 32px)); overflow: auto; z-index: 10; border-radius: 28px; background: var(--card-background-color); color: var(--primary-text-color); box-shadow: 0 24px 38px rgba(0,0,0,.14), 0 9px 46px rgba(0,0,0,.12), 0 11px 15px rgba(0,0,0,.2); }
       .dialog { display: ${this._dialogOpen ? "block" : "none"}; }
+      .calendar-create-dialog { display: ${this._calendarCreateDialogOpen ? "block" : "none"}; width: min(580px, calc(100vw - 32px)); }
       .agri-dialog { display: ${this._agriDialogOpen ? "block" : "none"}; width: min(980px, calc(100vw - 32px)); }
       .traceability-workbench { display: ${this._traceabilityWorkbenchOpen ? "block" : "none"}; width: min(1100px, calc(100vw - 32px)); }
-      .dialog header, .agri-dialog header header, .traceability-workbench header { padding: 24px 24px 8px; font-size: 22px; font-weight: 500; }
-      .dialog .content, .agri-dialog .content .content, .traceability-workbench .content { padding: 0 24px 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+      .dialog header, .calendar-create-dialog header, .agri-dialog header header, .traceability-workbench header { padding: 24px 24px 8px; font-size: 22px; font-weight: 500; }
+      .dialog .content, .calendar-create-dialog .content, .agri-dialog .content .content, .traceability-workbench .content { padding: 0 24px 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
       .agri-dialog .content { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .management-section { border: 1px solid var(--divider-color); border-radius: 16px; padding: 14px; background: var(--card-background-color); }
       .management-section h3 { margin: 0 0 10px; font-size: 16px; }
@@ -1474,6 +1477,79 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._render();
   }
 
+  _calendarCreateDialogTemplate() {
+    const form = this._calendarCreateForm || { name: "", importMode: "create_empty", icsFileName: "" };
+    const isImport = form.importMode === "import_ics_file";
+    return `
+      <section class="calendar-create-dialog" role="dialog" aria-modal="true" aria-label="新增行事曆">
+        <header>本地端行事曆</header>
+        <div class="content">
+          <p class="message fullrow">為行事曆選擇一個名稱</p>
+          <label class="fullrow">行事曆名稱*<input id="calendar-create-name" value="${this._escape(form.name || "")}" /></label>
+          <div class="fullrow native-label">開始資料</div>
+          <label class="checkbox fullrow"><input type="radio" name="calendar-create-import" value="create_empty" ${!isImport ? "checked" : ""} />新增空白行事曆</label>
+          <label class="checkbox fullrow"><input type="radio" name="calendar-create-import" value="import_ics_file" ${isImport ? "checked" : ""} />上傳 iCalendar 檔案 (.ics)</label>
+          ${isImport ? `<label class="fullrow">iCalendar 檔案 (.ics)<input id="calendar-create-ics" type="file" accept=".ics,text/calendar" /></label><p class="field-note fullrow">此選項會使用 HA local_calendar 的 import_ics_file flow；若瀏覽器無法交付檔案，請回到原生日曆執行 .ics 匯入。</p>` : ""}
+          <div class="message fullrow ${this._message.includes("行事曆") && this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
+        </div>
+        <div class="actions"><button id="calendar-create-cancel">取消</button><button class="primary" id="calendar-create-submit">傳送</button></div>
+      </section>
+    `;
+  }
+
+  _openCalendarCreateDialog() {
+    this._calendarCreateForm = { name: "", importMode: "create_empty", icsFileName: "" };
+    this._message = "";
+    this._calendarCreateDialogOpen = true;
+    this._render();
+  }
+
+  _closeCalendarCreateDialog() {
+    this._calendarCreateDialogOpen = false;
+    this._render();
+  }
+
+  _captureCalendarCreateForm() {
+    const name = this.shadowRoot.getElementById("calendar-create-name")?.value || "";
+    const selectedImport = this.shadowRoot.querySelector('input[name="calendar-create-import"]:checked')?.value || "create_empty";
+    const fileInput = this.shadowRoot.getElementById("calendar-create-ics");
+    this._calendarCreateForm = { name, importMode: selectedImport, icsFileName: fileInput?.files?.[0]?.name || "" };
+  }
+
+  async _createLocalCalendar() {
+    this._captureCalendarCreateForm();
+    const name = String(this._calendarCreateForm.name || "").trim();
+    if (!name) {
+      this._message = "新增行事曆失敗：請輸入行事曆名稱。";
+      this._render();
+      return;
+    }
+    try {
+      const flow = await this._hass.callApi("POST", "config/config_entries/flow", { handler: "local_calendar" });
+      const submit = await this._hass.callApi("POST", `config/config_entries/flow/${flow.flow_id}`, { calendar_name: name, import: this._calendarCreateForm.importMode || "create_empty" });
+      if (submit.type === "form" && submit.step_id === "import_ics_file") {
+        this._message = "已進入 .ics 匯入步驟；目前請使用 HA 原生日曆完成檔案匯入。";
+        this._render();
+        return;
+      }
+      if (submit.type !== "create_entry") {
+        throw new Error(submit.errors ? JSON.stringify(submit.errors) : `未預期的流程結果：${submit.type || "unknown"}`);
+      }
+      this._message = `已新增行事曆：${name}`;
+      this._calendarCreateDialogOpen = false;
+      window.setTimeout(() => {
+        this._selectedCalendars = [];
+        this._selectedCalendar = "";
+        this._render();
+        this._loadEvents();
+      }, 1200);
+      this._render();
+    } catch (err) {
+      this._message = `新增行事曆失敗: ${err?.message || err}`;
+      this._render();
+    }
+  }
+
   _render() {
     if (!this.shadowRoot) return;
     const previousCalendarList = this.shadowRoot.querySelector(".calendar-list");
@@ -1491,6 +1567,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <summary>${this._escape(this._selectedCalendarLabel())}</summary>
             <div class="calendar-list">${this._calendarChecklist()}</div>
           </details>
+          <button class="full" id="add-calendar">＋ 新增行事曆</button>
           <button class="full" id="refresh">重新整理</button>
           ${this._traceabilityTemplate()}
         </aside>
@@ -1513,6 +1590,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         <button class="primary fab-button" id="new-event-fab">＋ 增加行程</button>
       </div>
       ${this._dialogTemplate()}
+      ${this._calendarCreateDialogTemplate()}
       ${this._agriDialogTemplate()}
       ${this._traceabilityWorkbenchTemplate()}
     `;
@@ -1954,6 +2032,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       });
     }
     this.shadowRoot.getElementById("refresh")?.addEventListener("click", () => this._loadEvents());
+    this.shadowRoot.getElementById("add-calendar")?.addEventListener("click", () => this._openCalendarCreateDialog());
     this.shadowRoot.getElementById("new-event-fab")?.addEventListener("click", () => this._openDialog());
     this.shadowRoot.getElementById("prev-month")?.addEventListener("click", () => this._movePeriod(-1));
     this.shadowRoot.getElementById("next-month")?.addEventListener("click", () => this._movePeriod(1));
@@ -1967,8 +2046,11 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       ev.stopPropagation();
       this._openEventByUid(el.dataset.uid, el.dataset.calendar, el.dataset.recurrenceId || "");
     }));
-    this.shadowRoot.querySelector(".scrim")?.addEventListener("click", () => this._deleteConfirmOpen ? this._closeDeleteConfirm() : (this._editConfirmOpen ? this._closeEditConfirm() : (this._traceabilityWorkbenchOpen ? this._closeTraceabilityWorkbench() : (this._agriDialogOpen ? this._closeAgriDialog() : this._closeDialog()))));
+    this.shadowRoot.querySelector(".scrim")?.addEventListener("click", () => this._deleteConfirmOpen ? this._closeDeleteConfirm() : (this._editConfirmOpen ? this._closeEditConfirm() : (this._traceabilityWorkbenchOpen ? this._closeTraceabilityWorkbench() : (this._calendarCreateDialogOpen ? this._closeCalendarCreateDialog() : (this._agriDialogOpen ? this._closeAgriDialog() : this._closeDialog())))));
     this.shadowRoot.getElementById("cancel")?.addEventListener("click", () => this._closeDialog());
+    this.shadowRoot.getElementById("calendar-create-cancel")?.addEventListener("click", () => this._closeCalendarCreateDialog());
+    this.shadowRoot.getElementById("calendar-create-submit")?.addEventListener("click", () => this._createLocalCalendar());
+    this.shadowRoot.querySelectorAll('input[name="calendar-create-import"]').forEach((el) => el.addEventListener("change", () => { this._captureCalendarCreateForm(); this._render(); }));
     this.shadowRoot.getElementById("delete-event")?.addEventListener("click", () => this._openDeleteConfirm());
     this.shadowRoot.getElementById("delete-cancel")?.addEventListener("click", () => this._closeDeleteConfirm());
     this.shadowRoot.getElementById("delete-cancel-x")?.addEventListener("click", () => this._closeDeleteConfirm());

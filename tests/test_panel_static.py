@@ -135,6 +135,24 @@ def test_calendar_sidebar_does_not_duplicate_fab_create_action():
     assert 'id="new-event-side"' not in source
 
 
+def test_sidebar_add_calendar_button_uses_local_calendar_config_flow():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    render_start = source.index("\n  _render()")
+    render_end = source.index("_monthTitle()", render_start)
+    render_template = source[render_start:render_end]
+
+    assert render_template.index('id="add-calendar"') < render_template.index('id="refresh"')
+    assert "_calendarCreateDialogOpen" in source
+    assert "_calendarCreateDialogTemplate" in source
+    assert "新增行事曆" in source
+    assert "本地端行事曆" in source
+    assert "calendar_name" in source
+    assert "local_calendar" in source
+    assert "config/config_entries/flow" in source
+    assert "create_empty" in source
+    assert "import_ics_file" in source
+
+
 
 def test_master_data_management_is_inline_in_workbench_not_second_dialog():
     source = PANEL_JS.read_text(encoding="utf-8")
