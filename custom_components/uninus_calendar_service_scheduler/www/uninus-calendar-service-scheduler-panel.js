@@ -641,6 +641,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .management-section h3 { margin: 0 0 10px; font-size: 16px; }
       .management-section .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
       .management-section .row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+      .management-search-action { display: flex; align-items: flex-end; margin-bottom: 14px; }
+      .management-search-action button { height: 40px; min-width: 64px; padding: 10px 16px; }
+      .safe-delete-note { margin-top: 6px; }
       .management-section .archive { background: var(--warning-color, #fb8c00); color: white; }
       .management-list { max-height: 150px; overflow: auto; border: 1px solid var(--divider-color); border-radius: 12px; padding: 8px; background: var(--secondary-background-color); }
       .management-list button { display: block; width: 100%; text-align: start; margin: 4px 0; border-radius: 10px; }
@@ -914,10 +917,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       <section class="workbench-section trace-management-inline" aria-label="農場 / 場區 / 生產週期管理">
         <section class="management-section fullrow">
           <h3>尋找與選取</h3>
-          <div class="fullrow system-note">只有無關聯資料才能刪除：農場不可有場區、場區不可有生產週期、生產週期不可有農務作業或佐證資料；有關聯時請改用封存。</div>
           <div class="message fullrow ${this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
           <div class="fields">
-            <label>搜尋<input id="trace-management-search" value="${this._escape(f.managementSearch || "")}" placeholder="農場、場區、批號、追溯碼" /></label><div class="row-actions"><button class="primary" id="trace-management-apply-search">搜尋</button></div>
+            <label>搜尋<input id="trace-management-search" value="${this._escape(f.managementSearch || "")}" placeholder="農場、場區、批號、追溯碼" /></label><div class="management-search-action"><button id="trace-management-apply-search">搜尋</button></div>
             <label>狀態<select id="trace-management-status-filter">${filterStatusOptions}</select></label>
             <label>生產週期顯示上限<select id="trace-cycle-page-size">${limitOptions}</select></label>
             <div class="fullrow system-note">目前篩選：${farms.length} 個農場、${plots.length} 個場區、${cycles.length} / ${filtered.totalCycles} 個生產週期；週期清單${cycles.length > visibleCycles.length ? `只顯示前 ${visibleCycles.length} 筆，請縮小搜尋或選擇場區。` : "未超過顯示上限。"}</div>
@@ -938,6 +940,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <label>狀態<select id="trace_farm_status">${statusOptions(f.farmStatus || "active")}</select></label>
           </div>
           <div class="row-actions"><button class="primary" id="trace-farm-create">建立農場</button><button id="trace-farm-save" ${f.selectedFarmId ? "" : "disabled"}>儲存農場</button><button class="archive" id="trace-farm-archive" ${f.selectedFarmId ? "" : "disabled"}>封存農場</button><button class="archive" id="trace-farm-delete" ${f.selectedFarmId ? "" : "disabled"}>安全刪除</button></div>
+          <div class="safe-delete-note system-note">只有無關聯資料才能刪除：農場不可有場區、場區不可有生產週期、生產週期不可有農務作業或佐證資料；有關聯時請改用封存。</div>
         </section>
         <section class="management-section fullrow">
           <h3>${f.selectedPlotId ? "編輯場區" : "新增場區"}</h3>
@@ -951,6 +954,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <label>狀態<select id="trace_plot_status">${statusOptions(f.plotStatus || "active")}</select></label>
           </div>
           <div class="row-actions"><button class="primary" id="trace-plot-create">建立場區</button><button id="trace-plot-save" ${f.selectedPlotId ? "" : "disabled"}>儲存場區</button><button class="archive" id="trace-plot-archive" ${f.selectedPlotId ? "" : "disabled"}>封存場區</button><button class="archive" id="trace-plot-delete" ${f.selectedPlotId ? "" : "disabled"}>安全刪除</button></div>
+          <div class="safe-delete-note system-note">只有無關聯資料才能刪除：農場不可有場區、場區不可有生產週期、生產週期不可有農務作業或佐證資料；有關聯時請改用封存。</div>
         </section>
         <section class="management-section fullrow">
           <h3>${f.selectedCycleId ? "編輯生產週期" : "新增生產週期"}</h3>
@@ -966,6 +970,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <label>狀態<select id="trace_cycle_status">${statusOptions(f.cycleStatus || "active")}</select></label>
           </div>
           <div class="row-actions"><button class="primary" id="trace-cycle-create">建立生產週期</button><button id="trace-cycle-save" ${f.selectedCycleId ? "" : "disabled"}>儲存生產週期</button><button class="archive" id="trace-cycle-archive" ${f.selectedCycleId ? "" : "disabled"}>封存生產週期</button><button class="archive" id="trace-cycle-delete" ${f.selectedCycleId ? "" : "disabled"}>安全刪除</button></div>
+          <div class="safe-delete-note system-note">只有無關聯資料才能刪除：農場不可有場區、場區不可有生產週期、生產週期不可有農務作業或佐證資料；有關聯時請改用封存。</div>
         </section>
       </section>
     `;

@@ -223,18 +223,35 @@ def test_master_data_management_removes_duplicate_heading_and_uses_explicit_sear
     assert 'getElementById("trace-management-apply-search")?.addEventListener("click", () => this._applyManagementSearch())' in bind_block
 
 
-def test_master_data_messages_are_near_search_controls_not_bottom():
+def test_master_data_delete_guidance_only_appears_under_safe_delete_actions():
     source = PANEL_JS.read_text(encoding="utf-8")
     template_start = source.index("\n  _managementContentTemplate()")
     template_end = source.index("_captureManagementForm()", template_start)
     template = source[template_start:template_end]
 
     delete_note = "只有無關聯資料才能刪除"
-    message = 'class="message fullrow ${this._message.includes("失敗") ? "error" : ""}"'
-    assert template.index(delete_note) < template.index('<div class="fields">')
-    assert template.index(message) < template.index('<div class="fields">')
-    assert template.rfind(delete_note) == template.index(delete_note)
-    assert template.rfind(message) == template.index(message)
+    search_section_end = template.index('<div class="fields">')
+    assert delete_note not in template[:search_section_end]
+    assert template.count(delete_note) == 3
+    assert template.count('class="safe-delete-note system-note"') == 3
+    for delete_id in ["trace-farm-delete", "trace-plot-delete", "trace-cycle-delete"]:
+        delete_pos = template.index(delete_id)
+        note_pos = template.index(delete_note, delete_pos)
+        next_section = template.find('<section class="management-section fullrow">', delete_pos + 1)
+        assert next_section == -1 or note_pos < next_section
+
+
+def test_management_search_button_uses_compact_action_style():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    template_start = source.index("\n  _managementContentTemplate()")
+    template_end = source.index("_captureManagementForm()", template_start)
+    template = source[template_start:template_end]
+
+    assert 'class="management-search-action"' in template
+    assert '<button id="trace-management-apply-search">搜尋</button>' in template
+    assert '<button class="primary" id="trace-management-apply-search">搜尋</button>' not in template
+    assert '.management-search-action { display: flex; align-items: flex-end; margin-bottom: 14px; }' in source
+    assert '.management-search-action button { height: 40px; min-width: 64px; padding: 10px 16px; }' in source
 
 
 def test_master_data_management_uses_scalable_hierarchy_filters_not_flat_all_cycles():
