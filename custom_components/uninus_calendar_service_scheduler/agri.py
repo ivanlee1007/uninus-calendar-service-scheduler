@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
 import json
 import re
 from dataclasses import dataclass, field
@@ -473,6 +475,75 @@ class AgriOperation:
 
 
 @dataclass(slots=True)
+class EvidenceRecord:
+    """Evidence metadata/content referenced by agricultural traceability rows."""
+
+    evidence_id: str
+    operation_id: str = ""
+    evidence_type: str = "sensor_snapshot"
+    title: str = ""
+    content: dict[str, Any] = field(default_factory=dict)
+    source_entity: str = ""
+    uri: str = ""
+    content_hash: str = ""
+    created_at: str | None = None
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        operation_id: str = "",
+        evidence_type: str = "sensor_snapshot",
+        title: str = "",
+        content: dict[str, Any] | None = None,
+        source_entity: str = "",
+        uri: str = "",
+    ) -> EvidenceRecord:
+        evidence = cls(
+            evidence_id=_new_id("ev"),
+            operation_id=operation_id,
+            evidence_type=evidence_type,
+            title=title,
+            content=content or {},
+            source_entity=source_entity,
+            uri=uri,
+            created_at=_now(),
+        )
+        evidence.content_hash = _stable_hash(evidence.as_dict())
+        return evidence
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any]) -> EvidenceRecord:
+        evidence = cls(
+            evidence_id=str(raw["evidence_id"]),
+            operation_id=str(raw.get("operation_id") or ""),
+            evidence_type=str(raw.get("evidence_type") or "sensor_snapshot"),
+            title=str(raw.get("title") or ""),
+            content=dict(raw.get("content") or {}),
+            source_entity=str(raw.get("source_entity") or ""),
+            uri=str(raw.get("uri") or ""),
+            content_hash=str(raw.get("content_hash") or ""),
+            created_at=raw.get("created_at"),
+        )
+        if not evidence.content_hash:
+            evidence.content_hash = _stable_hash(evidence.as_dict())
+        return evidence
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "evidence_id": self.evidence_id,
+            "operation_id": self.operation_id,
+            "evidence_type": self.evidence_type,
+            "title": self.title,
+            "content": self.content,
+            "source_entity": self.source_entity,
+            "uri": self.uri,
+            "content_hash": self.content_hash,
+            "created_at": self.created_at,
+        }
+
+
+@dataclass(slots=True)
 class TraceabilityRecordSet:
     """In-memory view of agricultural traceability records."""
 
@@ -480,6 +551,7 @@ class TraceabilityRecordSet:
     plots: dict[str, Plot] = field(default_factory=dict)
     cycles: dict[str, CropCycle] = field(default_factory=dict)
     operations: dict[str, AgriOperation] = field(default_factory=dict)
+    evidence: dict[str, EvidenceRecord] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> TraceabilityRecordSet:
@@ -491,6 +563,10 @@ class TraceabilityRecordSet:
                 key: AgriOperation.from_dict(value)
                 for key, value in raw.get("operations", {}).items()
             },
+            evidence={
+                key: EvidenceRecord.from_dict(value)
+                for key, value in raw.get("evidence", {}).items()
+            },
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -499,6 +575,7 @@ class TraceabilityRecordSet:
             "plots": {key: item.as_dict() for key, item in self.plots.items()},
             "cycles": {key: item.as_dict() for key, item in self.cycles.items()},
             "operations": {key: item.as_dict() for key, item in self.operations.items()},
+            "evidence": {key: item.as_dict() for key, item in self.evidence.items()},
         }
 
     def export_operation_rows(self) -> list[dict[str, Any]]:
@@ -551,5 +628,45 @@ class TraceabilityRecordSet:
             "cycle_count": len(self.cycles),
             "operation_count": len(self.operations),
             "missing_link_count": self.missing_link_count(),
+            "evidence_count": len(self.evidence),
             "recent_operations": [item.as_dict() for item in recent],
         }
+
+
+def traceability_export_package(records: TraceabilityRecordSet) -> dict[str, Any]:
+    """Return JSON-friendly rows plus CSV and evidence metadata for export."""
+
+    rows = records.export_operation_rows()
+    fieldnames = [
+        "operation_id",
+        "farm_name",
+        "plot_name",
+        "product",
+        "lot_number",
+        "operation_type",
+        "actual_start",
+        "operator",
+        "material_name",
+        "quantity",
+        "unit",
+        "status",
+        "record_hash",
+    ]
+    buffer = io.StringIO()
+    writer = csv.DictWriter(buffer, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(rows)
+    evidence_rows = [item.as_dict() for item in records.evidence.values()]
+    return {
+        "export_type": "traceability_export_package",
+        "generated_at": _now(),
+        "rows": rows,
+        "csv": buffer.getvalue(),
+        "csv_filename": f"traceability-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv",
+        "evidence": evidence_rows,
+        "summary": {
+            "operation_count": len(rows),
+            "evidence_count": len(evidence_rows),
+            "missing_link_count": records.missing_link_count(),
+        },
+    }

@@ -1144,17 +1144,33 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return rows.sort((a, b) => String(a.actual_start || "").localeCompare(String(b.actual_start || "")));
   }
 
+
+  _traceabilityCsv(rows) {
+    const headers = ["operation_id", "farm_name", "plot_name", "product", "lot_number", "operation_type", "actual_start", "operator", "material_name", "quantity", "unit", "status", "record_hash"];
+    const escapeCell = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+    return [headers.join(",")].concat((rows || []).map((row) => headers.map((key) => escapeCell(row[key])).join(","))).join("\n");
+  }
+
   async _exportTraceabilityRecords() {
     try {
       const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "export_traceability_records", service_data: {}, return_response: true });
+      const packageResponse = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "export_traceability_package" /* create_evidence */, service_data: {}, return_response: true });
       const legacy = response?.response || response || {};
+      const traceability_export_package = packageResponse?.response || packageResponse || {};
       const calendarRows = await this._calendarEventTraceabilityRows();
+      const rows = calendarRows.length ? calendarRows : (legacy.rows || []);
       const exportPayload = {
         ...legacy,
+        traceability_export_package,
         calendar_rows: calendarRows,
-        rows: calendarRows.length ? calendarRows : (legacy.rows || []),
+        rows,
+        export_csv: this._traceabilityCsv(rows),
+        csv_filename: traceability_export_package.csv_filename || "traceability-export.csv",
+        evidence: traceability_export_package.evidence || legacy.evidence || [],
         summary: {
           ...(legacy.summary || {}),
+          ...(traceability_export_package.summary || {}),
+          evidence_count: (traceability_export_package.evidence || legacy.evidence || []).length,
           calendar_operation_count: calendarRows.length,
           calendar_hash_mismatch_count: calendarRows.filter((row) => !row.hash_valid).length,
         },

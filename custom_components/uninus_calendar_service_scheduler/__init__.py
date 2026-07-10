@@ -18,7 +18,15 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.typing import ConfigType
 
-from .agri import AgriOperation, CropCycle, Farm, Plot, _stable_hash
+from .agri import (
+    AgriOperation,
+    CropCycle,
+    EvidenceRecord,
+    Farm,
+    Plot,
+    _stable_hash,
+    traceability_export_package,
+)
 from .agri_storage import AgriStore
 from .const import (
     CARD_FILENAME,
@@ -33,9 +41,11 @@ from .const import (
     SERVICE_CREATE_AGRI_OPERATION,
     SERVICE_CREATE_CROP_CYCLE,
     SERVICE_CREATE_EVENT_ACTION,
+    SERVICE_CREATE_EVIDENCE,
     SERVICE_CREATE_FARM,
     SERVICE_CREATE_PLOT,
     SERVICE_DELETE_EVENT_ACTION,
+    SERVICE_EXPORT_TRACEABILITY_PACKAGE,
     SERVICE_EXPORT_TRACEABILITY_RECORDS,
     SERVICE_RELOAD_ACTIONS,
     SERVICE_TEST_ACTION,
@@ -159,6 +169,17 @@ CREATE_AGRI_OPERATION_SCHEMA = vol.Schema(
 UPDATE_AGRI_OPERATION_SCHEMA = CREATE_AGRI_OPERATION_SCHEMA.extend(
     {
         vol.Required("operation_id"): cv.string,
+    }
+)
+
+CREATE_EVIDENCE_SCHEMA = vol.Schema(
+    {
+        vol.Optional("operation_id", default=""): cv.string,
+        vol.Optional("evidence_type", default="sensor_snapshot"): cv.string,
+        vol.Optional("title", default=""): cv.string,
+        vol.Optional("content", default={}): dict,
+        vol.Optional("source_entity", default=""): cv.string,
+        vol.Optional("uri", default=""): cv.string,
     }
 )
 
@@ -640,12 +661,34 @@ def _register_services_once(hass: HomeAssistant) -> None:
         _notify_agri_changed()
         return {"operation_id": operation.operation_id, "operation": operation.as_dict()}
 
+    async def _create_evidence(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        operation_id = call.data.get("operation_id") or ""
+        if operation_id and operation_id not in agri_store.records.operations:
+            raise vol.Invalid(f"Unknown operation_id {operation_id!r}")
+        evidence = EvidenceRecord.create(
+            operation_id=operation_id,
+            evidence_type=call.data.get("evidence_type") or "sensor_snapshot",
+            title=call.data.get("title") or "",
+            content=call.data.get("content") or {},
+            source_entity=call.data.get("source_entity") or "",
+            uri=call.data.get("uri") or "",
+        )
+        await agri_store.async_add_evidence(evidence)
+        _notify_agri_changed()
+        return {"evidence_id": evidence.evidence_id, "evidence": evidence.as_dict()}
+
     async def _export_traceability_records(call: ServiceCall) -> dict[str, Any]:
         agri_store: AgriStore = _entry_data(hass)["agri_store"]
         return {
             "rows": agri_store.records.export_operation_rows(),
             "summary": agri_store.records.state_attributes(),
+            "evidence": [item.as_dict() for item in agri_store.records.evidence.values()],
         }
+
+    async def _export_traceability_package(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        return traceability_export_package(agri_store.records)
 
     hass.services.async_register(
         DOMAIN,
@@ -736,6 +779,19 @@ def _register_services_once(hass: HomeAssistant) -> None:
         SERVICE_UPDATE_AGRI_OPERATION,
         _update_agri_operation,
         schema=UPDATE_AGRI_OPERATION_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CREATE_EVIDENCE,
+        _create_evidence,
+        schema=CREATE_EVIDENCE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_EXPORT_TRACEABILITY_PACKAGE,
+        _export_traceability_package,
         supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(

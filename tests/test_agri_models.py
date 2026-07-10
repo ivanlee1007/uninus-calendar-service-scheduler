@@ -33,6 +33,8 @@ extract_agri_description = agri.extract_agri_description
 verify_agri_payload_hash = agri.verify_agri_payload_hash
 calendar_events_to_traceability_rows = agri.calendar_events_to_traceability_rows
 operation_to_calendar_event_payload = agri.operation_to_calendar_event_payload
+EvidenceRecord = agri.EvidenceRecord
+traceability_export_package = agri.traceability_export_package
 
 
 def test_agri_records_roundtrip_with_sensor_snapshot():
@@ -278,6 +280,7 @@ def test_traceability_record_set_state_summary_counts_missing_required_links():
         "cycle_count": 0,
         "operation_count": 1,
         "missing_link_count": 1,
+        "evidence_count": 0,
         "recent_operations": [operation.as_dict()],
     }
 
@@ -300,3 +303,52 @@ def test_master_data_records_support_editing_and_archival_status():
     assert updated_cycle.status == "archived"
     assert updated_cycle.actual_harvest_date == "2026-09-01"
     assert updated_cycle.archived_at == "2026-07-09T10:02:00+08:00"
+
+
+
+def test_evidence_records_roundtrip_and_export_package_includes_csv():
+    farm = Farm.create(name="綠竹農場", operator="王小農")
+    plot = Plot.create(farm_id=farm.farm_id, name="A 區", product="芒果", tgap_category="水果類")
+    cycle = CropCycle.create(
+        plot_id=plot.plot_id,
+        product="芒果",
+        variety="愛文",
+        lot_number="LOT-CSV-001",
+        start_date="2026-01-15",
+    )
+    operation = AgriOperation.create(
+        cycle_id=cycle.cycle_id,
+        operation_type="灌溉",
+        actual_start="2026-02-01T07:00:00+08:00",
+        operator="王小農",
+        material_name="地下水",
+        quantity=90,
+        unit="秒",
+    )
+    evidence = EvidenceRecord.create(
+        operation_id=operation.operation_id,
+        evidence_type="sensor_snapshot",
+        title="灌溉前後土壤濕度",
+        content={"sensor.soil_moisture": {"before": 18, "after": 32, "unit": "%"}},
+        source_entity="sensor.soil_moisture",
+    )
+    records = TraceabilityRecordSet(
+        farms={farm.farm_id: farm},
+        plots={plot.plot_id: plot},
+        cycles={cycle.cycle_id: cycle},
+        operations={operation.operation_id: operation},
+        evidence={evidence.evidence_id: evidence},
+    )
+
+    loaded = TraceabilityRecordSet.from_dict(records.as_dict())
+    package = traceability_export_package(loaded)
+
+    assert loaded.evidence[evidence.evidence_id].content["sensor.soil_moisture"]["after"] == 32
+    assert len(evidence.content_hash) == 64
+    assert package["summary"]["evidence_count"] == 1
+    assert package["summary"]["operation_count"] == 1
+    assert package["csv_filename"].endswith(".csv")
+    assert "operation_id,farm_name,plot_name,product" in package["csv"]
+    assert "LOT-CSV-001" in package["csv"]
+    assert package["evidence"][0]["operation_id"] == operation.operation_id
+    assert package["evidence"][0]["content_hash"] == evidence.content_hash

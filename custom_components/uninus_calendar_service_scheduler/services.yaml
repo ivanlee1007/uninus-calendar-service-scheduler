@@ -560,3 +560,39 @@ update_crop_cycle:
       required: false
       selector:
         text:
+
+
+create_evidence:
+  name: Create traceability evidence
+  description: Store evidence metadata or small JSON content for an agricultural operation.
+  fields:
+    operation_id:
+      required: false
+      selector:
+        text:
+    evidence_type:
+      required: false
+      selector:
+        select:
+          options: [sensor_snapshot, photo, document, note, external_uri]
+    title:
+      required: false
+      selector:
+        text:
+    content:
+      required: false
+      selector:
+        object:
+    source_entity:
+      required: false
+      selector:
+        entity:
+    uri:
+      required: false
+      selector:
+        text:
+
+export_traceability_package:
+  name: Export traceability package
+  description: Return flattened rows, CSV text, and evidence metadata for an agricultural traceability export package.
+  fields: {}

@@ -7,7 +7,14 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from .agri import AgriOperation, CropCycle, Farm, Plot, TraceabilityRecordSet
+from .agri import (
+    AgriOperation,
+    CropCycle,
+    EvidenceRecord,
+    Farm,
+    Plot,
+    TraceabilityRecordSet,
+)
 from .const import AGRI_STORAGE_KEY, AGRI_STORAGE_VERSION
 
 
@@ -43,6 +50,10 @@ class AgriStore:
 
     async def async_add_operation(self, operation: AgriOperation) -> None:
         self.records.operations[operation.operation_id] = operation
+        await self.async_save()
+
+    async def async_add_evidence(self, evidence: EvidenceRecord) -> None:
+        self.records.evidence[evidence.evidence_id] = evidence
         await self.async_save()
 
     async def async_update_farm(self, farm: Farm) -> None:

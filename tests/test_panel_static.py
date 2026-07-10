@@ -33,3 +33,13 @@ def test_traceability_management_ui_exposes_edit_archive_controls():
     assert 'service: "update_farm"' in source
     assert 'service: "update_plot"' in source
     assert 'service: "update_crop_cycle"' in source
+
+
+
+def test_panel_export_includes_csv_package_and_evidence_markers():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert "export_csv" in source
+    assert "evidence_count" in source
+    assert "traceability_export_package" in source
+    assert "create_evidence" in source
