@@ -9,7 +9,9 @@ from homeassistant import config_entries
 from homeassistant.helpers import selector
 
 from .const import (
+    CLEAR_TRACEABILITY_CONFIRM_TEXT,
     CONF_ALLOWED_SERVICES,
+    CONF_CLEAR_TRACEABILITY_TEXT,
     CONF_CONFIRM_CLEAR_TRACEABILITY_DATA,
     CONF_DEFAULT_CALENDAR,
     DEFAULT_ALLOWED_SERVICES,
@@ -52,63 +54,47 @@ class OptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
-        """Show a menu so destructive reset is not a boolean field in a normal form."""
-        return self.async_show_menu(
-            step_id="init",
-            menu_options=["scheduler_options", "clear_traceability_data"],
-        )
-
-    async def async_step_scheduler_options(
-        self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
-        """Edit ordinary scheduler options."""
-        if user_input is not None:
-            return self.async_create_entry(title="", data=_normalize_options(user_input))
-        defaults = dict(self._config_entry.options or self._config_entry.data or {})
-        return self.async_show_form(
-            step_id="scheduler_options", data_schema=_schema(defaults), errors={}
-        )
-
-    async def async_step_clear_traceability_data(
-        self, user_input: dict[str, Any] | None = None
-    ) -> config_entries.FlowResult:
-        """Require a second explicit confirmation before destructive reset."""
+        """Edit options and optionally run a destructive traceability reset."""
         errors: dict[str, str] = {}
         if user_input is not None:
-            if not user_input.get(CONF_CONFIRM_CLEAR_TRACEABILITY_DATA):
-                errors["base"] = "confirmation_required"
-            else:
-                try:
-                    await self.hass.services.async_call(
-                        DOMAIN,
-                        SERVICE_CLEAR_TRACEABILITY_DATA,
-                        {"confirm": True},
-                        blocking=True,
-                        return_response=True,
-                    )
-                except Exception:
-                    errors["base"] = "clear_failed"
-                else:
-                    return self.async_create_entry(
-                        title="", data=dict(self._config_entry.options or {})
-                    )
+            clear_text = str(user_input.get(CONF_CLEAR_TRACEABILITY_TEXT) or "").strip()
+            wants_clear = bool(
+                clear_text or user_input.get(CONF_CONFIRM_CLEAR_TRACEABILITY_DATA)
+            )
+            if wants_clear:
+                if clear_text != CLEAR_TRACEABILITY_CONFIRM_TEXT:
+                    errors[CONF_CLEAR_TRACEABILITY_TEXT] = "confirmation_text_required"
+                if not user_input.get(CONF_CONFIRM_CLEAR_TRACEABILITY_DATA):
+                    errors["base"] = "confirmation_required"
+                if not errors:
+                    try:
+                        await self.hass.services.async_call(
+                            DOMAIN,
+                            SERVICE_CLEAR_TRACEABILITY_DATA,
+                            {"confirm": True},
+                            blocking=True,
+                            return_response=True,
+                        )
+                    except Exception:
+                        errors["base"] = "clear_failed"
+                    else:
+                        return self.async_create_entry(
+                            title="", data=_normalize_options(user_input)
+                        )
+            elif not errors:
+                return self.async_create_entry(
+                    title="", data=_normalize_options(user_input)
+                )
+        defaults = dict(self._config_entry.options or self._config_entry.data or {})
         return self.async_show_form(
-            step_id="clear_traceability_data",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_CONFIRM_CLEAR_TRACEABILITY_DATA,
-                        default=False,
-                    ): selector.BooleanSelector()
-                }
-            ),
-            errors=errors,
+            step_id="init", data_schema=_schema(defaults, include_clear=True), errors=errors
         )
 
 
 def _normalize_options(user_input: dict[str, Any]) -> dict[str, Any]:
-    """Normalize persisted options."""
+    """Remove transient destructive-flow controls before persisting options."""
     data = dict(user_input)
+    data.pop(CONF_CLEAR_TRACEABILITY_TEXT, None)
     data.pop(CONF_CONFIRM_CLEAR_TRACEABILITY_DATA, None)
     data[CONF_ALLOWED_SERVICES] = normalize_allowed_services(
         data.get(CONF_ALLOWED_SERVICES)
@@ -116,26 +102,34 @@ def _normalize_options(user_input: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
-def _schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
+def _schema(
+    defaults: dict[str, Any] | None = None, *, include_clear: bool = False
+) -> vol.Schema:
     defaults = defaults or {}
     allowed_default = "\n".join(
         normalize_allowed_services(
             defaults.get(CONF_ALLOWED_SERVICES, DEFAULT_ALLOWED_SERVICES)
         )
     )
-    return vol.Schema(
-        {
-            vol.Optional(
-                CONF_DEFAULT_CALENDAR,
-                default=defaults.get(CONF_DEFAULT_CALENDAR),
-            ): selector.EntitySelector(selector.EntitySelectorConfig(domain="calendar")),
-            vol.Optional(
-                CONF_ALLOWED_SERVICES,
-                default=allowed_default,
-            ): selector.TextSelector(
-                selector.TextSelectorConfig(
-                    multiline=True, type=selector.TextSelectorType.TEXT
-                )
-            ),
-        }
-    )
+    fields: dict[Any, Any] = {
+        vol.Optional(
+            CONF_DEFAULT_CALENDAR,
+            default=defaults.get(CONF_DEFAULT_CALENDAR),
+        ): selector.EntitySelector(selector.EntitySelectorConfig(domain="calendar")),
+        vol.Optional(
+            CONF_ALLOWED_SERVICES,
+            default=allowed_default,
+        ): selector.TextSelector(
+            selector.TextSelectorConfig(multiline=True, type=selector.TextSelectorType.TEXT)
+        ),
+    }
+    if include_clear:
+        fields[vol.Optional(CONF_CLEAR_TRACEABILITY_TEXT, default="")] = (
+            selector.TextSelector(
+                selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+            )
+        )
+        fields[vol.Optional(CONF_CONFIRM_CLEAR_TRACEABILITY_DATA, default=False)] = (
+            selector.BooleanSelector()
+        )
+    return vol.Schema(fields)

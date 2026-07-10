@@ -4,7 +4,7 @@ from __future__ import annotations
 
 DOMAIN = "uninus_calendar_service_scheduler"
 NAME = "Uninus Calendar Service Scheduler"
-VERSION = "0.4.60"
+VERSION = "0.4.61"
 
 CARD_FILENAME = "uninus-calendar-service-scheduler-card.js"
 CARD_RESOURCE_URL = f"/{DOMAIN}/{CARD_FILENAME}?v={VERSION}"
@@ -17,7 +17,9 @@ CONF_ALLOWED_SERVICES = "allowed_services"
 CONF_DEFAULT_CALENDAR = "default_calendar"
 CONF_SCAN_DAYS_AHEAD = "scan_days_ahead"
 CONF_CLEAR_TRACEABILITY_DATA = "clear_traceability_data"
+CONF_CLEAR_TRACEABILITY_TEXT = "clear_traceability_text"
 CONF_CONFIRM_CLEAR_TRACEABILITY_DATA = "confirm_clear_traceability_data"
+CLEAR_TRACEABILITY_CONFIRM_TEXT = "清空履歷資料"
 
 # Legacy allowlist kept for backward compatibility. Empty means unrestricted.
 DEFAULT_ALLOWED_SERVICES = []

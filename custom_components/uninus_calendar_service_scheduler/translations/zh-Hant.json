@@ -15,28 +15,18 @@
     "step": {
       "init": {
         "title": "Uninus 行事曆服務排程器選項",
-        "menu_options": {
-          "scheduler_options": "一般設定",
-          "clear_traceability_data": "清空履歷資料"
-        }
-      },
-      "scheduler_options": {
-        "title": "一般設定",
+        "description": "一般設定可直接儲存。若要清空履歷資料，必須在下方文字欄輸入「清空履歷資料」，並勾選不可復原確認。此動作只會刪除本 integration 的產銷履歷資料與帶有履歷標記的 Calendar events，不會刪除一般 Calendar 行程。",
         "data": {
           "default_calendar": "預設行事曆",
-          "allowed_services": "允許執行的服務，每行一個。支援 domain.* 萬用字元。"
-        }
-      },
-      "clear_traceability_data": {
-        "title": "確認清空履歷資料",
-        "description": "此動作會永久刪除本 integration 的農場、場區、生產週期、農務作業及佐證資料，並刪除帶有產銷履歷標記的 Calendar events。一般 Calendar 行程與其他 integration 資料不會被刪除。",
-        "data": {
+          "allowed_services": "允許執行的服務，每行一個。支援 domain.* 萬用字元。",
+          "clear_traceability_text": "若要清空履歷資料，請輸入：清空履歷資料",
           "confirm_clear_traceability_data": "我了解此動作無法復原，確認清空所有履歷資料"
         }
       }
     },
     "error": {
       "confirmation_required": "請勾選確認，才能執行清空。",
+      "confirmation_text_required": "請輸入完整確認文字：清空履歷資料",
       "clear_failed": "清空履歷資料失敗；資料尚未完整重設，請查看 Home Assistant 記錄後重試。"
     }
   }
