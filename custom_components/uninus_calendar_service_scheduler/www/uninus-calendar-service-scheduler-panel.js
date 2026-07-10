@@ -2,6 +2,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+    this.shadowRoot.addEventListener("click", (ev) => this._handleDelegatedClick(ev));
     this._hass = undefined;
     this._events = [];
     this._calendarTraceabilityRows = [];
@@ -736,6 +737,16 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const integrity = this._traceabilityIntegrity(selectedCycleId);
     const statusText = integrity.ok ? "✅ 可匯出" : `⚠️ ${integrity.warning_count} 項需檢查`;
     return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業</div></div><label class="scope-row">目前週期<select id="trace_export_cycle">${cycleOptions}</select></label><div class="traceability-status">${this._escape(statusText)}</div><div class="mini-actions"><button class="primary" id="agri-open-dialog">＋ 農務作業</button><button id="agri-open-workbench">產銷履歷工作台</button></div></section>`;
+  }
+
+  _handleDelegatedClick(ev) {
+    const target = ev.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest("#agri-open-workbench")) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      this._openTraceabilityWorkbench("master-data");
+    }
   }
 
   _openTraceabilityWorkbench(tab = "overview") {
@@ -1956,7 +1967,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("edit-future-events")?.addEventListener("click", () => this._confirmUpdateCurrentEvent("future"));
     this.shadowRoot.getElementById("create")?.addEventListener("click", () => this._create());
     this.shadowRoot.getElementById("agri-open-dialog")?.addEventListener("click", () => this._openDialog(undefined, "agri"));
-    this.shadowRoot.getElementById("agri-open-workbench")?.addEventListener("click", () => this._openTraceabilityWorkbench("overview"));
+    this.shadowRoot.getElementById("agri-open-workbench")?.addEventListener("click", () => this._openTraceabilityWorkbench("master-data"));
     this.shadowRoot.getElementById("traceability-workbench-close")?.addEventListener("click", () => this._closeTraceabilityWorkbench());
     this.shadowRoot.getElementById("workbench-tab-overview")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("overview"));
     this.shadowRoot.getElementById("workbench-tab-master-data")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("master-data"));

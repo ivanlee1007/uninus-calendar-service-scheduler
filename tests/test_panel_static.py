@@ -98,6 +98,14 @@ def test_traceability_sidebar_uses_compact_workbench_entry():
     assert "_traceabilityWorkbenchTab" in source
 
 
+def test_workbench_open_button_has_delegated_click_fallback():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert "_handleDelegatedClick" in source
+    assert 'target.closest("#agri-open-workbench")' in source
+    assert '_openTraceabilityWorkbench("master-data")' in source
+
+
 def test_traceability_sidebar_no_longer_exposes_export_button_stack():
     source = PANEL_JS.read_text(encoding="utf-8")
     template_start = source.index("_traceabilityTemplate()")
