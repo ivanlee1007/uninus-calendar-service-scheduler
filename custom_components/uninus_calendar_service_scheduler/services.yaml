@@ -595,4 +595,8 @@ create_evidence:
 export_traceability_package:
   name: Export traceability package
   description: Return flattened rows, CSV text, and evidence metadata for an agricultural traceability export package.
-  fields: {}
+  fields:
+    cycle_id:
+      required: false
+      selector:
+        text:

@@ -352,3 +352,32 @@ def test_evidence_records_roundtrip_and_export_package_includes_csv():
     assert "LOT-CSV-001" in package["csv"]
     assert package["evidence"][0]["operation_id"] == operation.operation_id
     assert package["evidence"][0]["content_hash"] == evidence.content_hash
+
+
+
+def test_traceability_export_package_filters_by_cycle_id_and_related_evidence():
+    farm = Farm.create(name="綠竹農場", operator="王小農")
+    plot = Plot.create(farm_id=farm.farm_id, name="A 區", product="芒果")
+    cycle_a = CropCycle.create(plot_id=plot.plot_id, product="芒果", lot_number="LOT-A")
+    cycle_b = CropCycle.create(plot_id=plot.plot_id, product="芒果", lot_number="LOT-B")
+    op_a = AgriOperation.create(cycle_id=cycle_a.cycle_id, operation_type="灌溉", actual_start="2026-02-01T07:00:00+08:00")
+    op_b = AgriOperation.create(cycle_id=cycle_b.cycle_id, operation_type="施肥", actual_start="2026-02-02T07:00:00+08:00")
+    ev_a = EvidenceRecord.create(operation_id=op_a.operation_id, title="A 週期佐證", content={"a": 1})
+    ev_b = EvidenceRecord.create(operation_id=op_b.operation_id, title="B 週期佐證", content={"b": 1})
+    records = TraceabilityRecordSet(
+        farms={farm.farm_id: farm},
+        plots={plot.plot_id: plot},
+        cycles={cycle_a.cycle_id: cycle_a, cycle_b.cycle_id: cycle_b},
+        operations={op_a.operation_id: op_a, op_b.operation_id: op_b},
+        evidence={ev_a.evidence_id: ev_a, ev_b.evidence_id: ev_b},
+    )
+
+    package = traceability_export_package(records, cycle_id=cycle_a.cycle_id)
+
+    assert package["filter"] == {"cycle_id": cycle_a.cycle_id}
+    assert package["summary"]["operation_count"] == 1
+    assert package["summary"]["evidence_count"] == 1
+    assert package["rows"][0]["operation_id"] == op_a.operation_id
+    assert "LOT-A" in package["csv"]
+    assert "LOT-B" not in package["csv"]
+    assert package["evidence"][0]["evidence_id"] == ev_a.evidence_id

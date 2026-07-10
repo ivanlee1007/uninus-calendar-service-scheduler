@@ -56,3 +56,16 @@ def test_panel_exposes_evidence_dialog_and_csv_download_controls():
     assert 'id="agri-download-csv"' in source
     assert "_downloadTraceabilityCsv" in source
     assert "traceability-export.csv" in source
+
+
+
+def test_panel_exposes_cycle_filtered_export_controls():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert 'id="trace_export_cycle"' in source
+    assert 'id="agri-export-cycle"' in source
+    assert 'id="agri-download-cycle-csv"' in source
+    assert "匯出此週期" in source
+    assert "下載此週期 CSV" in source
+    assert "_selectedExportCycleId" in source
+    assert "_downloadTraceabilityCycleCsv" in source

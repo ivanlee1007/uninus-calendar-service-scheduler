@@ -11,6 +11,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._managementDialogOpen = false;
     this._evidenceDialogOpen = false;
     this._lastExportPayload = undefined;
+    this._lastCycleExportPayload = undefined;
+    this._selectedExportCycleId = "";
     this._deleteConfirmOpen = false;
     this._editConfirmOpen = false;
     this._pendingUpdatePayload = undefined;
@@ -682,7 +684,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const operations = summary.recent_operations || [];
     const migrationCount = this._legacyOperationsNeedingMigration().length;
     const sourceLabel = (this._calendarTraceabilityRows || []).length ? "Calendar" : "Legacy";
-    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業 <span class="system-note">${sourceLabel}</span></div></div><div class="mini-actions"><button class="primary" id="agri-open-dialog">新增農務作業</button><button id="agri-manage-master-data">農場 / 場區 / 生產週期管理</button><button id="agri-open-evidence">新增佐證資料</button><button id="agri-export">匯出 JSON</button><button id="agri-download-csv">下載 CSV</button>${migrationCount ? `<button id="agri-migrate-legacy">移轉舊作業 ${migrationCount}</button>` : ""}</div><p class="message">農務作業以 Calendar Event 裡的 UNINUS_AGRI_OPERATION_JSON 為主；舊 storage 作業可移轉成 Calendar 事件。</p>${summary.calendar_hash_mismatch_count ? `<p class="warning">⚠️ ${summary.calendar_hash_mismatch_count} 筆 Calendar 農務作業 hash 驗證失敗</p>` : ""}<div class="traceability-recent"><p class="message">最近 ${operations.length} 筆</p>${operations.slice(0, 3).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("")}</div></section>`;
+    const cycles = Object.values(this._traceabilityRecords().cycles || {});
+    const selectedCycleId = this._selectedExportCycleId || "";
+    const cycleOptions = [`<option value="">全部生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === selectedCycleId ? "selected" : ""}>${this._escape(cycle.product || "週期")} ${this._escape(cycle.lot_number || cycle.trace_code || cycle.cycle_id)}</option>`)).join("");
+    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業 <span class="system-note">${sourceLabel}</span></div></div><div class="mini-actions"><button class="primary" id="agri-open-dialog">新增農務作業</button><button id="agri-manage-master-data">農場 / 場區 / 生產週期管理</button><button id="agri-open-evidence">新增佐證資料</button><button id="agri-export">匯出 JSON</button><button id="agri-download-csv">下載 CSV</button>${migrationCount ? `<button id="agri-migrate-legacy">移轉舊作業 ${migrationCount}</button>` : ""}</div><label class="fullrow">依生產週期匯出<select id="trace_export_cycle">${cycleOptions}</select></label><div class="mini-actions"><button id="agri-export-cycle">匯出此週期</button><button id="agri-download-cycle-csv">下載此週期 CSV</button></div><p class="message">農務作業以 Calendar Event 裡的 UNINUS_AGRI_OPERATION_JSON 為主；舊 storage 作業可移轉成 Calendar 事件。</p>${summary.calendar_hash_mismatch_count ? `<p class="warning">⚠️ ${summary.calendar_hash_mismatch_count} 筆 Calendar 農務作業 hash 驗證失敗</p>` : ""}<div class="traceability-recent"><p class="message">最近 ${operations.length} 筆</p>${operations.slice(0, 3).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("")}</div></section>`;
   }
 
 
@@ -1238,25 +1243,31 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   }
 
 
-  async _traceabilityExportPayload() {
+  async _traceabilityExportPayload(cycleId = "") {
     const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "export_traceability_records", service_data: {}, return_response: true });
-    const packageResponse = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "export_traceability_package", service_data: {}, return_response: true });
+    const serviceData = cycleId ? { cycle_id: cycleId } : {};
+    const packageResponse = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "export_traceability_package", service_data: serviceData, return_response: true });
     const legacy = response?.response || response || {};
     const traceability_export_package = packageResponse?.response || packageResponse || {};
-    const calendarRows = await this._calendarEventTraceabilityRows();
-    const rows = calendarRows.length ? calendarRows : (legacy.rows || []);
+    let calendarRows = await this._calendarEventTraceabilityRows();
+    if (cycleId) calendarRows = calendarRows.filter((row) => row.cycle_id === cycleId);
+    const legacyRows = Array.isArray(traceability_export_package.rows) && cycleId ? traceability_export_package.rows : (legacy.rows || []);
+    const rows = calendarRows.length ? calendarRows : legacyRows;
+    const evidence = traceability_export_package.evidence || legacy.evidence || [];
+    const csvFilename = traceability_export_package.csv_filename || (cycleId ? `traceability-export-${cycleId}.csv` : "traceability-export.csv");
     return {
       ...legacy,
       traceability_export_package,
       calendar_rows: calendarRows,
       rows,
       export_csv: this._traceabilityCsv(rows),
-      csv_filename: traceability_export_package.csv_filename || "traceability-export.csv",
-      evidence: traceability_export_package.evidence || legacy.evidence || [],
+      csv_filename: csvFilename,
+      evidence,
+      filter: { cycle_id: cycleId },
       summary: {
         ...(legacy.summary || {}),
         ...(traceability_export_package.summary || {}),
-        evidence_count: (traceability_export_package.evidence || legacy.evidence || []).length,
+        evidence_count: evidence.length,
         calendar_operation_count: calendarRows.length,
         calendar_hash_mismatch_count: calendarRows.filter((row) => !row.hash_valid).length,
       },
@@ -1264,10 +1275,11 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     };
   }
 
-  async _downloadTraceabilityCsv() {
+  async _downloadTraceabilityCsv(cycleId = "") {
     try {
-      const exportPayload = this._lastExportPayload || await this._traceabilityExportPayload();
-      this._lastExportPayload = exportPayload;
+      const exportPayload = cycleId ? (this._lastCycleExportPayload || await this._traceabilityExportPayload(cycleId)) : (this._lastExportPayload || await this._traceabilityExportPayload());
+      if (cycleId) this._lastCycleExportPayload = exportPayload;
+      else this._lastExportPayload = exportPayload;
       const blob = new Blob([exportPayload.export_csv || ""], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -1280,31 +1292,15 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._render();
   }
 
-  async _exportTraceabilityRecords() {
+  async _downloadTraceabilityCycleCsv() {
+    await this._downloadTraceabilityCsv(this._selectedExportCycleId || "");
+  }
+
+  async _exportTraceabilityRecords(cycleId = "") {
     try {
-      const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "export_traceability_records", service_data: {}, return_response: true });
-      const packageResponse = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "export_traceability_package" /* create_evidence */, service_data: {}, return_response: true });
-      const legacy = response?.response || response || {};
-      const traceability_export_package = packageResponse?.response || packageResponse || {};
-      const calendarRows = await this._calendarEventTraceabilityRows();
-      const rows = calendarRows.length ? calendarRows : (legacy.rows || []);
-      const exportPayload = {
-        ...legacy,
-        traceability_export_package,
-        calendar_rows: calendarRows,
-        rows,
-        export_csv: this._traceabilityCsv(rows),
-        csv_filename: traceability_export_package.csv_filename || "traceability-export.csv",
-        evidence: traceability_export_package.evidence || legacy.evidence || [],
-        summary: {
-          ...(legacy.summary || {}),
-          ...(traceability_export_package.summary || {}),
-          evidence_count: (traceability_export_package.evidence || legacy.evidence || []).length,
-          calendar_operation_count: calendarRows.length,
-          calendar_hash_mismatch_count: calendarRows.filter((row) => !row.hash_valid).length,
-        },
-        export_source: calendarRows.length ? "calendar_events" : "legacy_storage",
-      };
+      const exportPayload = await this._traceabilityExportPayload(cycleId);
+      if (cycleId) this._lastCycleExportPayload = exportPayload;
+      else this._lastExportPayload = exportPayload;
       this._message = JSON.stringify(exportPayload, null, 2);
     } catch (err) { this._message = `匯出失敗: ${err?.message || err}`; }
     this._render();
@@ -1817,9 +1813,12 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("agri-create-operation")?.addEventListener("click", () => this._createAgriOperation());
     this.shadowRoot.getElementById("agri-export")?.addEventListener("click", () => this._exportTraceabilityRecords());
     this.shadowRoot.getElementById("agri-download-csv")?.addEventListener("click", () => this._downloadTraceabilityCsv());
+    this.shadowRoot.getElementById("agri-export-cycle")?.addEventListener("click", () => this._exportTraceabilityRecords(this._selectedExportCycleId || ""));
+    this.shadowRoot.getElementById("agri-download-cycle-csv")?.addEventListener("click", () => this._downloadTraceabilityCycleCsv());
     this.shadowRoot.getElementById("agri-open-evidence")?.addEventListener("click", () => this._openEvidenceDialog());
     this.shadowRoot.getElementById("agri-manage-master-data")?.addEventListener("click", () => this._openManagementDialog());
     this.shadowRoot.getElementById("agri-migrate-legacy")?.addEventListener("click", () => this._migrateLegacyAgriOperations());
+    this.shadowRoot.getElementById("trace_export_cycle")?.addEventListener("change", (ev) => { this._selectedExportCycleId = ev.target.value || ""; this._lastCycleExportPayload = undefined; });
     this.shadowRoot.getElementById("trace-management-close")?.addEventListener("click", () => this._closeManagementDialog());
     this.shadowRoot.getElementById("trace-evidence-cancel")?.addEventListener("click", () => this._closeEvidenceDialog());
     this.shadowRoot.getElementById("trace-evidence-create")?.addEventListener("click", () => this._createEvidenceRecord());

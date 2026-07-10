@@ -633,10 +633,31 @@ class TraceabilityRecordSet:
         }
 
 
-def traceability_export_package(records: TraceabilityRecordSet) -> dict[str, Any]:
+def traceability_export_package(
+    records: TraceabilityRecordSet, *, cycle_id: str = ""
+) -> dict[str, Any]:
     """Return JSON-friendly rows plus CSV and evidence metadata for export."""
 
-    rows = records.export_operation_rows()
+    source_records = records
+    if cycle_id:
+        operations = {
+            key: item
+            for key, item in records.operations.items()
+            if item.cycle_id == cycle_id
+        }
+        operation_ids = set(operations)
+        source_records = TraceabilityRecordSet(
+            farms=records.farms,
+            plots=records.plots,
+            cycles={key: item for key, item in records.cycles.items() if key == cycle_id},
+            operations=operations,
+            evidence={
+                key: item
+                for key, item in records.evidence.items()
+                if item.operation_id in operation_ids
+            },
+        )
+    rows = source_records.export_operation_rows()
     fieldnames = [
         "operation_id",
         "farm_name",
@@ -656,10 +677,11 @@ def traceability_export_package(records: TraceabilityRecordSet) -> dict[str, Any
     writer = csv.DictWriter(buffer, fieldnames=fieldnames, extrasaction="ignore")
     writer.writeheader()
     writer.writerows(rows)
-    evidence_rows = [item.as_dict() for item in records.evidence.values()]
+    evidence_rows = [item.as_dict() for item in source_records.evidence.values()]
     return {
         "export_type": "traceability_export_package",
         "generated_at": _now(),
+        "filter": {"cycle_id": cycle_id} if cycle_id else {},
         "rows": rows,
         "csv": buffer.getvalue(),
         "csv_filename": f"traceability-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv",
@@ -667,6 +689,6 @@ def traceability_export_package(records: TraceabilityRecordSet) -> dict[str, Any
         "summary": {
             "operation_count": len(rows),
             "evidence_count": len(evidence_rows),
-            "missing_link_count": records.missing_link_count(),
+            "missing_link_count": source_records.missing_link_count(),
         },
     }

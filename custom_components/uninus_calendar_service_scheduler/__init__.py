@@ -183,6 +183,12 @@ CREATE_EVIDENCE_SCHEMA = vol.Schema(
     }
 )
 
+EXPORT_TRACEABILITY_PACKAGE_SCHEMA = vol.Schema(
+    {
+        vol.Optional("cycle_id", default=""): cv.string,
+    }
+)
+
 
 def _entry_data(hass: HomeAssistant) -> dict[str, Any]:
     return hass.data.setdefault(DOMAIN, {})
@@ -688,7 +694,10 @@ def _register_services_once(hass: HomeAssistant) -> None:
 
     async def _export_traceability_package(call: ServiceCall) -> dict[str, Any]:
         agri_store: AgriStore = _entry_data(hass)["agri_store"]
-        return traceability_export_package(agri_store.records)
+        return traceability_export_package(
+            agri_store.records,
+            cycle_id=call.data.get("cycle_id") or "",
+        )
 
     hass.services.async_register(
         DOMAIN,
@@ -792,6 +801,7 @@ def _register_services_once(hass: HomeAssistant) -> None:
         DOMAIN,
         SERVICE_EXPORT_TRACEABILITY_PACKAGE,
         _export_traceability_package,
+        schema=EXPORT_TRACEABILITY_PACKAGE_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(
