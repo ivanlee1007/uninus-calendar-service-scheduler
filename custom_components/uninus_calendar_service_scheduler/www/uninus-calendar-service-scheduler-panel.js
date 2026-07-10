@@ -2,7 +2,6 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
-    this.shadowRoot.addEventListener("click", (ev) => this._handleDelegatedClick(ev));
     this._hass = undefined;
     this._events = [];
     this._calendarTraceabilityRows = [];
@@ -1921,6 +1920,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   }
 
   _bind() {
+    if (!this._delegatedClickBound) {
+      this.shadowRoot.addEventListener("click", (ev) => this._handleDelegatedClick(ev));
+      this._delegatedClickBound = true;
+    }
     this.shadowRoot.querySelectorAll(".calendar-choice").forEach((checkbox) => {
       checkbox.addEventListener("change", () => {
         this._selectedCalendars = Array.from(this.shadowRoot.querySelectorAll(".calendar-choice:checked")).map((el) => el.value);

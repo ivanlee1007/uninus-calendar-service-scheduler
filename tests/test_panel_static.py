@@ -102,6 +102,8 @@ def test_workbench_open_button_has_delegated_click_fallback():
     source = PANEL_JS.read_text(encoding="utf-8")
 
     assert "_handleDelegatedClick" in source
+    assert "_delegatedClickBound" in source
+    assert 'this.shadowRoot.addEventListener("click", (ev) => this._handleDelegatedClick(ev))' in source
     assert 'target.closest("#agri-open-workbench")' in source
     assert '_openTraceabilityWorkbench("master-data")' in source
 
