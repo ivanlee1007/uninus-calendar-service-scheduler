@@ -894,8 +894,7 @@ def _register_services_once(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN,
-        SERVICE_CLEAR_TRACEABILITY_DATA,
-    SERVICE_CREATE_AGRI_OPERATION,
+        SERVICE_CREATE_AGRI_OPERATION,
         _create_agri_operation,
         schema=CREATE_AGRI_OPERATION_SCHEMA,
         supports_response=SupportsResponse.ONLY,

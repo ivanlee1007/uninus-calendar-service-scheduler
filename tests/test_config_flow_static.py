@@ -22,3 +22,12 @@ def test_clear_service_is_scoped_to_traceability_calendar_markers():
     assert "UNINUS_AGRI_OPERATION_JSON" in source
     assert "AGRI_OPERATION_ID:" in source
     assert "async_clear" in source
+
+
+
+def test_clear_service_registration_does_not_corrupt_agri_operation_registration():
+    source = Path("custom_components/uninus_calendar_service_scheduler/__init__.py").read_text(encoding="utf-8")
+
+    assert "SERVICE_CLEAR_TRACEABILITY_DATA,\n    SERVICE_CREATE_AGRI_OPERATION,\n        _create_agri_operation" not in source
+    assert "SERVICE_CREATE_AGRI_OPERATION,\n        _create_agri_operation," in source
+    assert "SERVICE_CLEAR_TRACEABILITY_DATA,\n        _clear_traceability_data," in source
