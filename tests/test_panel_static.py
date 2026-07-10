@@ -53,7 +53,6 @@ def test_panel_exposes_evidence_dialog_and_csv_download_controls():
     assert "新增佐證資料" in source
     assert 'id="trace-evidence-create"' in source
     assert 'service: "create_evidence"' in source
-    assert 'id="agri-download-csv"' in source
     assert "_downloadTraceabilityCsv" in source
     assert "traceability-export.csv" in source
 
@@ -63,10 +62,6 @@ def test_panel_exposes_cycle_filtered_export_controls():
     source = PANEL_JS.read_text(encoding="utf-8")
 
     assert 'id="trace_export_cycle"' in source
-    assert 'id="agri-export-cycle"' in source
-    assert 'id="agri-download-cycle-csv"' in source
-    assert "匯出此週期" in source
-    assert "下載此週期 CSV" in source
     assert "_selectedExportCycleId" in source
     assert "_downloadTraceabilityCycleCsv" in source
 
@@ -78,12 +73,41 @@ def test_panel_exposes_mvp_evidence_list_json_download_and_integrity_controls():
     assert "最近佐證資料" in source
     assert "traceability-evidence-list" in source
     assert "content_hash" in source
-    assert 'id="agri-download-json"' in source
-    assert 'id="agri-download-cycle-json"' in source
     assert "下載 JSON" in source
-    assert "下載此週期 JSON" in source
+    assert "_downloadTraceabilityJson" in source
     assert "_downloadTraceabilityJson" in source
     assert "_downloadTraceabilityCycleJson" in source
     assert "匯出前檢查" in source
     assert "traceability-integrity" in source
     assert "_traceabilityIntegrity" in source
+
+
+
+def test_traceability_sidebar_uses_compact_workbench_entry():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert "產銷履歷工作台" in source
+    assert 'id="agri-open-workbench"' in source
+    assert "traceability-workbench" in source
+    assert "workbench-tab-overview" in source
+    assert "workbench-tab-master-data" in source
+    assert "workbench-tab-evidence" in source
+    assert "workbench-tab-export" in source
+    assert "_traceabilityWorkbenchOpen" in source
+    assert "_traceabilityWorkbenchTab" in source
+
+
+def test_traceability_sidebar_no_longer_exposes_export_button_stack():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    template_start = source.index("_traceabilityTemplate()")
+    template_end = source.index("_traceabilityWorkbenchTemplate()")
+    sidebar_template = source[template_start:template_end]
+
+    assert 'id="agri-open-dialog"' in sidebar_template
+    assert 'id="agri-open-workbench"' in sidebar_template
+    assert 'id="agri-download-json"' not in sidebar_template
+    assert 'id="agri-download-csv"' not in sidebar_template
+    assert 'id="agri-download-cycle-json"' not in sidebar_template
+    assert 'id="agri-download-cycle-csv"' not in sidebar_template
+    assert 'id="agri-manage-master-data"' not in sidebar_template
+    assert 'id="agri-open-evidence"' not in sidebar_template
