@@ -67,6 +67,21 @@ def test_panel_exposes_cycle_filtered_export_controls():
     assert "_downloadTraceabilityCycleCsv" in source
 
 
+def test_workbench_overview_uses_three_columns_without_duplicate_title():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    overview_start = source.index('const migrationCount = this._legacyOperationsNeedingMigration().length;')
+    overview_end = source.index('_evidenceContentTemplate()', overview_start)
+    overview = source[overview_start:overview_end]
+
+    assert '<h3>總覽</h3>' not in overview
+    assert 'workbench-overview-grid' in overview
+    assert 'workbench-overview-left' in overview
+    assert 'workbench-overview-middle' in overview
+    assert 'workbench-overview-right' in overview
+    assert overview.index('workbench-overview-middle') < overview.index('最近作業') < overview.index('workbench-overview-right')
+    assert '.workbench-overview-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1.6fr);' in source
+
+
 
 def test_panel_exposes_mvp_evidence_list_json_download_and_integrity_controls():
     source = PANEL_JS.read_text(encoding="utf-8")
