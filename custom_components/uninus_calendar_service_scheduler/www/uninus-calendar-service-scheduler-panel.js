@@ -824,8 +824,6 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const typeOptions = ["sensor_snapshot", "photo", "document", "note", "external_uri"].map((item) => `<option value="${item}" ${item === f.evidenceType ? "selected" : ""}>${this._escape(item)}</option>`).join("");
     return `
       <section class="workbench-section trace-evidence-inline" aria-label="佐證資料">
-        <h3>佐證資料</h3>
-        ${this._evidenceListTemplate(this._selectedExportCycleId || "")}
         <section class="management-section fullrow">
           <h3>新增佐證資料</h3>
           <div class="fields">

@@ -296,6 +296,18 @@ def test_evidence_management_is_inline_in_workbench_not_second_dialog():
     assert "_closeEvidenceDialog" not in source
 
 
+def test_evidence_tab_starts_with_create_form_without_recent_summary():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    template_start = source.index("\n  _evidenceContentTemplate()")
+    template_end = source.index("_captureEvidenceForm()", template_start)
+    template = source[template_start:template_end]
+
+    assert '<h3>佐證資料</h3>' not in template
+    assert "_evidenceListTemplate" not in template
+    assert "最近佐證資料" not in template
+    assert '<h3>新增佐證資料</h3>' in template
+
+
 def test_workbench_tabs_do_not_open_secondary_management_or_evidence_dialogs():
     source = PANEL_JS.read_text(encoding="utf-8")
 
