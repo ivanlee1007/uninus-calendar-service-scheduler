@@ -232,6 +232,21 @@ def test_master_data_management_uses_scalable_hierarchy_filters_not_flat_all_cyc
     assert "filtered.cycles.slice(0, cycleLimit)" in source
 
 
+def test_farm_name_field_is_editable_combobox_for_create_or_edit():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    template_start = source.index("_managementContentTemplate()")
+    template_end = source.index("_captureManagementForm()", template_start)
+    template = source[template_start:template_end]
+
+    assert 'list="trace-farm-name-options"' in template
+    assert 'datalist id="trace-farm-name-options"' in template
+    assert "farmNameOptions" in template
+    assert "_findTraceFarmByName" in source
+    assert "_applyFarmNameComboboxSelection" in source
+    assert 'getElementById("trace_farm_name")?.addEventListener("input", () => this._captureManagementForm())' in source
+    assert 'getElementById("trace_farm_name")?.addEventListener("change", () => this._applyFarmNameComboboxSelection())' in source
+
+
 
 def test_evidence_management_is_inline_in_workbench_not_second_dialog():
     source = PANEL_JS.read_text(encoding="utf-8")

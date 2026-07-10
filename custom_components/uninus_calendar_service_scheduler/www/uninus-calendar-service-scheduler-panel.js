@@ -905,6 +905,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const statusOptions = (selected) => ["active", "inactive", "archived"].map((item) => `<option value="${item}" ${item === selected ? "selected" : ""}>${item === "active" ? "啟用" : item === "inactive" ? "停用" : "封存"}</option>`).join("");
     const filterStatusOptions = ["active", "inactive", "archived", "all"].map((item) => `<option value="${item}" ${item === (f.managementStatusFilter || "active") ? "selected" : ""}>${item === "all" ? "全部狀態" : item === "active" ? "只看啟用" : item === "inactive" ? "只看停用" : "只看封存"}</option>`).join("");
     const limitOptions = ["10", "25", "50"].map((item) => `<option value="${item}" ${item === String(f.cycleLimit || "25") ? "selected" : ""}>只顯示前 ${item} 筆</option>`).join("");
+    const farmNameOptions = Object.values(records.farms || {}).map((farm) => `<option value="${this._escape(farm.name || farm.farm_id)}" label="${this._escape(farm.farm_id)}"></option>`).join("");
     const farmOptions = [`<option value="">選擇農場</option>`].concat(Object.values(records.farms || {}).map((farm) => `<option value="${this._escape(farm.farm_id)}" ${farm.farm_id === f.plotFarmId ? "selected" : ""}>${this._escape(farm.name || farm.farm_id)} ${farm.status === "archived" ? "(封存)" : farm.status === "inactive" ? "(停用)" : ""}</option>`)).join("");
     const plotOptions = [`<option value="">選擇場區</option>`].concat(Object.values(records.plots || {}).filter((plot) => !f.plotFarmId || plot.farm_id === f.plotFarmId).map((plot) => `<option value="${this._escape(plot.plot_id)}" ${plot.plot_id === f.cyclePlotId ? "selected" : ""}>${this._escape(plot.name || plot.plot_id)} ${this._escape(plot.product || "")} ${plot.status === "archived" ? "(封存)" : plot.status === "inactive" ? "(停用)" : ""}</option>`)).join("");
     const categoryOptions = ["農糧", "水果類", "蔬菜類", "水稻", "雜糧類", "畜禽", "水產", "分裝流通", "林產品"].map((item) => `<option value="${this._escape(item)}" ${item === f.plotTgapCategory ? "selected" : ""}>${this._escape(item)}</option>`).join("");
@@ -927,7 +928,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         <section class="management-section fullrow">
           <h3>${f.selectedFarmId ? "編輯農場" : "新增農場"}</h3>
           <div class="fields">
-            <label>農場名稱<input id="trace_farm_name" value="${this._escape(f.farmName)}" /></label>
+            <label>農場名稱<input id="trace_farm_name" list="trace-farm-name-options" autocomplete="off" value="${this._escape(f.farmName)}" /></label><datalist id="trace-farm-name-options">${farmNameOptions}</datalist>
             <label>經營者<input id="trace_farm_operator" value="${this._escape(f.farmOperator)}" /></label>
             <label>地址<input id="trace_farm_address" value="${this._escape(f.farmAddress)}" /></label>
             <label>電話<input id="trace_farm_phone" value="${this._escape(f.farmPhone)}" /></label>
@@ -998,6 +999,28 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       cycleActualHarvestDate: get("trace_cycle_actual_harvest"),
       cycleStatus: get("trace_cycle_status") || "active",
     };
+  }
+
+
+  _findTraceFarmByName(name) {
+    const needle = String(name || "").trim().toLowerCase();
+    if (!needle) return null;
+    return Object.values(this._traceabilityRecords().farms || {}).find((farm) => [farm.name, farm.farm_id].some((value) => String(value || "").trim().toLowerCase() === needle)) || null;
+  }
+
+  _applyFarmNameComboboxSelection() {
+    this._captureManagementForm();
+    const typedName = String(this._managementForm.farmName || "").trim();
+    const matchedFarm = this._findTraceFarmByName(typedName);
+    if (matchedFarm) {
+      this._selectTraceFarm(matchedFarm.farm_id);
+      return;
+    }
+    if (this._managementForm.selectedFarmId) {
+      this._managementForm = { ...this._managementForm, selectedFarmId: "" };
+      this._message = typedName ? `將建立新農場：${typedName}` : "";
+      this._render();
+    }
   }
 
 
@@ -2086,6 +2109,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const managementSearch = this.shadowRoot.getElementById("trace-management-search");
     managementSearch?.addEventListener("input", () => this._captureManagementForm());
     managementSearch?.addEventListener("change", () => { this._captureManagementForm(); this._render(); });
+    this.shadowRoot.getElementById("trace_farm_name")?.addEventListener("input", () => this._captureManagementForm());
+    this.shadowRoot.getElementById("trace_farm_name")?.addEventListener("change", () => this._applyFarmNameComboboxSelection());
     ["trace-management-status-filter", "trace-cycle-page-size"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => { this._captureManagementForm(); this._render(); });
     });
