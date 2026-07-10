@@ -578,7 +578,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       button { border: 0; border-radius: 20px; padding: 10px 16px; cursor: pointer; font-weight: 600; background: var(--secondary-background-color); color: var(--primary-text-color); }
       button.primary { background: var(--primary-color); color: var(--text-primary-color); }
       button.full { width: 100%; margin-top: 6px; }
-      .fab { position: fixed; right: 24px; bottom: 24px; z-index: 4; box-shadow: 0 6px 16px rgba(0,0,0,.22); }
+      .fab-group { position: fixed; right: 24px; bottom: 24px; z-index: 4; display: flex; gap: 10px; align-items: center; justify-content: flex-end; }
+      .fab-button { min-width: 132px; min-height: 44px; border-radius: 24px; padding: 12px 18px; box-shadow: 0 6px 16px rgba(0,0,0,.22); font-size: 14px; }
       .monthbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
       .monthbar h2 { margin: 0; font-weight: 500; font-size: 22px; text-align: center; flex: 1; }
       .nav { display: flex; gap: 8px; align-items: center; }
@@ -658,6 +659,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .workbench-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
       .traceability-card .scope-row { margin: 10px 0; }
       .traceability-status { padding: 8px 10px; border-radius: 12px; background: var(--secondary-background-color); margin: 8px 0; }
+      .traceability-status.compact { width: 100%; text-align: start; border-radius: 12px; padding: 9px 10px; margin: 8px 0 10px; background: var(--secondary-background-color); color: var(--primary-text-color); }
+      .overview-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+      .overview-summary .stat { border-radius: 12px; background: var(--secondary-background-color); padding: 10px; font-size: 12px; }
+      .overview-summary .stat b { display: block; font-size: 20px; }
       .actions { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 24px 24px; }
       @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .side { border-inline-end: 0; border-block-end: 1px solid var(--divider-color); } .day { min-height: 88px; } .agri-dialog .content { grid-template-columns: repeat(2, minmax(0, 1fr)); } .management-section .fields { grid-template-columns: 1fr; } }
       @media (max-width: 640px) { .dialog .content, .agri-dialog .content .content, .traceability-workbench .content, .workbench-grid { grid-template-columns: 1fr; } .weekday { font-size: 11px; padding: 8px 4px; text-align: center; } .day { min-height: 74px; padding: 4px; } .pill { font-size: 10px; padding: 2px 4px; } }
@@ -730,21 +735,18 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
   _traceabilityTemplate() {
     const summary = this._traceabilitySummary();
-    const cycles = Object.values(this._traceabilityRecords().cycles || {});
-    const selectedCycleId = this._selectedExportCycleId || "";
-    const cycleOptions = [`<option value="">全部生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === selectedCycleId ? "selected" : ""}>${this._escape(cycle.product || "週期")} ${this._escape(cycle.lot_number || cycle.trace_code || cycle.cycle_id)}</option>`)).join("");
-    const integrity = this._traceabilityIntegrity(selectedCycleId);
+    const integrity = this._traceabilityIntegrity(this._selectedExportCycleId || "");
     const statusText = integrity.ok ? "✅ 可匯出" : `⚠️ ${integrity.warning_count} 項需檢查`;
-    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業</div></div><label class="scope-row">目前週期<select id="trace_export_cycle">${cycleOptions}</select></label><div class="traceability-status">${this._escape(statusText)}</div><div class="mini-actions"><button class="primary" id="agri-open-dialog">＋ 農務作業</button><button id="agri-open-workbench">產銷履歷工作台</button></div></section>`;
+    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業</div></div><button class="traceability-status compact" id="traceability-status-open" title="開啟總覽查看目前週期與檢查項目">${this._escape(statusText)}</button><div class="mini-actions"><button id="agri-open-workbench">產銷履歷工作台</button></div></section>`;
   }
 
   _handleDelegatedClick(ev) {
     const target = ev.target;
     if (!(target instanceof Element)) return;
-    if (target.closest("#agri-open-workbench")) {
+    if (target.closest("#agri-open-workbench") || target.closest("#traceability-status-open")) {
       ev.preventDefault();
       ev.stopPropagation();
-      this._openTraceabilityWorkbench("master-data");
+      this._openTraceabilityWorkbench("overview");
     }
   }
 
@@ -797,8 +799,13 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       return `<section class="workbench-section"><h3>匯出</h3><label>匯出範圍<select id="trace_export_cycle_workbench">${cycleOptions}</select></label>${this._integrityTemplate(this._traceabilityIntegrity(selectedCycleId))}<div class="mini-actions"><button class="primary" id="agri-download-json">下載 JSON Package</button><button id="agri-download-csv">下載 CSV</button><button id="agri-export">預覽 JSON</button></div></section>`;
     }
     const operations = this._traceabilitySummary().recent_operations || [];
+    const summary = this._traceabilitySummary();
+    const cycles = Object.values(this._traceabilityRecords().cycles || {});
+    const selectedCycleId = this._selectedExportCycleId || "";
+    const cycleOptions = [`<option value="">全部生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === selectedCycleId ? "selected" : ""}>${this._escape(cycle.product || "週期")} ${this._escape(cycle.lot_number || cycle.trace_code || cycle.cycle_id)}</option>`)).join("");
+    const integrity = this._traceabilityIntegrity(selectedCycleId);
     const migrationCount = this._legacyOperationsNeedingMigration().length;
-    return `<section class="workbench-section"><h3>總覽</h3><div class="workbench-grid"><div>${this._integrityTemplate(this._traceabilityIntegrity(this._selectedExportCycleId || ""))}</div><div>${this._evidenceListTemplate(this._selectedExportCycleId || "")}</div></div><div class="traceability-recent"><b>最近作業</b>${operations.slice(0, 5).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("") || `<p class="message">尚無農務作業</p>`}</div>${migrationCount ? `<div class="mini-actions"><button id="agri-migrate-legacy">移轉舊作業 ${migrationCount}</button></div>` : ""}</section>`;
+    return `<section class="workbench-section"><h3>總覽</h3><label class="fullrow">目前檢視範圍<select id="trace_overview_cycle">${cycleOptions}</select></label><div class="overview-summary fullrow" aria-label="履歷摘要"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業</div><div class="stat"><b>${summary.evidence_count || this._evidenceRows(selectedCycleId).length || 0}</b>佐證</div></div><div class="workbench-grid"><div aria-label="匯出前檢查">${this._integrityTemplate(integrity)}</div><div>${this._evidenceListTemplate(selectedCycleId)}</div></div><div class="traceability-recent"><b>最近作業</b>${operations.slice(0, 5).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("") || `<p class="message">尚無農務作業</p>`}</div>${migrationCount ? `<div class="mini-actions"><button id="agri-migrate-legacy">移轉舊作業 ${migrationCount}</button></div>` : ""}</section>`;
   }
 
   _evidenceContentTemplate() {
@@ -1501,7 +1508,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <p class="message">${this._loading ? "載入中…" : `${this._events.length} 個事件`}</p>
         </main>
       </div>
-      <button class="primary fab" id="new-event-fab">＋ 增加行程</button>
+      <div class="fab-group" aria-label="快速新增">
+        <button class="primary fab-button" id="agri-open-dialog">＋ 農務作業</button>
+        <button class="primary fab-button" id="new-event-fab">＋ 增加行程</button>
+      </div>
       ${this._dialogTemplate()}
       ${this._agriDialogTemplate()}
       ${this._traceabilityWorkbenchTemplate()}
@@ -1970,7 +1980,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("edit-future-events")?.addEventListener("click", () => this._confirmUpdateCurrentEvent("future"));
     this.shadowRoot.getElementById("create")?.addEventListener("click", () => this._create());
     this.shadowRoot.getElementById("agri-open-dialog")?.addEventListener("click", () => this._openDialog(undefined, "agri"));
-    this.shadowRoot.getElementById("agri-open-workbench")?.addEventListener("click", () => this._openTraceabilityWorkbench("master-data"));
+    this.shadowRoot.getElementById("agri-open-workbench")?.addEventListener("click", () => this._openTraceabilityWorkbench("overview"));
     this.shadowRoot.getElementById("traceability-workbench-close")?.addEventListener("click", () => this._closeTraceabilityWorkbench());
     this.shadowRoot.getElementById("workbench-tab-overview")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("overview"));
     this.shadowRoot.getElementById("workbench-tab-master-data")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("master-data"));
@@ -1985,7 +1995,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("agri-download-cycle-json")?.addEventListener("click", () => this._downloadTraceabilityCycleJson());
     this.shadowRoot.getElementById("agri-download-cycle-csv")?.addEventListener("click", () => this._downloadTraceabilityCycleCsv());
     this.shadowRoot.getElementById("agri-migrate-legacy")?.addEventListener("click", () => this._migrateLegacyAgriOperations());
-    this.shadowRoot.getElementById("trace_export_cycle")?.addEventListener("change", (ev) => { this._selectedExportCycleId = ev.target.value || ""; this._lastCycleExportPayload = undefined; this._render(); });
+    this.shadowRoot.getElementById("trace_overview_cycle")?.addEventListener("change", (ev) => { this._selectedExportCycleId = ev.target.value || ""; this._lastCycleExportPayload = undefined; this._render(); });
     this.shadowRoot.getElementById("trace_export_cycle_workbench")?.addEventListener("change", (ev) => { this._selectedExportCycleId = ev.target.value || ""; this._lastCycleExportPayload = undefined; this._render(); });
     this.shadowRoot.getElementById("trace-evidence-create")?.addEventListener("click", () => this._createEvidenceRecord());
     ["trace-management-search", "trace-management-status-filter", "trace-cycle-page-size"].forEach((id) => {

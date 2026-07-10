@@ -62,7 +62,7 @@ def test_panel_exposes_inline_evidence_form_and_csv_download_controls():
 def test_panel_exposes_cycle_filtered_export_controls():
     source = PANEL_JS.read_text(encoding="utf-8")
 
-    assert 'id="trace_export_cycle"' in source
+    assert 'id="trace_overview_cycle"' in source
     assert "_selectedExportCycleId" in source
     assert "_downloadTraceabilityCycleCsv" in source
 
@@ -105,7 +105,8 @@ def test_workbench_open_button_has_delegated_click_fallback():
     assert "_delegatedClickBound" in source
     assert 'this.shadowRoot.addEventListener("click", (ev) => this._handleDelegatedClick(ev))' in source
     assert 'target.closest("#agri-open-workbench")' in source
-    assert '_openTraceabilityWorkbench("master-data")' in source
+    assert 'target.closest("#traceability-status-open")' in source
+    assert '_openTraceabilityWorkbench("overview")' in source
 
 
 def test_traceability_sidebar_no_longer_exposes_export_button_stack():
@@ -114,8 +115,8 @@ def test_traceability_sidebar_no_longer_exposes_export_button_stack():
     template_end = source.index("_traceabilityWorkbenchTemplate()")
     sidebar_template = source[template_start:template_end]
 
-    assert 'id="agri-open-dialog"' in sidebar_template
     assert 'id="agri-open-workbench"' in sidebar_template
+    assert 'id="agri-open-dialog"' not in sidebar_template
     assert 'id="agri-download-json"' not in sidebar_template
     assert 'id="agri-download-csv"' not in sidebar_template
     assert 'id="agri-download-cycle-json"' not in sidebar_template
@@ -202,3 +203,37 @@ def test_inline_master_data_ui_exposes_safe_delete_controls():
     assert '"delete_plot"' in source
     assert '"delete_crop_cycle"' in source
     assert "只有無關聯資料才能刪除" in source
+
+
+def test_traceability_scope_and_integrity_move_from_sidebar_to_overview():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    template_start = source.index("_traceabilityTemplate()")
+    template_end = source.index("_handleDelegatedClick", template_start)
+    sidebar_template = source[template_start:template_end]
+    overview_start = source.index('const operations = this._traceabilitySummary().recent_operations')
+    overview_end = source.index("_evidenceContentTemplate()", overview_start)
+    overview_template = source[overview_start:overview_end]
+
+    assert "目前週期<select" not in sidebar_template
+    assert 'id="trace_export_cycle"' not in sidebar_template
+    assert 'class="traceability-status compact"' in sidebar_template
+    assert 'id="trace_overview_cycle"' in overview_template
+    assert "目前檢視範圍" in overview_template
+    assert "履歷摘要" in overview_template
+    assert "匯出前檢查" in overview_template
+
+
+def test_agri_and_calendar_create_buttons_share_bottom_right_fab_group():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    render_start = source.index("\n  _render()")
+    render_end = source.index("_monthTitle()", render_start)
+    render_template = source[render_start:render_end]
+    sidebar_start = source.index("_traceabilityTemplate()")
+    sidebar_end = source.index("_handleDelegatedClick", sidebar_start)
+    sidebar_template = source[sidebar_start:sidebar_end]
+
+    assert 'class="fab-group"' in render_template
+    assert render_template.index('id="agri-open-dialog"') < render_template.index('id="new-event-fab"')
+    assert 'class="primary fab-button" id="agri-open-dialog"' in render_template
+    assert 'class="primary fab-button" id="new-event-fab"' in render_template
+    assert 'id="agri-open-dialog"' not in sidebar_template
