@@ -161,6 +161,18 @@ def test_calendar_create_dialog_preserves_name_while_typing():
     assert "this._calendarCreateForm.name = ev.target.value" in source
 
 
+def test_editing_event_can_move_between_calendars_with_create_then_delete():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert "_originalEventCalendarEntity" in source
+    assert "_eventCalendarChanged" in source
+    assert "_moveCurrentEventToCalendar" in source
+    assert "calendar/event/create" in source
+    assert "calendar/event/delete" in source
+    assert "entity_id: originalCalendar" in source
+    assert "if (this._eventCalendarChanged(payload))" in source
+
+
 
 def test_master_data_management_is_inline_in_workbench_not_second_dialog():
     source = PANEL_JS.read_text(encoding="utf-8")

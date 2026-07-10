@@ -2391,6 +2391,15 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return this._form.recurrenceId ?? this._editingEvent?.recurrence_id ?? actionEvent?.recurrence_id;
   }
 
+  _originalEventCalendarEntity() {
+    return this._editingEvent?.__calendarEntity || this._storedAction(this._form.actionId)?.calendar_entity || this._form.calendar || this._selectedCalendar || "";
+  }
+
+  _eventCalendarChanged(payload) {
+    const originalCalendar = this._originalEventCalendarEntity();
+    return Boolean(originalCalendar && payload?.calendar_entity && originalCalendar !== payload.calendar_entity);
+  }
+
   _openDialog(dateKey, eventType = "normal") {
     this._editingEvent = undefined;
     this._form = this._defaultForm();
@@ -2619,6 +2628,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       this._rememberActionOverride(actionId, singlePayload, eventUid);
     }
     try {
+      if (this._eventCalendarChanged(singlePayload)) {
+        await this._moveCurrentEventToCalendar(singlePayload, actionId);
+        return;
+      }
       await this._hass.callWS({
         type: "calendar/event/update",
         entity_id: this._form.calendar,
@@ -2639,6 +2652,26 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       }
       throw err;
     }
+  }
+
+  async _moveCurrentEventToCalendar(payload, actionId = "") {
+    const eventUid = this._currentEventUid();
+    const recurrenceId = this._currentEventRecurrenceId();
+    const originalCalendar = this._originalEventCalendarEntity();
+    if (!eventUid) throw new Error("此行程缺少 uid，無法移動");
+    if (!originalCalendar) throw new Error("此行程缺少原始行事曆，無法移動");
+    await this._hass.callWS({
+      type: "calendar/event/create",
+      entity_id: payload.calendar_entity,
+      event: this._calendarEventPayload({ ...payload, action_id: actionId }),
+    });
+    await this._hass.callWS({
+      type: "calendar/event/delete",
+      entity_id: originalCalendar,
+      uid: eventUid,
+      recurrence_id: recurrenceId || undefined,
+    });
+    if (actionId) this._rememberActionOverride(actionId, payload, "");
   }
 
   async _updateCurrentEvent(payload, scope = "this") {
@@ -2680,6 +2713,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       this._form.actionId = "";
       actionId = "";
     }
+    if (this._eventCalendarChanged(payload)) {
+      await this._moveCurrentEventToCalendar(payload, actionId);
+      return;
+    }
     await this._hass.callWS({
       type: "calendar/event/update",
       entity_id: this._form.calendar,
@@ -2693,7 +2730,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     try {
       const eventUid = this._currentEventUid();
       const recurrenceId = this._currentEventRecurrenceId();
+      const originalCalendar = this._originalEventCalendarEntity();
       if (!eventUid) throw new Error("此行程缺少 uid，無法刪除");
+      if (!originalCalendar) throw new Error("此行程缺少原始行事曆，無法刪除");
       const isRecurring = this._isRecurringCurrentEvent();
       const deleteAllFuture = isRecurring && recurrenceRange === "THISANDFUTURE";
       const deleteStoredAction = Boolean(this._form.actionId) && (!isRecurring || deleteAllFuture);
@@ -2709,7 +2748,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       }
       const deleteMessage = {
         type: "calendar/event/delete",
-        entity_id: this._form.calendar,
+        entity_id: originalCalendar,
         uid: eventUid,
         recurrence_id: recurrenceId || undefined,
         recurrence_range: isRecurring ? recurrenceRange : undefined,
