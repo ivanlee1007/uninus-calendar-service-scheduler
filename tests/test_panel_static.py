@@ -20,6 +20,28 @@ def test_cycle_create_update_apply_identity_generation_and_duplicate_guard():
     assert "prepare_cycle_identity" in INIT_PY.read_text(encoding="utf-8")
 
 
+def test_agri_calendar_event_edit_syncs_back_to_stored_operation():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert "_syncAgriOperationForCurrentEvent" in source
+    assert 'service: "update_agri_operation"' in source
+    assert "AGRI_OPERATION_ID" in source
+    assert "agriInfo.operationId" in source
+    assert "await this._syncAgriOperationForCurrentEvent" in source
+
+
+def test_safe_delete_surfaces_specific_traceability_blockers():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    init_source = INIT_PY.read_text(encoding="utf-8")
+
+    assert "_formatTraceDeleteError" in source
+    assert "農務作業" in source
+    assert "佐證資料" in source
+    assert "無法刪除" in source
+    assert "deletion_blockers(kind, record_id)" in init_source
+    assert '"、".join(blockers)' in init_source
+
+
 def test_traceability_management_ui_exposes_farm_plot_cycle_creation():
     source = PANEL_JS.read_text(encoding="utf-8")
 

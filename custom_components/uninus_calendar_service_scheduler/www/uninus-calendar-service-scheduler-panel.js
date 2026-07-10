@@ -1107,6 +1107,16 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._render();
   }
 
+  _formatTraceDeleteError(label, err) {
+    const raw = String(err?.message || err || "").trim();
+    const detail = raw.replace(/^Cannot delete \w+:\s*/i, "").trim();
+    const localized = detail
+      .replace(/operations?/gi, "農務作業")
+      .replace(/evidence/gi, "佐證資料")
+      .replace(/record is linked or no longer exists/gi, "資料仍有關聯或已不存在");
+    return `無法刪除${label}：${localized || "資料仍有關聯"}。有關聯資料時請改用封存，或先重新綁定/清理農務作業與佐證資料。`;
+  }
+
   async _deleteTraceMaster(kind, recordId, service, label) {
     if (!recordId) { this._message = `安全刪除${label}失敗：請先選擇資料。`; this._render(); return; }
     try {
@@ -1117,8 +1127,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       this._message = `已安全刪除${label}。`;
       this._render();
     } catch (err) {
-      const detail = err?.message || err;
-      this._message = `安全刪除${label}失敗：${detail}。有關聯資料時請改用封存。`;
+      this._message = this._formatTraceDeleteError(label, err);
       this._render();
     }
   }
@@ -1983,8 +1992,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     if (!raw) return { humanNotes: String(description || "").trim(), payload: {}, hashValid: false, hasAgri: false };
     try {
       const payload = JSON.parse(raw);
+      const operationId = payload.operation_id || this._agriOperationIdFromDescription(description);
+      if (operationId && !payload.operation_id) payload.operation_id = operationId;
       const expected = await this._hashAgriPayload(payload);
-      return { humanNotes: this._humanDescription(description), payload, hashValid: Boolean(payload.record_hash) && payload.record_hash === expected, hasAgri: true };
+      return { humanNotes: this._humanDescription(description), payload, operationId, hashValid: Boolean(payload.record_hash) && payload.record_hash === expected, hasAgri: true };
     } catch (_err) {
       return { humanNotes: this._humanDescription(description), payload: {}, hashValid: false, hasAgri: true };
     }
@@ -1995,6 +2006,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return {
       version: 1,
       type: "agri_operation",
+      operation_id: agri.operationId || "",
       cycle_id: agri.cycleId || "",
       operation_type: agri.operationType || "灌溉",
       actual_start: form.allDay ? this._dateOnly(form.start) : this._toIsoWithOffset(form.start),
@@ -2445,6 +2457,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       endData: JSON.stringify(storedAction?.end_data || {}, null, 2),
       endServiceAction: { action: storedAction?.end_service || "", target: storedAction?.end_target || {}, data: storedAction?.end_data || {} },
       agri: agriInfo.hasAgri ? {
+        operationId: agriInfo.operationId || agriPayload.operation_id || this._agriOperationIdFromDescription(event.description || ""),
         cycleId: agriPayload.cycle_id || "",
         operationType: agriPayload.operation_type || "灌溉",
         actualStart: (agriPayload.actual_start || start).slice(0, 16),
@@ -2824,6 +2837,39 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     if (actionId) this._rememberActionOverride(actionId, payload, "");
   }
 
+  _agriOperationServiceDataFromEventPayload(payload) {
+    const agri = this._form?.agri || {};
+    return {
+      cycle_id: agri.cycleId || "",
+      operation_type: agri.operationType || "灌溉",
+      actual_start: payload.start || (agri.actualStart ? this._toIsoWithOffset(agri.actualStart) : ""),
+      operator: agri.operator || "",
+      material_name: agri.materialName || "",
+      quantity: agri.quantity || "",
+      unit: agri.unit || "",
+      sensor_entities: String(agri.sensorEntities || "").split(",").map((item) => item.trim()).filter(Boolean),
+      notes: this._form?.description || "",
+      calendar_entity: payload.calendar_entity || this._form?.calendar || this._selectedCalendar || "",
+      calendar_event_uid: this._currentEventUid() || "",
+    };
+  }
+
+  async _syncAgriOperationForCurrentEvent(payload) {
+    if (this._form?.eventType !== "agri") return false;
+    const operationId = this._form?.agri?.operationId || "";
+    if (!operationId) return false;
+    const service_data = this._agriOperationServiceDataFromEventPayload(payload);
+    if (!service_data.cycle_id) throw new Error("農務作業需要選擇生產週期");
+    await this._hass.callWS({
+      type: "call_service",
+      domain: "uninus_calendar_service_scheduler",
+      service: "update_agri_operation",
+      service_data: { ...service_data, operation_id: operationId },
+      return_response: true,
+    });
+    return true;
+  }
+
   async _updateCurrentEvent(payload, scope = "this") {
     const eventUid = this._currentEventUid();
     const recurrenceId = this._currentEventRecurrenceId();
@@ -2863,6 +2909,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       this._form.actionId = "";
       actionId = "";
     }
+    await this._syncAgriOperationForCurrentEvent(payload);
     if (this._eventCalendarChanged(payload)) {
       await this._moveCurrentEventToCalendar(payload, actionId);
       return;
