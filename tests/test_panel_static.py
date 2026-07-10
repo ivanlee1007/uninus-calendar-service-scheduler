@@ -10,7 +10,8 @@ def test_traceability_management_ui_exposes_farm_plot_cycle_creation():
     source = PANEL_JS.read_text(encoding="utf-8")
 
     assert "農場 / 場區 / 生產週期管理" in source
-    assert 'id="agri-manage-master-data"' in source
+    assert 'id="agri-manage-master-data"' not in source
+    assert "_managementContentTemplate" in source
     assert 'id="trace-farm-create"' in source
     assert 'id="trace-plot-create"' in source
     assert 'id="trace-cycle-create"' in source
@@ -23,7 +24,7 @@ def test_traceability_management_ui_exposes_farm_plot_cycle_creation():
 def test_traceability_management_ui_exposes_edit_archive_controls():
     source = PANEL_JS.read_text(encoding="utf-8")
 
-    assert "既有農場 / 場區 / 生產週期" in source
+    assert "資料管理：農場 / 場區 / 生產週期管理" in source
     assert 'id="trace-farm-save"' in source
     assert 'id="trace-plot-save"' in source
     assert 'id="trace-cycle-save"' in source
@@ -121,3 +122,31 @@ def test_calendar_sidebar_does_not_duplicate_fab_create_action():
 
     assert 'id="new-event-fab"' in source
     assert 'id="new-event-side"' not in source
+
+
+
+def test_master_data_management_is_inline_in_workbench_not_second_dialog():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    master_start = source.index('if (tab === "master-data")')
+    master_end = source.index('if (tab === "evidence")', master_start)
+    master_tab = source[master_start:master_end]
+
+    assert "_managementContentTemplate" in master_tab
+    assert 'id="agri-manage-master-data"' not in source
+    assert "_managementDialogOpen" not in source
+    assert "management-dialog" not in source
+    assert "trace-management-close" not in source
+
+
+def test_master_data_management_uses_scalable_hierarchy_filters_not_flat_all_cycles():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert 'id="trace-management-search"' in source
+    assert 'id="trace-management-status-filter"' in source
+    assert 'id="trace-cycle-page-size"' in source
+    assert "_filteredManagementRecords" in source
+    assert "visibleCycles" in source
+    assert "cycleLimit" in source
+    assert "farm → plot → cycle" in source
+    assert "只顯示前" in source
+    assert "filtered.cycles.slice(0, cycleLimit)" in source
