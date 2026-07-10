@@ -24,6 +24,8 @@ def test_clear_service_is_scoped_to_traceability_calendar_markers():
     assert "UNINUS_AGRI_OPERATION_JSON" in source
     assert "AGRI_OPERATION_ID:" in source
     assert "async_clear" in source
+    assert "36525" not in source
+    assert "asyncio.wait_for" in source
 
 
 

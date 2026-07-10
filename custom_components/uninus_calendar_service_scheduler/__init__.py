@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 import logging
 from pathlib import Path
@@ -717,60 +718,90 @@ def _register_services_once(hass: HomeAssistant) -> None:
         _notify_agri_changed()
         return {"evidence_id": evidence.evidence_id, "evidence": evidence.as_dict()}
 
-    async def _clear_traceability_calendar_events() -> dict[str, int]:
-        """Delete only Calendar events that are explicitly marked as traceability operations."""
+    async def _clear_traceability_calendar_events(agri_store: AgriStore) -> dict[str, Any]:
+        """Delete only Calendar events that are explicitly marked as traceability operations.
+
+        Prefer operation calendar_entity/calendar_event_uid links from AgriStore so reset
+        completes quickly. A bounded scan catches older marked events without blocking
+        the Home Assistant options flow on a huge calendar query.
+        """
         from homeassistant.components.calendar import (  # imported lazily for test/runtime compatibility
             DATA_COMPONENT as CALENDAR_DATA_COMPONENT,
         )
-        from homeassistant.components.calendar import (
-            CalendarEntityFeature,
-        )
+        from homeassistant.components.calendar import CalendarEntityFeature
         from homeassistant.util import dt as dt_util
 
         component = hass.data.get(CALENDAR_DATA_COMPONENT)
         if component is None:
-            return {"deleted": 0, "matched": 0}
-        start = dt_util.as_local(dt_util.utcnow() - datetime.timedelta(days=36525))
-        end = dt_util.as_local(dt_util.utcnow() + datetime.timedelta(days=36525))
+            return {"deleted": 0, "matched": 0, "skipped": 0, "failures": []}
+
         deleted = 0
         matched = 0
+        skipped = 0
         failures: list[str] = []
+        deleted_keys: set[tuple[str, str]] = set()
+
+        async def _delete_event(entity_id: str, event_uid: str) -> bool:
+            nonlocal deleted, skipped
+            if not entity_id or not event_uid or (entity_id, event_uid) in deleted_keys:
+                return False
+            entity = component.get_entity(entity_id)
+            if entity is None:
+                skipped += 1
+                failures.append(f"{entity_id}/{event_uid}: Calendar entity 不存在")
+                return False
+            if not entity.supported_features & CalendarEntityFeature.DELETE_EVENT:
+                skipped += 1
+                failures.append(f"{entity_id}: 不支援刪除履歷 Calendar events")
+                return False
+            try:
+                await asyncio.wait_for(entity.async_delete_event(event_uid), timeout=5)
+            except Exception as err:
+                skipped += 1
+                failures.append(f"{entity_id}/{event_uid}: 刪除失敗 ({err})")
+                return False
+            deleted += 1
+            deleted_keys.add((entity_id, event_uid))
+            return True
+
+        # Fast path: delete events linked from persisted operations.
+        for operation in agri_store.records.operations.values():
+            if operation.calendar_entity and operation.calendar_event_uid:
+                matched += 1
+                await _delete_event(operation.calendar_entity, operation.calendar_event_uid)
+
+        # Bounded marker scan for migrated/older events not present in AgriStore links.
+        start = dt_util.as_local(dt_util.utcnow() - datetime.timedelta(days=3650))
+        end = dt_util.as_local(dt_util.utcnow() + datetime.timedelta(days=3650))
         for entity_id in hass.states.async_entity_ids("calendar"):
             entity = component.get_entity(entity_id)
             if entity is None:
                 continue
             try:
-                events = await entity.async_get_events(hass, start, end)
+                events = await asyncio.wait_for(
+                    entity.async_get_events(hass, start, end), timeout=8
+                )
+            except TimeoutError:
+                skipped += 1
+                failures.append(f"{entity_id}: 掃描履歷 Calendar events 逾時")
+                continue
             except Exception as err:  # calendar platform capability varies
+                skipped += 1
                 failures.append(f"{entity_id}: 無法讀取事件 ({err})")
                 continue
-            trace_events = [
-                event
-                for event in events
-                if "AGRI_OPERATION_ID:" in (event.description or "")
-                or "UNINUS_AGRI_OPERATION_JSON" in (event.description or "")
-            ]
-            matched += len(trace_events)
-            if not trace_events:
-                continue
-            if not entity.supported_features & CalendarEntityFeature.DELETE_EVENT:
-                failures.append(f"{entity_id}: 不支援刪除 {len(trace_events)} 筆履歷 Calendar events")
-                continue
-            for event in trace_events:
-                try:
-                    await entity.async_delete_event(event.uid)
-                    deleted += 1
-                except Exception as err:  # avoid silently leaving orphaned history
-                    failures.append(f"{entity_id}/{event.uid}: 刪除失敗 ({err})")
-        if failures:
-            raise vol.Invalid("；".join(failures))
-        return {"deleted": deleted, "matched": matched}
+            for event in events:
+                if "AGRI_OPERATION_ID:" not in (event.description or "") and "UNINUS_AGRI_OPERATION_JSON" not in (event.description or ""):
+                    continue
+                matched += 1
+                await _delete_event(entity_id, event.uid)
+
+        return {"deleted": deleted, "matched": matched, "skipped": skipped, "failures": failures}
 
     async def _clear_traceability_data(call: ServiceCall) -> dict[str, Any]:
         if not call.data.get("confirm"):
             raise vol.Invalid("Clear traceability data requires confirm: true")
-        calendar_summary = await _clear_traceability_calendar_events()
         agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        calendar_summary = await _clear_traceability_calendar_events(agri_store)
         records_summary = await agri_store.async_clear()
         _notify_agri_changed()
         return {
