@@ -153,6 +153,14 @@ def test_sidebar_add_calendar_button_uses_local_calendar_config_flow():
     assert "import_ics_file" in source
 
 
+def test_calendar_create_dialog_preserves_name_while_typing():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert "!this._calendarCreateDialogOpen" in source
+    assert 'getElementById("calendar-create-name")?.addEventListener("input"' in source
+    assert "this._calendarCreateForm.name = ev.target.value" in source
+
+
 
 def test_master_data_management_is_inline_in_workbench_not_second_dialog():
     source = PANEL_JS.read_text(encoding="utf-8")

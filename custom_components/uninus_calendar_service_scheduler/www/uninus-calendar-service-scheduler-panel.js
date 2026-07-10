@@ -48,7 +48,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       this._form.calendar = this._selectedCalendar;
     }
     this._ensureHaPickers();
-    if (!this._dialogOpen && !this._agriDialogOpen && !this._traceabilityWorkbenchOpen) this._render();
+    if (!this._dialogOpen && !this._agriDialogOpen && !this._traceabilityWorkbenchOpen && !this._calendarCreateDialogOpen) this._render();
     if (!oldHass && this._selectedCalendars.length) this._loadEvents();
   }
 
@@ -180,7 +180,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         customElements.get("ha-service-picker")
       );
       this._haEntityPickerReady = Boolean(customElements.get("ha-entity-picker"));
-      this._render();
+      if (!this._dialogOpen && !this._agriDialogOpen && !this._traceabilityWorkbenchOpen && !this._calendarCreateDialogOpen) this._render();
     })();
     return this._helpersPromise;
   }
@@ -2050,6 +2050,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("cancel")?.addEventListener("click", () => this._closeDialog());
     this.shadowRoot.getElementById("calendar-create-cancel")?.addEventListener("click", () => this._closeCalendarCreateDialog());
     this.shadowRoot.getElementById("calendar-create-submit")?.addEventListener("click", () => this._createLocalCalendar());
+    this.shadowRoot.getElementById("calendar-create-name")?.addEventListener("input", (ev) => { this._calendarCreateForm.name = ev.target.value; });
     this.shadowRoot.querySelectorAll('input[name="calendar-create-import"]').forEach((el) => el.addEventListener("change", () => { this._captureCalendarCreateForm(); this._render(); }));
     this.shadowRoot.getElementById("delete-event")?.addEventListener("click", () => this._openDeleteConfirm());
     this.shadowRoot.getElementById("delete-cancel")?.addEventListener("click", () => this._closeDeleteConfirm());
