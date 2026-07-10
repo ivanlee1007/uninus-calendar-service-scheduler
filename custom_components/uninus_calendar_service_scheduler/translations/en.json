@@ -15,14 +15,19 @@
     "step": {
       "init": {
         "title": "Uninus Calendar Service Scheduler options",
-        "description": "Configure scheduler options. Selecting clear traceability data requires a second confirmation step.",
-        "data": {
-          "default_calendar": "Default calendar",
-          "allowed_services": "Allowed services, one per line. Supports domain.* wildcards.",
+        "menu_options": {
+          "scheduler_options": "General settings",
           "clear_traceability_data": "Clear traceability data"
         }
       },
-      "confirm_clear_traceability": {
+      "scheduler_options": {
+        "title": "General settings",
+        "data": {
+          "default_calendar": "Default calendar",
+          "allowed_services": "Allowed services, one per line. Supports domain.* wildcards."
+        }
+      },
+      "clear_traceability_data": {
         "title": "Confirm clearing traceability data",
         "description": "This permanently deletes farms, plots, crop cycles, agricultural operations, and evidence stored by this integration. It also deletes Calendar events marked as traceability operations. Ordinary Calendar events and data from other integrations are not deleted.",
         "data": {

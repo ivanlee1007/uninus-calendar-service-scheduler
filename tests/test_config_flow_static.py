@@ -8,9 +8,9 @@ def test_options_flow_exposes_clear_traceability_with_explicit_confirmation():
     source = CONFIG_FLOW.read_text(encoding="utf-8")
     translation = ZH_HANT.read_text(encoding="utf-8")
 
-    assert "CONF_CLEAR_TRACEABILITY_DATA" in source
+    assert 'menu_options=["scheduler_options", "clear_traceability_data"]' in source
     assert "CONF_CONFIRM_CLEAR_TRACEABILITY_DATA" in source
-    assert "async_step_confirm_clear_traceability" in source
+    assert "async_step_clear_traceability_data" in source
     assert "clear_traceability_data" in translation
     assert "confirm_clear_traceability_data" in translation
 
