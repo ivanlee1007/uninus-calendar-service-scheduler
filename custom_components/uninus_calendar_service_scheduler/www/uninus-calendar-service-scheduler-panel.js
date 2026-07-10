@@ -906,6 +906,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const filterStatusOptions = ["active", "inactive", "archived", "all"].map((item) => `<option value="${item}" ${item === (f.managementStatusFilter || "active") ? "selected" : ""}>${item === "all" ? "全部狀態" : item === "active" ? "只看啟用" : item === "inactive" ? "只看停用" : "只看封存"}</option>`).join("");
     const limitOptions = ["10", "25", "50"].map((item) => `<option value="${item}" ${item === String(f.cycleLimit || "25") ? "selected" : ""}>只顯示前 ${item} 筆</option>`).join("");
     const farmNameOptions = Object.values(records.farms || {}).map((farm) => `<option value="${this._escape(farm.name || farm.farm_id)}" label="${this._escape(farm.farm_id)}"></option>`).join("");
+    const plotNameOptions = Object.values(records.plots || {}).filter((plot) => !f.plotFarmId || plot.farm_id === f.plotFarmId).map((plot) => `<option value="${this._escape(plot.name || plot.plot_id)}" label="${this._escape(plot.product || plot.plot_id)}"></option>`).join("");
+    const cycleIdentifierOptions = Object.values(records.cycles || {}).filter((cycle) => !f.cyclePlotId || cycle.plot_id === f.cyclePlotId).map((cycle) => `<option value="${this._escape(cycle.trace_code || cycle.lot_number || cycle.cycle_id)}" label="${this._escape(`${cycle.product || "生產週期"} ${cycle.lot_number || cycle.cycle_id}`)}"></option>`).join("");
     const farmOptions = [`<option value="">選擇農場</option>`].concat(Object.values(records.farms || {}).map((farm) => `<option value="${this._escape(farm.farm_id)}" ${farm.farm_id === f.plotFarmId ? "selected" : ""}>${this._escape(farm.name || farm.farm_id)} ${farm.status === "archived" ? "(封存)" : farm.status === "inactive" ? "(停用)" : ""}</option>`)).join("");
     const plotOptions = [`<option value="">選擇場區</option>`].concat(Object.values(records.plots || {}).filter((plot) => !f.plotFarmId || plot.farm_id === f.plotFarmId).map((plot) => `<option value="${this._escape(plot.plot_id)}" ${plot.plot_id === f.cyclePlotId ? "selected" : ""}>${this._escape(plot.name || plot.plot_id)} ${this._escape(plot.product || "")} ${plot.status === "archived" ? "(封存)" : plot.status === "inactive" ? "(停用)" : ""}</option>`)).join("");
     const categoryOptions = ["農糧", "水果類", "蔬菜類", "水稻", "雜糧類", "畜禽", "水產", "分裝流通", "林產品"].map((item) => `<option value="${this._escape(item)}" ${item === f.plotTgapCategory ? "selected" : ""}>${this._escape(item)}</option>`).join("");
@@ -940,7 +942,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <h3>${f.selectedPlotId ? "編輯場區" : "新增場區"}</h3>
           <div class="fields">
             <label>農場<select id="trace_plot_farm">${farmOptions}</select></label>
-            <label>場區名稱<input id="trace_plot_name" value="${this._escape(f.plotName)}" /></label>
+            <label>場區名稱<input id="trace_plot_name" list="trace-plot-name-options" autocomplete="off" value="${this._escape(f.plotName)}" /></label><datalist id="trace-plot-name-options">${plotNameOptions}</datalist>
             <label>產品<input id="trace_plot_product" value="${this._escape(f.plotProduct)}" /></label>
             <label>TGAP 類別<select id="trace_plot_tgap_category">${categoryOptions}</select></label>
             <label>面積<input id="trace_plot_area" value="${this._escape(f.plotArea)}" /></label>
@@ -956,7 +958,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <label>產品<input id="trace_cycle_product" value="${this._escape(f.cycleProduct)}" /></label>
             <label>品種<input id="trace_cycle_variety" value="${this._escape(f.cycleVariety)}" /></label>
             <label>批號<input id="trace_cycle_lot" value="${this._escape(f.cycleLotNumber)}" /></label>
-            <label>追溯碼<input id="trace_cycle_trace_code" value="${this._escape(f.cycleTraceCode)}" /></label>
+            <label>追溯碼<input id="trace_cycle_trace_code" list="trace-cycle-identifier-options" autocomplete="off" value="${this._escape(f.cycleTraceCode)}" /></label><datalist id="trace-cycle-identifier-options">${cycleIdentifierOptions}</datalist>
             <label>開始日期<input id="trace_cycle_start" type="date" value="${this._escape(f.cycleStartDate)}" /></label>
             <label>預計採收日<input id="trace_cycle_expected_harvest" type="date" value="${this._escape(f.cycleExpectedHarvestDate)}" /></label>
             <label>實際採收日<input id="trace_cycle_actual_harvest" type="date" value="${this._escape(f.cycleActualHarvestDate)}" /></label>
@@ -1019,6 +1021,52 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     if (this._managementForm.selectedFarmId) {
       this._managementForm = { ...this._managementForm, selectedFarmId: "" };
       this._message = typedName ? `將建立新農場：${typedName}` : "";
+      this._render();
+    }
+  }
+
+  _findTracePlotByName(name) {
+    const needle = String(name || "").trim().toLowerCase();
+    if (!needle) return null;
+    const selectedFarmId = this._managementForm?.plotFarmId || this._managementForm?.selectedFarmId || "";
+    const matches = Object.values(this._traceabilityRecords().plots || {}).filter((plot) => (!selectedFarmId || plot.farm_id === selectedFarmId) && [plot.name, plot.plot_id].some((value) => String(value || "").trim().toLowerCase() === needle));
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  _applyPlotNameComboboxSelection() {
+    this._captureManagementForm();
+    const typedName = String(this._managementForm.plotName || "").trim();
+    const matchedPlot = this._findTracePlotByName(typedName);
+    if (matchedPlot) {
+      this._selectTracePlot(matchedPlot.plot_id);
+      return;
+    }
+    if (this._managementForm.selectedPlotId) {
+      this._managementForm = { ...this._managementForm, selectedPlotId: "" };
+      this._message = typedName ? `將建立新場區：${typedName}` : "";
+      this._render();
+    }
+  }
+
+  _findTraceCycleByIdentifier(identifier) {
+    const needle = String(identifier || "").trim().toLowerCase();
+    if (!needle) return null;
+    const selectedPlotId = this._managementForm?.cyclePlotId || this._managementForm?.selectedPlotId || "";
+    const matches = Object.values(this._traceabilityRecords().cycles || {}).filter((cycle) => (!selectedPlotId || cycle.plot_id === selectedPlotId) && [cycle.trace_code, cycle.lot_number, cycle.cycle_id].some((value) => String(value || "").trim().toLowerCase() === needle));
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  _applyCycleIdentifierComboboxSelection() {
+    this._captureManagementForm();
+    const typedIdentifier = String(this._managementForm.cycleTraceCode || this._managementForm.cycleLotNumber || "").trim();
+    const matchedCycle = this._findTraceCycleByIdentifier(typedIdentifier);
+    if (matchedCycle) {
+      this._selectTraceCycle(matchedCycle.cycle_id);
+      return;
+    }
+    if (this._managementForm.selectedCycleId) {
+      this._managementForm = { ...this._managementForm, selectedCycleId: "" };
+      this._message = typedIdentifier ? `將建立新生產週期：${typedIdentifier}` : "";
       this._render();
     }
   }
@@ -2111,6 +2159,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     managementSearch?.addEventListener("change", () => { this._captureManagementForm(); this._render(); });
     this.shadowRoot.getElementById("trace_farm_name")?.addEventListener("input", () => this._captureManagementForm());
     this.shadowRoot.getElementById("trace_farm_name")?.addEventListener("change", () => this._applyFarmNameComboboxSelection());
+    this.shadowRoot.getElementById("trace_plot_name")?.addEventListener("input", () => this._captureManagementForm());
+    this.shadowRoot.getElementById("trace_plot_name")?.addEventListener("change", () => this._applyPlotNameComboboxSelection());
+    this.shadowRoot.getElementById("trace_cycle_trace_code")?.addEventListener("input", () => this._captureManagementForm());
+    this.shadowRoot.getElementById("trace_cycle_trace_code")?.addEventListener("change", () => this._applyCycleIdentifierComboboxSelection());
     ["trace-management-status-filter", "trace-cycle-page-size"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => { this._captureManagementForm(); this._render(); });
     });

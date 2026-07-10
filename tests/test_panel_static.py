@@ -232,7 +232,7 @@ def test_master_data_management_uses_scalable_hierarchy_filters_not_flat_all_cyc
     assert "filtered.cycles.slice(0, cycleLimit)" in source
 
 
-def test_farm_name_field_is_editable_combobox_for_create_or_edit():
+def test_identity_fields_are_editable_comboboxes_for_create_or_edit():
     source = PANEL_JS.read_text(encoding="utf-8")
     template_start = source.index("_managementContentTemplate()")
     template_end = source.index("_captureManagementForm()", template_start)
@@ -245,6 +245,22 @@ def test_farm_name_field_is_editable_combobox_for_create_or_edit():
     assert "_applyFarmNameComboboxSelection" in source
     assert 'getElementById("trace_farm_name")?.addEventListener("input", () => this._captureManagementForm())' in source
     assert 'getElementById("trace_farm_name")?.addEventListener("change", () => this._applyFarmNameComboboxSelection())' in source
+
+    assert 'list="trace-plot-name-options"' in template
+    assert 'datalist id="trace-plot-name-options"' in template
+    assert "plotNameOptions" in template
+    assert "_findTracePlotByName" in source
+    assert "_applyPlotNameComboboxSelection" in source
+    assert 'getElementById("trace_plot_name")?.addEventListener("input", () => this._captureManagementForm())' in source
+    assert 'getElementById("trace_plot_name")?.addEventListener("change", () => this._applyPlotNameComboboxSelection())' in source
+
+    assert 'list="trace-cycle-identifier-options"' in template
+    assert 'datalist id="trace-cycle-identifier-options"' in template
+    assert "cycleIdentifierOptions" in template
+    assert "_findTraceCycleByIdentifier" in source
+    assert "_applyCycleIdentifierComboboxSelection" in source
+    assert 'getElementById("trace_cycle_trace_code")?.addEventListener("input", () => this._captureManagementForm())' in source
+    assert 'getElementById("trace_cycle_trace_code")?.addEventListener("change", () => this._applyCycleIdentifierComboboxSelection())' in source
 
 
 
