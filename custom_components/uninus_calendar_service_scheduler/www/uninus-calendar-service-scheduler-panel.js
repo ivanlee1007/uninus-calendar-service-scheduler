@@ -1237,7 +1237,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
 
   _traceabilityCsv(rows) {
-    const headers = ["operation_id", "farm_name", "plot_name", "product", "lot_number", "operation_type", "actual_start", "operator", "material_name", "quantity", "unit", "status", "record_hash"];
+    const headers = ["operation_id", "cycle_id", "farm_name", "plot_name", "product", "lot_number", "operation_type", "actual_start", "operator", "material_name", "quantity", "unit", "status", "record_hash"];
     const escapeCell = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
     return [headers.join(",")].concat((rows || []).map((row) => headers.map((key) => escapeCell(row[key])).join(","))).join("\n");
   }

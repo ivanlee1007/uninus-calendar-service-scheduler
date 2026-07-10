@@ -589,6 +589,7 @@ class TraceabilityRecordSet:
             rows.append(
                 {
                     "operation_id": operation.operation_id,
+                    "cycle_id": operation.cycle_id,
                     "farm_name": farm.name if farm else "",
                     "operator": operation.operator or (farm.operator if farm else ""),
                     "plot_name": plot.name if plot else "",
@@ -660,6 +661,7 @@ def traceability_export_package(
     rows = source_records.export_operation_rows()
     fieldnames = [
         "operation_id",
+        "cycle_id",
         "farm_name",
         "plot_name",
         "product",
