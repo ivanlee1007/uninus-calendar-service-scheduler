@@ -910,8 +910,6 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const categoryOptions = ["農糧", "水果類", "蔬菜類", "水稻", "雜糧類", "畜禽", "水產", "分裝流通", "林產品"].map((item) => `<option value="${this._escape(item)}" ${item === f.plotTgapCategory ? "selected" : ""}>${this._escape(item)}</option>`).join("");
     return `
       <section class="workbench-section trace-management-inline" aria-label="農場 / 場區 / 生產週期管理">
-        <h3>資料管理：農場 / 場區 / 生產週期管理</h3>
-        <p class="message">採 farm → plot → cycle 階層選取；搜尋、狀態篩選與顯示上限避免一次列出大量生產週期。</p>
         <section class="management-section fullrow">
           <h3>尋找與選取</h3>
           <div class="fields">
@@ -2085,8 +2083,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("trace_overview_cycle")?.addEventListener("change", (ev) => { this._selectedExportCycleId = ev.target.value || ""; this._lastCycleExportPayload = undefined; this._render(); });
     this.shadowRoot.getElementById("trace_export_cycle_workbench")?.addEventListener("change", (ev) => { this._selectedExportCycleId = ev.target.value || ""; this._lastCycleExportPayload = undefined; this._render(); });
     this.shadowRoot.getElementById("trace-evidence-create")?.addEventListener("click", () => this._createEvidenceRecord());
-    ["trace-management-search", "trace-management-status-filter", "trace-cycle-page-size"].forEach((id) => {
-      this.shadowRoot.getElementById(id)?.addEventListener("input", () => { this._captureManagementForm(); this._render(); });
+    const managementSearch = this.shadowRoot.getElementById("trace-management-search");
+    managementSearch?.addEventListener("input", () => this._captureManagementForm());
+    managementSearch?.addEventListener("change", () => { this._captureManagementForm(); this._render(); });
+    ["trace-management-status-filter", "trace-cycle-page-size"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => { this._captureManagementForm(); this._render(); });
     });
     this.shadowRoot.querySelectorAll(".trace-select-farm").forEach((button) => button.addEventListener("click", () => this._selectTraceFarm(button.dataset.id)));

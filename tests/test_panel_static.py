@@ -24,7 +24,7 @@ def test_traceability_management_ui_exposes_farm_plot_cycle_creation():
 def test_traceability_management_ui_exposes_edit_archive_controls():
     source = PANEL_JS.read_text(encoding="utf-8")
 
-    assert "資料管理：農場 / 場區 / 生產週期管理" in source
+    assert "農場 / 場區 / 生產週期管理" in source
     assert 'id="trace-farm-save"' in source
     assert 'id="trace-plot-save"' in source
     assert 'id="trace-cycle-save"' in source
@@ -203,6 +203,22 @@ def test_master_data_management_is_inline_in_workbench_not_second_dialog():
     assert "trace-management-close" not in source
 
 
+def test_master_data_management_removes_duplicate_heading_and_keeps_search_focus():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    template_start = source.index("_managementContentTemplate()")
+    template_end = source.index("_captureManagementForm()", template_start)
+    template = source[template_start:template_end]
+    bind_start = source.index('const managementSearch = this.shadowRoot.getElementById("trace-management-search")')
+    bind_end = source.index('this.shadowRoot.querySelectorAll(".trace-select-farm")', bind_start)
+    bind_block = source[bind_start:bind_end]
+
+    assert "資料管理：農場 / 場區 / 生產週期管理" not in template
+    assert "避免一次列出大量生產週期" not in template
+    assert 'managementSearch?.addEventListener("input"' in bind_block
+    assert 'managementSearch?.addEventListener("input", () => this._captureManagementForm())' in bind_block
+    assert 'managementSearch?.addEventListener("input", () => { this._captureManagementForm(); this._render(); })' not in bind_block
+
+
 def test_master_data_management_uses_scalable_hierarchy_filters_not_flat_all_cycles():
     source = PANEL_JS.read_text(encoding="utf-8")
 
@@ -212,7 +228,6 @@ def test_master_data_management_uses_scalable_hierarchy_filters_not_flat_all_cyc
     assert "_filteredManagementRecords" in source
     assert "visibleCycles" in source
     assert "cycleLimit" in source
-    assert "farm → plot → cycle" in source
     assert "只顯示前" in source
     assert "filtered.cycles.slice(0, cycleLimit)" in source
 
