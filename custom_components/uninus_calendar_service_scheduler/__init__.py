@@ -13,7 +13,7 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.panel_custom import async_register_panel
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_DESCRIPTION, CONF_ENTITY_ID
-from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.event import async_call_later
@@ -222,12 +222,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     await _ensure_lovelace_resource(hass)
     await _register_panel(hass)
+    @callback
+    def _schedule_lovelace_resource(_now: Any) -> None:
+        hass.async_create_task(_ensure_lovelace_resource(hass))
+
     for delay in (10, 30):
-        async_call_later(
-            hass,
-            delay,
-            lambda _now: hass.async_create_task(_ensure_lovelace_resource(hass)),
-        )
+        async_call_later(hass, delay, _schedule_lovelace_resource)
     store = ActionStore(hass)
     await store.async_load()
     agri_store = AgriStore(hass)
@@ -256,7 +256,6 @@ async def _register_panel(hass: HomeAssistant) -> None:
         sidebar_icon="mdi:calendar-clock",
         config={"title": "Uninus Calendar Service Scheduler"},
         require_admin=False,
-        config_panel_domain=DOMAIN,
     )
 
 

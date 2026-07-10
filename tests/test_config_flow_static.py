@@ -31,3 +31,11 @@ def test_clear_service_registration_does_not_corrupt_agri_operation_registration
     assert "SERVICE_CLEAR_TRACEABILITY_DATA,\n    SERVICE_CREATE_AGRI_OPERATION,\n        _create_agri_operation" not in source
     assert "SERVICE_CREATE_AGRI_OPERATION,\n        _create_agri_operation," in source
     assert "SERVICE_CLEAR_TRACEABILITY_DATA,\n        _clear_traceability_data," in source
+
+
+
+def test_custom_panel_does_not_hijack_integration_options_flow():
+    source = Path("custom_components/uninus_calendar_service_scheduler/__init__.py").read_text(encoding="utf-8")
+
+    assert "config_panel_domain" not in source
+    assert "async_get_options_flow" in Path("custom_components/uninus_calendar_service_scheduler/config_flow.py").read_text(encoding="utf-8")
