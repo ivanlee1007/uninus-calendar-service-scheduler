@@ -418,3 +418,42 @@ def test_traceability_export_package_integrity_warns_for_missing_evidence_and_em
     assert package["integrity"]["ok"] is False
     failed_ids = {item["id"] for item in package["integrity"]["checks"] if item["status"] == "warning"}
     assert {"has_farm", "has_plot", "has_operations", "has_evidence"} <= failed_ids
+
+
+
+def test_traceability_records_delete_only_unlinked_master_data():
+    farm = Farm.create(name="可刪除農場")
+    plot = Plot.create(farm_id=farm.farm_id, name="可刪除場區")
+    cycle = CropCycle.create(plot_id=plot.plot_id, product="芒果")
+    records = TraceabilityRecordSet(
+        farms={farm.farm_id: farm},
+        plots={plot.plot_id: plot},
+        cycles={cycle.cycle_id: cycle},
+    )
+
+    assert records.deletion_blockers("farm", farm.farm_id) == ["場區 1 筆"]
+    assert records.deletion_blockers("plot", plot.plot_id) == ["生產週期 1 筆"]
+    assert records.deletion_blockers("cycle", cycle.cycle_id) == []
+    assert records.delete_unlinked("cycle", cycle.cycle_id) is True
+    assert records.delete_unlinked("plot", plot.plot_id) is True
+    assert records.delete_unlinked("farm", farm.farm_id) is True
+    assert records.farms == records.plots == records.cycles == {}
+
+
+def test_traceability_records_block_cycle_delete_when_operation_or_evidence_is_linked():
+    farm = Farm.create(name="關聯農場")
+    plot = Plot.create(farm_id=farm.farm_id, name="關聯場區")
+    cycle = CropCycle.create(plot_id=plot.plot_id, product="芒果")
+    operation = AgriOperation.create(cycle_id=cycle.cycle_id, operation_type="灌溉")
+    evidence = EvidenceRecord.create(operation_id=operation.operation_id, title="不可失去的佐證")
+    records = TraceabilityRecordSet(
+        farms={farm.farm_id: farm},
+        plots={plot.plot_id: plot},
+        cycles={cycle.cycle_id: cycle},
+        operations={operation.operation_id: operation},
+        evidence={evidence.evidence_id: evidence},
+    )
+
+    assert records.deletion_blockers("cycle", cycle.cycle_id) == ["農務作業 1 筆", "佐證資料 1 筆"]
+    assert records.delete_unlinked("cycle", cycle.cycle_id) is False
+    assert cycle.cycle_id in records.cycles

@@ -911,7 +911,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <label>電話<input id="trace_farm_phone" value="${this._escape(f.farmPhone)}" /></label>
             <label>狀態<select id="trace_farm_status">${statusOptions(f.farmStatus || "active")}</select></label>
           </div>
-          <div class="row-actions"><button class="primary" id="trace-farm-create">建立農場</button><button id="trace-farm-save" ${f.selectedFarmId ? "" : "disabled"}>儲存農場</button><button class="archive" id="trace-farm-archive" ${f.selectedFarmId ? "" : "disabled"}>封存農場</button></div>
+          <div class="row-actions"><button class="primary" id="trace-farm-create">建立農場</button><button id="trace-farm-save" ${f.selectedFarmId ? "" : "disabled"}>儲存農場</button><button class="archive" id="trace-farm-archive" ${f.selectedFarmId ? "" : "disabled"}>封存農場</button><button class="archive" id="trace-farm-delete" ${f.selectedFarmId ? "" : "disabled"}>安全刪除</button></div>
         </section>
         <section class="management-section fullrow">
           <h3>${f.selectedPlotId ? "編輯場區" : "新增場區"}</h3>
@@ -924,7 +924,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <label>位置<input id="trace_plot_location" value="${this._escape(f.plotLocation)}" /></label>
             <label>狀態<select id="trace_plot_status">${statusOptions(f.plotStatus || "active")}</select></label>
           </div>
-          <div class="row-actions"><button class="primary" id="trace-plot-create">建立場區</button><button id="trace-plot-save" ${f.selectedPlotId ? "" : "disabled"}>儲存場區</button><button class="archive" id="trace-plot-archive" ${f.selectedPlotId ? "" : "disabled"}>封存場區</button></div>
+          <div class="row-actions"><button class="primary" id="trace-plot-create">建立場區</button><button id="trace-plot-save" ${f.selectedPlotId ? "" : "disabled"}>儲存場區</button><button class="archive" id="trace-plot-archive" ${f.selectedPlotId ? "" : "disabled"}>封存場區</button><button class="archive" id="trace-plot-delete" ${f.selectedPlotId ? "" : "disabled"}>安全刪除</button></div>
         </section>
         <section class="management-section fullrow">
           <h3>${f.selectedCycleId ? "編輯生產週期" : "新增生產週期"}</h3>
@@ -939,8 +939,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <label>實際採收日<input id="trace_cycle_actual_harvest" type="date" value="${this._escape(f.cycleActualHarvestDate)}" /></label>
             <label>狀態<select id="trace_cycle_status">${statusOptions(f.cycleStatus || "active")}</select></label>
           </div>
-          <div class="row-actions"><button class="primary" id="trace-cycle-create">建立生產週期</button><button id="trace-cycle-save" ${f.selectedCycleId ? "" : "disabled"}>儲存生產週期</button><button class="archive" id="trace-cycle-archive" ${f.selectedCycleId ? "" : "disabled"}>封存生產週期</button></div>
+          <div class="row-actions"><button class="primary" id="trace-cycle-create">建立生產週期</button><button id="trace-cycle-save" ${f.selectedCycleId ? "" : "disabled"}>儲存生產週期</button><button class="archive" id="trace-cycle-archive" ${f.selectedCycleId ? "" : "disabled"}>封存生產週期</button><button class="archive" id="trace-cycle-delete" ${f.selectedCycleId ? "" : "disabled"}>安全刪除</button></div>
         </section>
+        <div class="fullrow system-note">只有無關聯資料才能刪除：農場不可有場區、場區不可有生產週期、生產週期不可有農務作業或佐證資料；有關聯時請改用封存。</div>
         <div class="message fullrow ${this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
       </section>
     `;
@@ -1001,6 +1002,26 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._message = `已載入生產週期：${cycle.product || cycle.cycle_id}`;
     this._render();
   }
+
+  async _deleteTraceMaster(kind, recordId, service, label) {
+    if (!recordId) { this._message = `安全刪除${label}失敗：請先選擇資料。`; this._render(); return; }
+    try {
+      await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service, service_data: { [`${kind}_id`]: recordId }, return_response: true });
+      if (kind === "farm") this._managementForm = { ...this._managementForm, selectedFarmId: "", selectedPlotId: "", selectedCycleId: "", farmName: "", farmOperator: "", farmAddress: "", farmPhone: "", plotFarmId: "", cyclePlotId: "" };
+      if (kind === "plot") this._managementForm = { ...this._managementForm, selectedPlotId: "", selectedCycleId: "", plotName: "", plotProduct: "", plotArea: "", plotLocation: "", cyclePlotId: "" };
+      if (kind === "cycle") this._managementForm = { ...this._managementForm, selectedCycleId: "", cycleProduct: "", cycleVariety: "", cycleLotNumber: "", cycleTraceCode: "" };
+      this._message = `已安全刪除${label}。`;
+      this._render();
+    } catch (err) {
+      const detail = err?.message || err;
+      this._message = `安全刪除${label}失敗：${detail}。有關聯資料時請改用封存。`;
+      this._render();
+    }
+  }
+
+  async _deleteTraceFarm() { await this._deleteTraceMaster("farm", this._managementForm.selectedFarmId, "delete_farm", "農場"); }
+  async _deleteTracePlot() { await this._deleteTraceMaster("plot", this._managementForm.selectedPlotId, "delete_plot", "場區"); }
+  async _deleteTraceCycle() { await this._deleteTraceMaster("cycle", this._managementForm.selectedCycleId, "delete_crop_cycle", "生產週期"); }
 
   _archiveTimestamp() { return new Date().toISOString(); }
 
@@ -1969,6 +1990,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("trace-farm-archive")?.addEventListener("click", () => this._updateTraceFarm("archived"));
     this.shadowRoot.getElementById("trace-plot-archive")?.addEventListener("click", () => this._updateTracePlot("archived"));
     this.shadowRoot.getElementById("trace-cycle-archive")?.addEventListener("click", () => this._updateTraceCycle("archived"));
+    this.shadowRoot.getElementById("trace-farm-delete")?.addEventListener("click", () => this._deleteTraceFarm());
+    this.shadowRoot.getElementById("trace-plot-delete")?.addEventListener("click", () => this._deleteTracePlot());
+    this.shadowRoot.getElementById("trace-cycle-delete")?.addEventListener("click", () => this._deleteTraceCycle());
     ["trace_evidence_operation", "trace_evidence_type", "trace_evidence_title", "trace_evidence_source_entity", "trace_evidence_uri", "trace_evidence_content"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureEvidenceForm());
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureEvidenceForm());

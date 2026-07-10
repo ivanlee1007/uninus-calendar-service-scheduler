@@ -176,3 +176,19 @@ def test_workbench_tabs_do_not_open_secondary_management_or_evidence_dialogs():
     assert "evidence-dialog" not in source
     assert "_managementDialogOpen" not in source
     assert "_evidenceDialogOpen" not in source
+
+
+
+def test_inline_master_data_ui_exposes_safe_delete_controls():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert 'id="trace-farm-delete"' in source
+    assert 'id="trace-plot-delete"' in source
+    assert 'id="trace-cycle-delete"' in source
+    assert "_deleteTraceFarm" in source
+    assert "_deleteTracePlot" in source
+    assert "_deleteTraceCycle" in source
+    assert '"delete_farm"' in source
+    assert '"delete_plot"' in source
+    assert '"delete_crop_cycle"' in source
+    assert "只有無關聯資料才能刪除" in source

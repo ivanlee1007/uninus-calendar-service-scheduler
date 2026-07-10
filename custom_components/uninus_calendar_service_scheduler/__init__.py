@@ -44,7 +44,10 @@ from .const import (
     SERVICE_CREATE_EVIDENCE,
     SERVICE_CREATE_FARM,
     SERVICE_CREATE_PLOT,
+    SERVICE_DELETE_CROP_CYCLE,
     SERVICE_DELETE_EVENT_ACTION,
+    SERVICE_DELETE_FARM,
+    SERVICE_DELETE_PLOT,
     SERVICE_EXPORT_TRACEABILITY_PACKAGE,
     SERVICE_EXPORT_TRACEABILITY_RECORDS,
     SERVICE_RELOAD_ACTIONS,
@@ -139,6 +142,10 @@ UPDATE_PLOT_SCHEMA = CREATE_PLOT_SCHEMA.extend(
         vol.Optional("archived_at"): cv.string,
     }
 )
+DELETE_FARM_SCHEMA = vol.Schema({vol.Required("farm_id"): cv.string})
+DELETE_PLOT_SCHEMA = vol.Schema({vol.Required("plot_id"): cv.string})
+DELETE_CROP_CYCLE_SCHEMA = vol.Schema({vol.Required("cycle_id"): cv.string})
+
 UPDATE_CROP_CYCLE_SCHEMA = CREATE_CROP_CYCLE_SCHEMA.extend(
     {
         vol.Required("cycle_id"): cv.string,
@@ -611,6 +618,28 @@ def _register_services_once(hass: HomeAssistant) -> None:
         _notify_agri_changed()
         return {"cycle_id": cycle.cycle_id, "cycle": cycle.as_dict()}
 
+    async def _delete_master_data(kind: str, record_id: str) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        collections = {"farm": agri_store.records.farms, "plot": agri_store.records.plots, "cycle": agri_store.records.cycles}
+        if record_id not in collections[kind]:
+            raise vol.Invalid(f"Unknown {kind}_id {record_id!r}")
+        blockers = agri_store.records.deletion_blockers(kind, record_id)
+        if blockers:
+            raise vol.Invalid(f"Cannot delete {kind}: " + "、".join(blockers))
+        if not await agri_store.async_delete_unlinked(kind, record_id):
+            raise vol.Invalid(f"Cannot delete {kind}: record is linked or no longer exists")
+        _notify_agri_changed()
+        return {f"{kind}_id": record_id, "deleted": True, "blockers": []}
+
+    async def _delete_farm(call: ServiceCall) -> dict[str, Any]:
+        return await _delete_master_data("farm", call.data["farm_id"])
+
+    async def _delete_plot(call: ServiceCall) -> dict[str, Any]:
+        return await _delete_master_data("plot", call.data["plot_id"])
+
+    async def _delete_crop_cycle(call: ServiceCall) -> dict[str, Any]:
+        return await _delete_master_data("cycle", call.data["cycle_id"])
+
     async def _create_agri_operation(call: ServiceCall) -> dict[str, Any]:
         agri_store: AgriStore = _entry_data(hass)["agri_store"]
         cycle_id = call.data["cycle_id"]
@@ -749,6 +778,13 @@ def _register_services_once(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN,
+        SERVICE_DELETE_FARM,
+        _delete_farm,
+        schema=DELETE_FARM_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
         SERVICE_CREATE_PLOT,
         _create_plot,
         schema=CREATE_PLOT_SCHEMA,
@@ -763,6 +799,13 @@ def _register_services_once(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN,
+        SERVICE_DELETE_PLOT,
+        _delete_plot,
+        schema=DELETE_PLOT_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
         SERVICE_CREATE_CROP_CYCLE,
         _create_crop_cycle,
         schema=CREATE_CROP_CYCLE_SCHEMA,
@@ -773,6 +816,13 @@ def _register_services_once(hass: HomeAssistant) -> None:
         SERVICE_UPDATE_CROP_CYCLE,
         _update_crop_cycle,
         schema=UPDATE_CROP_CYCLE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DELETE_CROP_CYCLE,
+        _delete_crop_cycle,
+        schema=DELETE_CROP_CYCLE_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(

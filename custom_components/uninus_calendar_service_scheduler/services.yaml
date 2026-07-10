@@ -600,3 +600,30 @@ export_traceability_package:
       required: false
       selector:
         text:
+
+delete_farm:
+  name: Safely delete unlinked traceability farm
+  description: Permanently delete a farm only when it has no linked plots. Linked farms must be archived instead.
+  fields:
+    farm_id:
+      required: true
+      selector:
+        text:
+
+delete_plot:
+  name: Safely delete unlinked traceability plot
+  description: Permanently delete a plot only when it has no linked crop cycles. Linked plots must be archived instead.
+  fields:
+    plot_id:
+      required: true
+      selector:
+        text:
+
+delete_crop_cycle:
+  name: Safely delete unlinked traceability crop cycle
+  description: Permanently delete a production cycle only when it has no linked operations or evidence. Linked cycles must be archived instead.
+  fields:
+    cycle_id:
+      required: true
+      selector:
+        text:

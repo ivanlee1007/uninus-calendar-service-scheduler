@@ -617,6 +617,42 @@ class TraceabilityRecordSet:
                 count += 1
         return count
 
+    def deletion_blockers(self, kind: str, record_id: str) -> list[str]:
+        """Return traceability references that make a hard delete unsafe."""
+        if kind == "farm":
+            count = sum(1 for item in self.plots.values() if item.farm_id == record_id)
+            return [f"場區 {count} 筆"] if count else []
+        if kind == "plot":
+            count = sum(1 for item in self.cycles.values() if item.plot_id == record_id)
+            return [f"生產週期 {count} 筆"] if count else []
+        if kind == "cycle":
+            operation_ids = {
+                item.operation_id
+                for item in self.operations.values()
+                if item.cycle_id == record_id
+            }
+            blockers: list[str] = []
+            if operation_ids:
+                blockers.append(f"農務作業 {len(operation_ids)} 筆")
+            evidence_count = sum(
+                1 for item in self.evidence.values() if item.operation_id in operation_ids
+            )
+            if evidence_count:
+                blockers.append(f"佐證資料 {evidence_count} 筆")
+            return blockers
+        raise ValueError(f"Unknown traceability master-data kind: {kind!r}")
+
+    def delete_unlinked(self, kind: str, record_id: str) -> bool:
+        """Hard-delete a master-data record only when no references exist."""
+        collections = {"farm": self.farms, "plot": self.plots, "cycle": self.cycles}
+        collection = collections.get(kind)
+        if collection is None:
+            raise ValueError(f"Unknown traceability master-data kind: {kind!r}")
+        if record_id not in collection or self.deletion_blockers(kind, record_id):
+            return False
+        del collection[record_id]
+        return True
+
     def state_attributes(self) -> dict[str, Any]:
         recent = sorted(
             self.operations.values(),

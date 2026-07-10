@@ -67,3 +67,10 @@ class AgriStore:
     async def async_update_cycle(self, cycle: CropCycle) -> None:
         self.records.cycles[cycle.cycle_id] = cycle
         await self.async_save()
+
+    async def async_delete_unlinked(self, kind: str, record_id: str) -> bool:
+        """Persist a safe hard-delete only when the record has no references."""
+        deleted = self.records.delete_unlinked(kind, record_id)
+        if deleted:
+            await self.async_save()
+        return deleted
