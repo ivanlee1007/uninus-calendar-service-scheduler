@@ -43,3 +43,16 @@ def test_panel_export_includes_csv_package_and_evidence_markers():
     assert "evidence_count" in source
     assert "traceability_export_package" in source
     assert "create_evidence" in source
+
+
+
+def test_panel_exposes_evidence_dialog_and_csv_download_controls():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert 'id="agri-open-evidence"' in source
+    assert "新增佐證資料" in source
+    assert 'id="trace-evidence-create"' in source
+    assert 'service: "create_evidence"' in source
+    assert 'id="agri-download-csv"' in source
+    assert "_downloadTraceabilityCsv" in source
+    assert "traceability-export.csv" in source

@@ -9,6 +9,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._dialogOpen = false;
     this._agriDialogOpen = false;
     this._managementDialogOpen = false;
+    this._evidenceDialogOpen = false;
+    this._lastExportPayload = undefined;
     this._deleteConfirmOpen = false;
     this._editConfirmOpen = false;
     this._pendingUpdatePayload = undefined;
@@ -26,6 +28,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._calendarListScrollTop = 0;
     this._agriForm = this._defaultAgriForm();
     this._managementForm = this._defaultManagementForm();
+    this._evidenceForm = this._defaultEvidenceForm();
   }
 
   set hass(hass) {
@@ -41,7 +44,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       this._form.calendar = this._selectedCalendar;
     }
     this._ensureHaPickers();
-    if (!this._dialogOpen && !this._agriDialogOpen && !this._managementDialogOpen) this._render();
+    if (!this._dialogOpen && !this._agriDialogOpen && !this._managementDialogOpen && !this._evidenceDialogOpen) this._render();
     if (!oldHass && this._selectedCalendars.length) this._loadEvents();
   }
 
@@ -136,6 +139,18 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       cycleExpectedHarvestDate: "",
       cycleActualHarvestDate: "",
       cycleStatus: "active",
+    };
+  }
+
+
+  _defaultEvidenceForm() {
+    return {
+      operationId: "",
+      evidenceType: "sensor_snapshot",
+      title: "",
+      sourceEntity: "",
+      uri: "",
+      content: "{}",
     };
   }
 
@@ -604,13 +619,14 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .traceability-recent p { margin: 6px 0 0; }
       .error { color: var(--error-color); }
 
-      .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9; display: ${this._dialogOpen || this._agriDialogOpen || this._managementDialogOpen ? "block" : "none"}; }
-      .dialog, .agri-dialog, .management-dialog { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(860px, calc(100vw - 32px)); max-height: min(860px, calc(100vh - 32px)); overflow: auto; z-index: 10; border-radius: 28px; background: var(--card-background-color); color: var(--primary-text-color); box-shadow: 0 24px 38px rgba(0,0,0,.14), 0 9px 46px rgba(0,0,0,.12), 0 11px 15px rgba(0,0,0,.2); }
+      .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9; display: ${this._dialogOpen || this._agriDialogOpen || this._managementDialogOpen || this._evidenceDialogOpen ? "block" : "none"}; }
+      .dialog, .agri-dialog, .management-dialog, .evidence-dialog { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(860px, calc(100vw - 32px)); max-height: min(860px, calc(100vh - 32px)); overflow: auto; z-index: 10; border-radius: 28px; background: var(--card-background-color); color: var(--primary-text-color); box-shadow: 0 24px 38px rgba(0,0,0,.14), 0 9px 46px rgba(0,0,0,.12), 0 11px 15px rgba(0,0,0,.2); }
       .dialog { display: ${this._dialogOpen ? "block" : "none"}; }
       .agri-dialog { display: ${this._agriDialogOpen ? "block" : "none"}; width: min(980px, calc(100vw - 32px)); }
       .management-dialog { display: ${this._managementDialogOpen ? "block" : "none"}; width: min(1060px, calc(100vw - 32px)); }
-      .dialog header, .agri-dialog header, .management-dialog header { padding: 24px 24px 8px; font-size: 22px; font-weight: 500; }
-      .dialog .content, .agri-dialog .content, .management-dialog .content { padding: 0 24px 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+      .evidence-dialog { display: ${this._evidenceDialogOpen ? "block" : "none"}; width: min(900px, calc(100vw - 32px)); }
+      .dialog header, .agri-dialog header, .management-dialog header, .evidence-dialog header { padding: 24px 24px 8px; font-size: 22px; font-weight: 500; }
+      .dialog .content, .agri-dialog .content, .management-dialog .content, .evidence-dialog .content { padding: 0 24px 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
       .agri-dialog .content { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .management-section { border: 1px solid var(--divider-color); border-radius: 16px; padding: 14px; background: var(--card-background-color); }
       .management-section h3 { margin: 0 0 10px; font-size: 16px; }
@@ -634,7 +650,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .checkbox input { width: auto; }
       .actions { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 24px 24px; }
       @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .side { border-inline-end: 0; border-block-end: 1px solid var(--divider-color); } .day { min-height: 88px; } .agri-dialog .content { grid-template-columns: repeat(2, minmax(0, 1fr)); } .management-section .fields { grid-template-columns: 1fr; } }
-      @media (max-width: 640px) { .dialog .content, .agri-dialog .content, .management-dialog .content { grid-template-columns: 1fr; } .weekday { font-size: 11px; padding: 8px 4px; text-align: center; } .day { min-height: 74px; padding: 4px; } .pill { font-size: 10px; padding: 2px 4px; } }
+      @media (max-width: 640px) { .dialog .content, .agri-dialog .content, .management-dialog .content, .evidence-dialog .content { grid-template-columns: 1fr; } .weekday { font-size: 11px; padding: 8px 4px; text-align: center; } .day { min-height: 74px; padding: 4px; } .pill { font-size: 10px; padding: 2px 4px; } }
     `;
   }
 
@@ -666,9 +682,79 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const operations = summary.recent_operations || [];
     const migrationCount = this._legacyOperationsNeedingMigration().length;
     const sourceLabel = (this._calendarTraceabilityRows || []).length ? "Calendar" : "Legacy";
-    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業 <span class="system-note">${sourceLabel}</span></div></div><div class="mini-actions"><button class="primary" id="agri-open-dialog">新增農務作業</button><button id="agri-manage-master-data">農場 / 場區 / 生產週期管理</button><button id="agri-export">匯出 JSON</button>${migrationCount ? `<button id="agri-migrate-legacy">移轉舊作業 ${migrationCount}</button>` : ""}</div><p class="message">農務作業以 Calendar Event 裡的 UNINUS_AGRI_OPERATION_JSON 為主；舊 storage 作業可移轉成 Calendar 事件。</p>${summary.calendar_hash_mismatch_count ? `<p class="warning">⚠️ ${summary.calendar_hash_mismatch_count} 筆 Calendar 農務作業 hash 驗證失敗</p>` : ""}<div class="traceability-recent"><p class="message">最近 ${operations.length} 筆</p>${operations.slice(0, 3).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("")}</div></section>`;
+    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業 <span class="system-note">${sourceLabel}</span></div></div><div class="mini-actions"><button class="primary" id="agri-open-dialog">新增農務作業</button><button id="agri-manage-master-data">農場 / 場區 / 生產週期管理</button><button id="agri-open-evidence">新增佐證資料</button><button id="agri-export">匯出 JSON</button><button id="agri-download-csv">下載 CSV</button>${migrationCount ? `<button id="agri-migrate-legacy">移轉舊作業 ${migrationCount}</button>` : ""}</div><p class="message">農務作業以 Calendar Event 裡的 UNINUS_AGRI_OPERATION_JSON 為主；舊 storage 作業可移轉成 Calendar 事件。</p>${summary.calendar_hash_mismatch_count ? `<p class="warning">⚠️ ${summary.calendar_hash_mismatch_count} 筆 Calendar 農務作業 hash 驗證失敗</p>` : ""}<div class="traceability-recent"><p class="message">最近 ${operations.length} 筆</p>${operations.slice(0, 3).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("")}</div></section>`;
   }
 
+
+
+  _evidenceDialogTemplate() {
+    const records = this._traceabilityRecords();
+    const operations = Object.values(records.operations || {});
+    const f = this._evidenceForm || this._defaultEvidenceForm();
+    const operationOptions = [`<option value="">不綁定特定作業</option>`].concat(operations.map((op) => `<option value="${this._escape(op.operation_id)}" ${op.operation_id === f.operationId ? "selected" : ""}>${this._escape(op.operation_type || "作業")} ${this._escape(op.actual_start || op.scheduled_start || op.operation_id)}</option>`)).join("");
+    const typeOptions = ["sensor_snapshot", "photo", "document", "note", "external_uri"].map((item) => `<option value="${item}" ${item === f.evidenceType ? "selected" : ""}>${this._escape(item)}</option>`).join("");
+    return `
+      <section class="evidence-dialog" role="dialog" aria-modal="true" aria-label="新增佐證資料">
+        <header>新增佐證資料</header>
+        <div class="content">
+          <label>綁定農務作業<select id="trace_evidence_operation">${operationOptions}</select></label>
+          <label>佐證類型<select id="trace_evidence_type">${typeOptions}</select></label>
+          <label>標題<input id="trace_evidence_title" value="${this._escape(f.title)}" /></label>
+          <label>來源 entity_id<input id="trace_evidence_source_entity" value="${this._escape(f.sourceEntity)}" placeholder="sensor.soil_moisture" /></label>
+          <label class="fullrow">URI / 檔案參照<input id="trace_evidence_uri" value="${this._escape(f.uri)}" placeholder="/local/... 或外部連結" /></label>
+          <label class="fullrow">佐證 JSON 內容<textarea id="trace_evidence_content" rows="8">${this._escape(f.content)}</textarea></label>
+          <div class="message fullrow ${this._message.includes("佐證") && this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
+        </div>
+        <div class="actions"><button id="trace-evidence-cancel">取消</button><button class="primary" id="trace-evidence-create">建立佐證資料</button></div>
+      </section>
+    `;
+  }
+
+  _openEvidenceDialog() {
+    this._message = "";
+    this._evidenceDialogOpen = true;
+    this._render();
+  }
+
+  _closeEvidenceDialog() {
+    this._captureEvidenceForm();
+    this._evidenceDialogOpen = false;
+    this._render();
+  }
+
+  _captureEvidenceForm() {
+    const get = (id) => this.shadowRoot.getElementById(id)?.value || "";
+    this._evidenceForm = {
+      ...this._evidenceForm,
+      operationId: get("trace_evidence_operation"),
+      evidenceType: get("trace_evidence_type") || "sensor_snapshot",
+      title: get("trace_evidence_title"),
+      sourceEntity: get("trace_evidence_source_entity"),
+      uri: get("trace_evidence_uri"),
+      content: get("trace_evidence_content") || "{}",
+    };
+  }
+
+  async _createEvidenceRecord() {
+    this._captureEvidenceForm();
+    let content = {};
+    try {
+      content = this._evidenceForm.content.trim() ? JSON.parse(this._evidenceForm.content) : {};
+    } catch (err) {
+      this._message = `建立佐證資料失敗：JSON 格式錯誤 (${err?.message || err})`;
+      this._render();
+      return;
+    }
+    try {
+      const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "create_evidence", service_data: { operation_id: this._evidenceForm.operationId, evidence_type: this._evidenceForm.evidenceType, title: this._evidenceForm.title, content, source_entity: this._evidenceForm.sourceEntity, uri: this._evidenceForm.uri }, return_response: true });
+      const payload = this._serviceResponsePayload(response);
+      const evidenceId = payload.evidence_id || payload.evidence?.evidence_id || "";
+      this._message = `已建立佐證資料${evidenceId ? `：${evidenceId}` : ""}`;
+      this._evidenceForm = this._defaultEvidenceForm();
+      this._evidenceDialogOpen = false;
+      this._render();
+    } catch (err) { this._message = `建立佐證資料失敗: ${err?.message || err}`; this._render(); }
+  }
 
   _managementDialogTemplate() {
     const records = this._traceabilityRecords();
@@ -1151,6 +1237,49 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return [headers.join(",")].concat((rows || []).map((row) => headers.map((key) => escapeCell(row[key])).join(","))).join("\n");
   }
 
+
+  async _traceabilityExportPayload() {
+    const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "export_traceability_records", service_data: {}, return_response: true });
+    const packageResponse = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "export_traceability_package", service_data: {}, return_response: true });
+    const legacy = response?.response || response || {};
+    const traceability_export_package = packageResponse?.response || packageResponse || {};
+    const calendarRows = await this._calendarEventTraceabilityRows();
+    const rows = calendarRows.length ? calendarRows : (legacy.rows || []);
+    return {
+      ...legacy,
+      traceability_export_package,
+      calendar_rows: calendarRows,
+      rows,
+      export_csv: this._traceabilityCsv(rows),
+      csv_filename: traceability_export_package.csv_filename || "traceability-export.csv",
+      evidence: traceability_export_package.evidence || legacy.evidence || [],
+      summary: {
+        ...(legacy.summary || {}),
+        ...(traceability_export_package.summary || {}),
+        evidence_count: (traceability_export_package.evidence || legacy.evidence || []).length,
+        calendar_operation_count: calendarRows.length,
+        calendar_hash_mismatch_count: calendarRows.filter((row) => !row.hash_valid).length,
+      },
+      export_source: calendarRows.length ? "calendar_events" : "legacy_storage",
+    };
+  }
+
+  async _downloadTraceabilityCsv() {
+    try {
+      const exportPayload = this._lastExportPayload || await this._traceabilityExportPayload();
+      this._lastExportPayload = exportPayload;
+      const blob = new Blob([exportPayload.export_csv || ""], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = exportPayload.csv_filename || "traceability-export.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+      this._message = `已下載 CSV：${link.download}`;
+    } catch (err) { this._message = `下載 CSV 失敗: ${err?.message || err}`; }
+    this._render();
+  }
+
   async _exportTraceabilityRecords() {
     try {
       const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "export_traceability_records", service_data: {}, return_response: true });
@@ -1221,6 +1350,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       ${this._dialogTemplate()}
       ${this._agriDialogTemplate()}
       ${this._managementDialogTemplate()}
+      ${this._evidenceDialogTemplate()}
     `;
     this._bind();
     const nextCalendarList = this.shadowRoot.querySelector(".calendar-list");
@@ -1670,7 +1800,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       ev.stopPropagation();
       this._openEventByUid(el.dataset.uid, el.dataset.calendar, el.dataset.recurrenceId || "");
     }));
-    this.shadowRoot.querySelector(".scrim")?.addEventListener("click", () => this._deleteConfirmOpen ? this._closeDeleteConfirm() : (this._editConfirmOpen ? this._closeEditConfirm() : (this._agriDialogOpen ? this._closeAgriDialog() : this._closeDialog())));
+    this.shadowRoot.querySelector(".scrim")?.addEventListener("click", () => this._deleteConfirmOpen ? this._closeDeleteConfirm() : (this._editConfirmOpen ? this._closeEditConfirm() : (this._evidenceDialogOpen ? this._closeEvidenceDialog() : (this._agriDialogOpen ? this._closeAgriDialog() : this._closeDialog()))));
     this.shadowRoot.getElementById("cancel")?.addEventListener("click", () => this._closeDialog());
     this.shadowRoot.getElementById("delete-event")?.addEventListener("click", () => this._openDeleteConfirm());
     this.shadowRoot.getElementById("delete-cancel")?.addEventListener("click", () => this._closeDeleteConfirm());
@@ -1686,9 +1816,13 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("agri-cancel")?.addEventListener("click", () => this._closeAgriDialog());
     this.shadowRoot.getElementById("agri-create-operation")?.addEventListener("click", () => this._createAgriOperation());
     this.shadowRoot.getElementById("agri-export")?.addEventListener("click", () => this._exportTraceabilityRecords());
+    this.shadowRoot.getElementById("agri-download-csv")?.addEventListener("click", () => this._downloadTraceabilityCsv());
+    this.shadowRoot.getElementById("agri-open-evidence")?.addEventListener("click", () => this._openEvidenceDialog());
     this.shadowRoot.getElementById("agri-manage-master-data")?.addEventListener("click", () => this._openManagementDialog());
     this.shadowRoot.getElementById("agri-migrate-legacy")?.addEventListener("click", () => this._migrateLegacyAgriOperations());
     this.shadowRoot.getElementById("trace-management-close")?.addEventListener("click", () => this._closeManagementDialog());
+    this.shadowRoot.getElementById("trace-evidence-cancel")?.addEventListener("click", () => this._closeEvidenceDialog());
+    this.shadowRoot.getElementById("trace-evidence-create")?.addEventListener("click", () => this._createEvidenceRecord());
     this.shadowRoot.querySelectorAll(".trace-select-farm").forEach((button) => button.addEventListener("click", () => this._selectTraceFarm(button.dataset.id)));
     this.shadowRoot.querySelectorAll(".trace-select-plot").forEach((button) => button.addEventListener("click", () => this._selectTracePlot(button.dataset.id)));
     this.shadowRoot.querySelectorAll(".trace-select-cycle").forEach((button) => button.addEventListener("click", () => this._selectTraceCycle(button.dataset.id)));
@@ -1701,6 +1835,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("trace-farm-archive")?.addEventListener("click", () => this._updateTraceFarm("archived"));
     this.shadowRoot.getElementById("trace-plot-archive")?.addEventListener("click", () => this._updateTracePlot("archived"));
     this.shadowRoot.getElementById("trace-cycle-archive")?.addEventListener("click", () => this._updateTraceCycle("archived"));
+    ["trace_evidence_operation", "trace_evidence_type", "trace_evidence_title", "trace_evidence_source_entity", "trace_evidence_uri", "trace_evidence_content"].forEach((id) => {
+      this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureEvidenceForm());
+      this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureEvidenceForm());
+    });
     ["agri_calendar", "agri_cycle", "agri_operation_type", "agri_actual_start", "agri_operator", "agri_material", "agri_quantity", "agri_unit", "agri_sensor_entities", "agri_notes"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureAgriForm());
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureAgriForm());
