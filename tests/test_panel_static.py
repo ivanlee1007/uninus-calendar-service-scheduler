@@ -47,11 +47,11 @@ def test_panel_export_includes_csv_package_and_evidence_markers():
 
 
 
-def test_panel_exposes_evidence_dialog_and_csv_download_controls():
+def test_panel_exposes_inline_evidence_form_and_csv_download_controls():
     source = PANEL_JS.read_text(encoding="utf-8")
 
-    assert 'id="agri-open-evidence"' in source
-    assert "新增佐證資料" in source
+    assert "_evidenceContentTemplate" in source
+    assert 'id="trace_evidence_operation"' in source
     assert 'id="trace-evidence-create"' in source
     assert 'service: "create_evidence"' in source
     assert "_downloadTraceabilityCsv" in source
@@ -150,3 +150,29 @@ def test_master_data_management_uses_scalable_hierarchy_filters_not_flat_all_cyc
     assert "farm → plot → cycle" in source
     assert "只顯示前" in source
     assert "filtered.cycles.slice(0, cycleLimit)" in source
+
+
+
+def test_evidence_management_is_inline_in_workbench_not_second_dialog():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    evidence_start = source.index('if (tab === "evidence")')
+    evidence_end = source.index('if (tab === "export")', evidence_start)
+    evidence_tab = source[evidence_start:evidence_end]
+
+    assert "_evidenceContentTemplate" in evidence_tab
+    assert 'id="agri-open-evidence"' not in source
+    assert "_evidenceDialogOpen" not in source
+    assert "evidence-dialog" not in source
+    assert "_openEvidenceDialog" not in source
+    assert "_closeEvidenceDialog" not in source
+
+
+def test_workbench_tabs_do_not_open_secondary_management_or_evidence_dialogs():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert 'id="agri-manage-master-data"' not in source
+    assert 'id="agri-open-evidence"' not in source
+    assert "management-dialog" not in source
+    assert "evidence-dialog" not in source
+    assert "_managementDialogOpen" not in source
+    assert "_evidenceDialogOpen" not in source
