@@ -113,3 +113,11 @@ def test_traceability_sidebar_no_longer_exposes_export_button_stack():
     assert 'id="agri-open-evidence"' not in sidebar_template
     assert 'id="agri-migrate-legacy"' not in sidebar_template
     assert "獨立 panel：不修改 Home Assistant 原生 /calendar" not in source
+
+
+
+def test_calendar_sidebar_does_not_duplicate_fab_create_action():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert 'id="new-event-fab"' in source
+    assert 'id="new-event-side"' not in source

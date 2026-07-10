@@ -1446,7 +1446,6 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <summary>${this._escape(this._selectedCalendarLabel())}</summary>
             <div class="calendar-list">${this._calendarChecklist()}</div>
           </details>
-          <button class="primary full" id="new-event-side">新增 Calendar 事件</button>
           <button class="full" id="refresh">重新整理</button>
           ${this._traceabilityTemplate()}
         </aside>
@@ -1905,7 +1904,6 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       });
     }
     this.shadowRoot.getElementById("refresh")?.addEventListener("click", () => this._loadEvents());
-    this.shadowRoot.getElementById("new-event-side")?.addEventListener("click", () => this._openDialog());
     this.shadowRoot.getElementById("new-event-fab")?.addEventListener("click", () => this._openDialog());
     this.shadowRoot.getElementById("prev-month")?.addEventListener("click", () => this._movePeriod(-1));
     this.shadowRoot.getElementById("next-month")?.addEventListener("click", () => this._movePeriod(1));
