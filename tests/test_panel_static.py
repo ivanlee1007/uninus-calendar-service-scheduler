@@ -173,6 +173,17 @@ def test_traceability_workbench_uses_professional_cycle_centered_workspace_layou
     assert "技術資訊" in source
 
 
+def test_all_agri_operation_type_selects_share_one_canonical_source():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    canonical = '["播種/定植", "灌溉", "施肥", "病蟲害防治", "除草", "採收", "分級包裝", "清潔消毒", "自我查核", "異常事件"]'
+
+    assert "_agriOperationTypes()" in source
+    assert "_agriOperationTypeOptions(selected)" in source
+    assert source.count(canonical) == 1
+    assert source.count("this._agriOperationTypeOptions(") == 3
+    assert 'const typeOptions = ["灌溉", "施肥"' not in source
+
+
 def test_operation_quantity_and_unit_are_container_responsive():
     source = PANEL_JS.read_text(encoding="utf-8")
 

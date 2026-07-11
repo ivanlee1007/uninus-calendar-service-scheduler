@@ -1058,6 +1058,14 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     }).sort((a, b) => String(b.actual_start || b.scheduled_start || b.created_at || "").localeCompare(String(a.actual_start || a.scheduled_start || a.created_at || "")));
   }
 
+  _agriOperationTypes() {
+    return ["播種/定植", "灌溉", "施肥", "病蟲害防治", "除草", "採收", "分級包裝", "清潔消毒", "自我查核", "異常事件"];
+  }
+
+  _agriOperationTypeOptions(selected) {
+    return this._agriOperationTypes().map((item) => `<option value="${this._escape(item)}" ${item === selected ? "selected" : ""}>${this._escape(item)}</option>`).join("");
+  }
+
   _operationStatusOptions(selected = "all", includeAll = false) {
     const options = includeAll ? [["all", "全部狀態"]] : [];
     options.push(["planned", "計畫中"], ["completed", "已完成"], ["skipped", "封存/略過"], ["verified", "已驗證"], ["exported", "已匯出"]);
@@ -1074,7 +1082,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const cycles = Object.values(records.cycles || {});
     const cycleOptions = [`<option value="">全部生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === f.operationCycleFilter ? "selected" : ""}>${this._escape(cycle.product || "週期")} ${this._escape(cycle.lot_number || cycle.trace_code || cycle.cycle_id)}</option>`)).join("");
     const editCycleOptions = [`<option value="">選擇生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === f.cycleId ? "selected" : ""}>${this._escape(cycle.product || "週期")} ${this._escape(cycle.lot_number || cycle.trace_code || cycle.cycle_id)}</option>`)).join("");
-    const typeOptions = ["播種/定植", "灌溉", "施肥", "病蟲害防治", "除草", "採收", "分級包裝", "清潔消毒", "自我查核", "異常事件"].map((item) => `<option value="${this._escape(item)}" ${item === f.operationType ? "selected" : ""}>${this._escape(item)}</option>`).join("");
+    const typeOptions = this._agriOperationTypeOptions(f.operationType);
     return `
       <section class="workbench-section trace-operations-inline" aria-label="農務作業管理">
         <div class="workbench-page-heading"><div><span class="context-eyebrow">PRODUCTION RECORDS</span><h3>農務作業</h3><p>依生產週期管理作業、佐證與 Calendar 關聯。</p></div></div>
@@ -1849,7 +1857,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const cycles = Object.values(records.cycles || {});
     const f = this._agriForm || this._defaultAgriForm();
     const cycleOptions = [`<option value="">選擇生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === f.cycleId ? "selected" : ""}>${this._escape(cycle.product || cycle.cycle_id)} ${this._escape(cycle.lot_number || "")}</option>`)).join("");
-    const typeOptions = ["灌溉", "施肥", "病蟲害防治", "採收", "分級包裝", "自我查核", "異常事件"].map((item) => `<option value="${this._escape(item)}" ${item === f.operationType ? "selected" : ""}>${this._escape(item)}</option>`).join("");
+    const typeOptions = this._agriOperationTypeOptions(f.operationType);
     return `
       <section class="agri-dialog" role="dialog" aria-modal="true" aria-label="新增農務作業">
         <header>新增農務作業</header>
@@ -2706,7 +2714,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const cycles = Object.values(records.cycles || {});
     const agri = this._form.agri || this._defaultAgriFields();
     const cycleOptions = [`<option value="">選擇生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === agri.cycleId ? "selected" : ""}>${this._escape(cycle.product || cycle.cycle_id)} ${this._escape(cycle.lot_number || "")}</option>`)).join("");
-    const typeOptions = ["灌溉", "施肥", "病蟲害防治", "採收", "分級包裝", "自我查核", "異常事件"].map((item) => `<option value="${this._escape(item)}" ${item === agri.operationType ? "selected" : ""}>${this._escape(item)}</option>`).join("");
+    const typeOptions = this._agriOperationTypeOptions(agri.operationType);
     return `<fieldset class="agri-fields fullrow">
       <legend>農務作業欄位</legend>
       <label>生產週期<select id="agri_cycle">${cycleOptions}</select></label>
