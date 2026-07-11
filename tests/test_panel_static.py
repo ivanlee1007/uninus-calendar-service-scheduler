@@ -168,6 +168,7 @@ def test_traceability_workbench_uses_professional_cycle_centered_workspace_layou
     assert 'id="trace-evidence-view-list"' in source
     assert 'id="trace-evidence-view-gallery"' in source
     assert 'class="trace-issue-inbox"' in source
+    assert ".trace-issue-card.warning { color: var(--primary-text-color);" in source
     assert 'class="trace-export-stepper"' in source
     assert "技術資訊" in source
 

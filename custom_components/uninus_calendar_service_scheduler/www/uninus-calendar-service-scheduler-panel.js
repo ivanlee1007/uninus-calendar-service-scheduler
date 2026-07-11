@@ -764,7 +764,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .hierarchy-level > b { display: block; margin-bottom: 7px; }
       .trace-issue-inbox { display: grid; gap: 10px; margin-top: 14px; }
       .trace-issue-card { border: 1px solid var(--trace-border); border-inline-start: 4px solid var(--trace-border); border-radius: 9px; padding: 12px; }
-      .trace-issue-card.warning { border-inline-start-color: var(--warning-color, #fb8c00); }
+      .trace-issue-card.warning { color: var(--primary-text-color); border-inline-start-color: var(--warning-color, #fb8c00); }
+      .trace-issue-card.warning li, .trace-issue-card.warning code { color: var(--primary-text-color); }
       .trace-issue-card.danger { border-inline-start-color: var(--error-color, #c62828); }
       .trace-issue-card.resolved { opacity: .78; border-inline-start-color: var(--success-color, #2e7d32); }
       .issue-heading { display: flex; align-items: center; gap: 8px; }
