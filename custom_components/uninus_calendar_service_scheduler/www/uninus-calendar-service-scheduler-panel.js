@@ -162,6 +162,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       evidenceOperationFilter: "",
       evidencePage: 0,
       evidencePageSize: "50",
+      evidenceView: "list",
       operationId: "",
       evidenceType: "sensor_snapshot",
       title: "",
@@ -667,20 +668,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .dialog { display: ${this._dialogOpen ? "block" : "none"}; }
       .calendar-create-dialog { display: ${this._calendarCreateDialogOpen ? "block" : "none"}; width: min(580px, calc(100vw - 32px)); }
       .agri-dialog { display: ${this._agriDialogOpen ? "block" : "none"}; width: min(980px, calc(100vw - 32px)); }
-      .traceability-workbench { display: ${this._traceabilityWorkbenchOpen ? "block" : "none"}; width: min(1100px, calc(100vw - 32px)); }
-      .dialog header, .calendar-create-dialog header, .agri-dialog header header, .traceability-workbench header { padding: 24px 24px 8px; font-size: 22px; font-weight: 500; }
-      .dialog .content, .calendar-create-dialog .content, .agri-dialog .content .content, .traceability-workbench .content { padding: 0 24px 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+      .dialog header, .calendar-create-dialog header, .agri-dialog header { padding: 24px 24px 8px; font-size: 22px; font-weight: 500; }
+      .dialog .content, .calendar-create-dialog .content, .agri-dialog .content { padding: 0 24px 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
       .agri-dialog .content { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-      .management-section { border: 1px solid var(--divider-color); border-radius: 16px; padding: 14px; background: var(--card-background-color); }
-      .management-section h3 { margin: 0 0 10px; font-size: 16px; }
-      .management-section .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-      .management-section .row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-      .management-search-action { display: flex; align-items: flex-end; margin-bottom: 14px; }
-      .management-search-action button { height: 40px; min-width: 64px; padding: 10px 16px; }
-      .safe-delete-note { margin-top: 6px; }
-      .management-section .archive { background: var(--warning-color, #fb8c00); color: white; }
-      .management-list { max-height: 150px; overflow: auto; border: 1px solid var(--divider-color); border-radius: 12px; padding: 8px; background: var(--secondary-background-color); }
-      .management-list button { display: block; width: 100%; text-align: start; margin: 4px 0; border-radius: 10px; }
       .delete-confirm, .edit-confirm { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(360px, calc(100vw - 48px)); z-index: 12; border-radius: 20px; background: var(--card-background-color); color: var(--primary-text-color); box-shadow: 0 18px 34px rgba(0,0,0,.28); padding: 20px 16px 16px; }
       .delete-confirm { display: ${this._deleteConfirmOpen ? "block" : "none"}; }
       .edit-confirm { display: ${this._editConfirmOpen ? "block" : "none"}; }
@@ -691,26 +681,104 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .delete-actions button { border-radius: 22px; }
       .delete-actions .text { background: transparent; color: var(--primary-color); padding-inline: 8px; }
       .delete-actions .danger { background: var(--error-color, #dc3545); color: var(--text-primary-color, #fff); }
+      .traceability-workbench { display: ${this._traceabilityWorkbenchOpen ? "grid" : "none"}; grid-template-rows: auto auto minmax(0, 1fr) auto; inset: 16px; left: 16px; top: 16px; transform: none; width: auto; max-height: none; overflow: hidden; border-radius: 16px; --trace-primary: var(--primary-color, #2e6b4f); --trace-surface: var(--card-background-color, #fff); --trace-subtle: var(--secondary-background-color, #f6f8f7); --trace-border: var(--divider-color, #dfe5e1); }
+      .workbench-header { padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--trace-border); }
+      .workbench-header h2 { margin: 2px 0 0; font-size: 22px; font-weight: 650; letter-spacing: -.02em; }
+      .context-eyebrow { display: block; color: var(--secondary-text-color); font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+      .icon-action { width: 38px; height: 38px; padding: 0; border-radius: 9px; font-size: 24px; background: transparent; }
+      .workbench-context-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(220px, 300px); gap: 18px; align-items: center; padding: 12px 22px; border-bottom: 1px solid var(--trace-border); background: color-mix(in srgb, var(--trace-primary) 5%, var(--trace-surface)); }
+      .workbench-context-main { min-width: 0; }
+      .workbench-context-main b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+      .context-meta { display: block; margin-top: 3px; color: var(--secondary-text-color); font: 12px var(--code-font-family, monospace); }
+      .workbench-context-status { display: flex; gap: 6px; align-items: center; }
+      .context-cycle-picker { margin: 0; }
+      .workbench-shell { min-height: 0; display: grid; grid-template-columns: 210px minmax(0, 1fr); }
+      .workbench-sidebar { min-height: 0; overflow: auto; padding: 14px 10px; border-inline-end: 1px solid var(--trace-border); background: var(--trace-subtle); }
+      .workbench-nav-group { display: grid; gap: 3px; margin-bottom: 16px; }
+      .workbench-nav-group > span { padding: 3px 10px; color: var(--secondary-text-color); font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+      .workbench-nav-group button { width: 100%; padding: 9px 10px; border-radius: 8px; text-align: start; background: transparent; }
+      .workbench-nav-group button.active { background: color-mix(in srgb, var(--trace-primary) 14%, transparent); color: var(--trace-primary); box-shadow: inset 3px 0 0 var(--trace-primary); }
+      .workbench-main { min-width: 0; min-height: 0; overflow: auto; background: var(--trace-surface); }
+      .workbench-main > .content { padding: 20px 22px 28px; display: block; }
+      .workbench-footer { padding: 8px 18px; border-top: 1px solid var(--trace-border); color: var(--secondary-text-color); font-size: 11px; justify-content: space-between; }
+      .trace-status-chip { display: inline-flex; align-items: center; min-height: 22px; padding: 2px 8px; border-radius: 999px; background: var(--trace-subtle); color: var(--secondary-text-color); font-size: 11px; font-weight: 650; white-space: nowrap; }
+      .trace-status-chip.active { color: #246044; background: rgba(46,107,79,.12); }
+      .trace-status-chip.success { color: var(--success-color, #2e7d32); background: color-mix(in srgb, var(--success-color, #2e7d32) 12%, transparent); }
+      .trace-status-chip.warning { color: #8a5700; background: rgba(251,140,0,.14); }
+      .trace-status-chip.danger { color: var(--error-color, #c62828); background: color-mix(in srgb, var(--error-color, #c62828) 12%, transparent); }
+      .management-section { border: 1px solid var(--trace-border); border-radius: 12px; padding: 16px; background: var(--trace-surface); box-shadow: 0 1px 2px rgba(15, 48, 32, .04); }
+      .management-section h3 { margin: 0 0 12px; font-size: 16px; }
+      .management-section .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .management-section .row-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+      .management-search-action { display: flex; align-items: flex-end; margin-bottom: 14px; }
+      .management-search-action button { height: 40px; min-width: 64px; padding: 10px 16px; }
+      .safe-delete-note { margin-top: 6px; }
+      .management-section .archive { background: transparent; border: 1px solid var(--warning-color, #fb8c00); color: var(--warning-color, #a65d00); }
+      .management-list { max-height: 240px; overflow: auto; border: 1px solid var(--trace-border); border-radius: 10px; padding: 6px; background: var(--trace-subtle); }
+      .management-list button { display: block; width: 100%; text-align: start; margin: 2px 0; border-radius: 7px; }
+      .trace-sticky-actions { position: sticky; bottom: 0; z-index: 2; display: flex; justify-content: flex-end; gap: 8px; padding: 12px 0 2px; background: linear-gradient(transparent, var(--trace-surface) 25%); }
+      .trace-tech-details { margin-top: 12px; border-top: 1px solid var(--trace-border); padding-top: 10px; }
+      .trace-tech-details summary { cursor: pointer; color: var(--secondary-text-color); font-size: 12px; font-weight: 650; }
       .fullrow { grid-column: 1 / -1; }
       .checkbox { flex-direction: row; align-items: center; gap: 10px; }
       .checkbox input { width: auto; }
-      .workbench-tabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 24px 16px; border-bottom: 1px solid var(--divider-color); }
-      .workbench-tabs button.active { background: var(--primary-color); color: var(--text-primary-color, white); }
-      .workbench-section { grid-column: 1 / -1; display: grid; gap: 14px; }
+      .workbench-section { display: grid; gap: 14px; }
       .workbench-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
       .workbench-overview-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1.6fr); gap: 14px; align-items: start; }
       .workbench-overview-grid > div { min-width: 0; }
-      .workbench-overview-left, .workbench-overview-middle, .workbench-overview-right { border: 1px solid var(--divider-color); border-radius: 12px; padding: 10px; }
+      .workbench-overview-left, .workbench-overview-middle, .workbench-overview-right { border: 1px solid var(--trace-border); border-radius: 10px; padding: 12px; }
       .workbench-overview-middle { min-height: 248px; margin-top: 0; }
       .traceability-card .scope-row { margin: 10px 0; }
-      .traceability-status { padding: 8px 10px; border-radius: 12px; background: var(--secondary-background-color); margin: 8px 0; }
-      .traceability-status.compact { width: 100%; text-align: start; border-radius: 12px; padding: 9px 10px; margin: 8px 0 10px; background: var(--secondary-background-color); color: var(--primary-text-color); }
+      .traceability-status { padding: 8px 10px; border-radius: 10px; background: var(--secondary-background-color); margin: 8px 0; }
+      .traceability-status.compact { width: 100%; text-align: start; border-radius: 10px; padding: 9px 10px; margin: 8px 0 10px; background: var(--secondary-background-color); color: var(--primary-text-color); }
       .overview-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
-      .overview-summary .stat { border-radius: 12px; background: var(--secondary-background-color); padding: 10px; font-size: 12px; }
-      .overview-summary .stat b { display: block; font-size: 20px; }
+      .overview-summary .stat { border-radius: 10px; background: var(--trace-subtle); padding: 11px; font-size: 12px; border: 1px solid var(--trace-border); }
+      .overview-summary .stat b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
       .actions { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 24px 24px; }
-      @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .side { border-inline-end: 0; border-block-end: 1px solid var(--divider-color); } .day { min-height: 88px; } .agri-dialog .content { grid-template-columns: repeat(2, minmax(0, 1fr)); } .management-section .fields { grid-template-columns: 1fr; } }
-      @media (max-width: 640px) { .dialog .content, .agri-dialog .content .content, .traceability-workbench .content, .workbench-grid, .workbench-overview-grid { grid-template-columns: 1fr; } .weekday { font-size: 11px; padding: 8px 4px; text-align: center; } .day { min-height: 74px; padding: 4px; } .pill { font-size: 10px; padding: 2px 4px; } }
+      .workbench-page-heading { display: flex; justify-content: space-between; align-items: end; }
+      .workbench-page-heading h3 { margin: 2px 0 3px; font-size: 20px; }
+      .workbench-page-heading p { margin: 0; color: var(--secondary-text-color); font-size: 13px; }
+      .trace-operations-master-detail { display: grid; grid-template-columns: minmax(520px, 1.35fr) minmax(360px, .85fr); gap: 14px; align-items: start; }
+      .trace-master-panel, .trace-detail-panel { min-width: 0; }
+      .trace-detail-panel { position: sticky; top: 0; }
+      .detail-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+      .detail-heading h3 { margin: 2px 0 0; }
+      .trace-operation-table { border: 1px solid var(--trace-border); border-radius: 10px; overflow: hidden; margin-top: 12px; }
+      .trace-table-head, .trace-select-operation { display: grid; grid-template-columns: minmax(150px, 1.1fr) minmax(140px, 1fr) 100px minmax(160px, 1fr); gap: 10px; align-items: center; }
+      .trace-table-head { padding: 8px 11px; background: var(--trace-subtle); color: var(--secondary-text-color); font-size: 11px; font-weight: 700; }
+      .trace-select-operation { width: 100%; padding: 10px 11px; border-radius: 0; border-top: 1px solid var(--trace-border); background: var(--trace-surface); text-align: start; font-weight: 400; }
+      .trace-select-operation:hover { background: color-mix(in srgb, var(--trace-primary) 5%, var(--trace-surface)); }
+      .trace-select-operation small { display: block; margin-top: 2px; color: var(--secondary-text-color); font-size: 11px; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .trace-row-signals { display: flex; flex-wrap: wrap; gap: 4px; }
+      .view-toggle { display: inline-flex; padding: 3px; border-radius: 9px; background: var(--trace-subtle); }
+      .view-toggle button { padding: 7px 11px; border-radius: 7px; background: transparent; }
+      .view-toggle button.active { background: var(--trace-surface); color: var(--trace-primary); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+      .evidence-list button small { display: block; margin: 3px 0 7px; color: var(--secondary-text-color); font-weight: 400; }
+      .evidence-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; max-height: 520px; padding: 10px; }
+      .evidence-gallery button { display: grid; grid-template-rows: 120px auto; gap: 8px; margin: 0; padding: 8px; background: var(--trace-surface); border: 1px solid var(--trace-border); }
+      .evidence-thumb { display: grid; place-items: center; overflow: hidden; border-radius: 7px; background: var(--trace-subtle); color: var(--secondary-text-color); }
+      .evidence-thumb img { width: 100%; height: 100%; object-fit: cover; }
+      .trace-master-hierarchy { position: relative; margin-top: 12px; }
+      .hierarchy-level { position: relative; padding: 10px 10px 10px 36px; border: 1px solid var(--trace-border); border-radius: 10px; background: var(--trace-subtle); }
+      .hierarchy-step { position: absolute; left: 10px; top: 10px; color: var(--trace-primary); font: 700 11px var(--code-font-family, monospace); }
+      .hierarchy-level > b { display: block; margin-bottom: 7px; }
+      .trace-issue-inbox { display: grid; gap: 10px; margin-top: 14px; }
+      .trace-issue-card { border: 1px solid var(--trace-border); border-inline-start: 4px solid var(--trace-border); border-radius: 9px; padding: 12px; }
+      .trace-issue-card.warning { border-inline-start-color: var(--warning-color, #fb8c00); }
+      .trace-issue-card.danger { border-inline-start-color: var(--error-color, #c62828); }
+      .trace-issue-card.resolved { opacity: .78; border-inline-start-color: var(--success-color, #2e7d32); }
+      .issue-heading { display: flex; align-items: center; gap: 8px; }
+      .trace-issue-card ul { margin: 8px 0; padding-inline-start: 20px; }
+      .trace-export-stepper { display: grid; gap: 0; max-width: 760px; }
+      .export-step { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 12px; position: relative; padding: 0 0 22px; }
+      .export-step::before { content: ""; position: absolute; left: 18px; top: 34px; bottom: 0; width: 1px; background: var(--trace-border); }
+      .export-step:last-child::before { display: none; }
+      .export-step > span { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: color-mix(in srgb, var(--trace-primary) 14%, var(--trace-surface)); color: var(--trace-primary); font: 700 11px var(--code-font-family, monospace); }
+      .export-step > div { border: 1px solid var(--trace-border); border-radius: 10px; padding: 14px; }
+      .export-step label { margin-top: 10px; }
+      @media (max-width: 1040px) { .trace-operations-master-detail { grid-template-columns: 1fr; } .trace-detail-panel { position: static; } .workbench-context-bar { grid-template-columns: minmax(0, 1fr) auto; } .context-cycle-picker { grid-column: 1 / -1; } }
+      @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .side { border-inline-end: 0; border-block-end: 1px solid var(--divider-color); } .day { min-height: 88px; } .agri-dialog .content { grid-template-columns: repeat(2, minmax(0, 1fr)); } .management-section .fields { grid-template-columns: 1fr; } .workbench-shell { grid-template-columns: 150px minmax(0, 1fr); } .trace-table-head { display: none; } .trace-select-operation { grid-template-columns: 1fr 1fr; } }
+      @media (max-width: 640px) { .traceability-workbench { inset: 0; left: 0; top: 0; border-radius: 0; } .workbench-header { padding: 12px 14px; } .workbench-context-bar { padding: 10px 14px; grid-template-columns: 1fr; } .workbench-context-status { grid-row: 2; } .context-cycle-picker { grid-column: auto; } .workbench-shell { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } .workbench-sidebar { display: flex; gap: 4px; overflow-x: auto; border-inline-end: 0; border-bottom: 1px solid var(--trace-border); padding: 6px; } .workbench-nav-group { display: contents; } .workbench-nav-group > span { display: none; } .workbench-nav-group button { width: auto; white-space: nowrap; } .workbench-main > .content { padding: 14px; } .dialog .content, .agri-dialog .content, .workbench-grid, .workbench-overview-grid { grid-template-columns: 1fr; } .weekday { font-size: 11px; padding: 8px 4px; text-align: center; } .day { min-height: 74px; padding: 4px; } .pill { font-size: 10px; padding: 2px 4px; } .trace-select-operation { grid-template-columns: 1fr; } .workbench-footer { display: none; } }
     `;
   }
 
@@ -812,22 +880,49 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._render();
   }
 
+  _traceStatusChip(label, tone = "neutral", title = "") {
+    return `<span class="trace-status-chip ${this._escape(tone)}" ${title ? `title="${this._escape(title)}"` : ""}>${this._escape(label)}</span>`;
+  }
+
+  _workbenchContextTemplate() {
+    const records = this._traceabilityRecords();
+    const cycleId = this._selectedExportCycleId || "";
+    const cycle = records.cycles?.[cycleId] || {};
+    const plot = records.plots?.[cycle.plot_id] || {};
+    const farm = records.farms?.[plot.farm_id] || {};
+    const integrity = this._traceabilityIntegrity(cycleId);
+    const scope = cycleId
+      ? `${farm.name || "未指定農場"} 〉 ${plot.name || "未指定場區"} 〉 ${cycle.product || "生產週期"}${cycle.variety ? `・${cycle.variety}` : ""}`
+      : "全部農場與生產週期";
+    return `<div class="workbench-context-bar">
+      <div class="workbench-context-main"><span class="context-eyebrow">目前履歷範圍</span><b>${this._escape(scope)}</b><span class="context-meta">${this._escape(cycle.lot_number || "全部批號")} · ${this._escape(cycle.trace_code || "跨週期檢視")}</span></div>
+      <div class="workbench-context-status">${this._traceStatusChip(cycle.status || (cycleId ? "active" : "全部"), cycle.status === "archived" ? "neutral" : "active")}${this._traceStatusChip(integrity.ok ? "可匯出" : `${integrity.warning_count} 項待處理`, integrity.ok ? "success" : "warning")}</div>
+      <label class="context-cycle-picker">切換生產週期<select id="trace-workbench-cycle-context">${this._workbenchCycleOptions(cycleId)}</select></label>
+    </div>`;
+  }
+
+  _workbenchCycleOptions(selectedCycleId = "") {
+    const cycles = Object.values(this._traceabilityRecords().cycles || {});
+    return [`<option value="">全部生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === selectedCycleId ? "selected" : ""}>${this._escape(cycle.product || "週期")} · ${this._escape(cycle.lot_number || cycle.trace_code || cycle.cycle_id)}</option>`)).join("");
+  }
+
   _traceabilityWorkbenchTemplate() {
     const tab = this._traceabilityWorkbenchTab || "overview";
     const tabButton = (id, label) => `<button id="workbench-tab-${id}" class="${tab === id ? "active" : ""}">${label}</button>`;
     return `
       <section class="traceability-workbench" role="dialog" aria-modal="true" aria-label="產銷履歷工作台">
-        <header>產銷履歷工作台</header>
-        <nav class="workbench-tabs">
-          ${tabButton("overview", "總覽")}
-          ${tabButton("master-data", "資料管理")}
-          ${tabButton("operations", "作業管理")}
-          ${tabButton("evidence", "佐證")}
-          ${tabButton("consistency", "一致性掃描")}
-          ${tabButton("export", "匯出")}
-        </nav>
-        <div class="content">${this._traceabilityWorkbenchContent(tab)}</div>
-        <div class="actions"><button id="traceability-workbench-close">關閉</button></div>
+        <header class="workbench-header"><div><span class="context-eyebrow">UNINUS TRACEABILITY</span><h2>產銷履歷工作台</h2></div><button id="traceability-workbench-close-top" class="icon-action" aria-label="關閉工作台">×</button></header>
+        ${this._workbenchContextTemplate()}
+        <div class="workbench-shell">
+          <nav class="workbench-sidebar" aria-label="工作台導覽">
+            <div class="workbench-nav-group"><span>履歷總覽</span>${tabButton("overview", "總覽")}</div>
+            <div class="workbench-nav-group"><span>生產紀錄</span>${tabButton("operations", "農務作業")}${tabButton("evidence", "佐證資料")}</div>
+            <div class="workbench-nav-group"><span>基礎資料</span>${tabButton("master-data", "農場、場區與週期")}</div>
+            <div class="workbench-nav-group"><span>資料治理</span>${tabButton("consistency", "一致性檢查")}${tabButton("export", "匯出與封存")}</div>
+          </nav>
+          <main class="workbench-main"><div class="content">${this._traceabilityWorkbenchContent(tab)}</div></main>
+        </div>
+        <div class="actions workbench-footer"><span>產銷履歷資料治理</span><button id="traceability-workbench-close">關閉</button></div>
       </section>
     `;
   }
@@ -849,7 +944,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       const cycles = Object.values(this._traceabilityRecords().cycles || {});
       const selectedCycleId = this._selectedExportCycleId || "";
       const cycleOptions = [`<option value="">全部生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === selectedCycleId ? "selected" : ""}>${this._escape(cycle.product || "週期")} ${this._escape(cycle.lot_number || cycle.trace_code || cycle.cycle_id)}</option>`)).join("");
-      return `<section class="workbench-section"><h3>匯出</h3><label>匯出範圍<select id="trace_export_cycle_workbench">${cycleOptions}</select></label>${this._integrityTemplate(this._traceabilityIntegrity(selectedCycleId))}<div class="mini-actions"><button class="primary" id="agri-download-json">下載 JSON Package</button><button id="agri-download-csv">下載 CSV</button><button id="agri-export">預覽 JSON</button></div></section>`;
+      return `<section class="workbench-section"><div class="workbench-page-heading"><div><span class="context-eyebrow">DELIVERY</span><h3>匯出與封存</h3><p>建立可稽核、可交付的產銷履歷 Package。</p></div></div><div class="trace-export-stepper"><section class="export-step"><span>01</span><div><b>選擇履歷範圍</b><label>生產週期<select id="trace_export_cycle_workbench">${cycleOptions}</select></label></div></section><section class="export-step"><span>02</span><div><b>資料完整性檢查</b>${this._integrityTemplate(this._traceabilityIntegrity(selectedCycleId))}</div></section><section class="export-step"><span>03</span><div><b>建立履歷 Package</b><p class="system-note">Package 包含 traceability JSON、農務作業 CSV 與佐證 manifest。</p><div class="mini-actions"><button class="primary" id="agri-download-json">下載履歷 Package</button><button id="agri-download-csv">下載 CSV</button><button id="agri-export">預覽 JSON</button></div></div></section></div></section>`;
     }
     const operations = this._traceabilitySummary().recent_operations || [];
     const summary = this._traceabilitySummary();
@@ -959,8 +1054,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const typeOptions = ["播種/定植", "灌溉", "施肥", "病蟲害防治", "除草", "採收", "分級包裝", "清潔消毒", "自我查核", "異常事件"].map((item) => `<option value="${this._escape(item)}" ${item === f.operationType ? "selected" : ""}>${this._escape(item)}</option>`).join("");
     return `
       <section class="workbench-section trace-operations-inline" aria-label="農務作業管理">
-        <section class="management-section fullrow">
-          <h3>農務作業管理</h3>
+        <div class="workbench-page-heading"><div><span class="context-eyebrow">PRODUCTION RECORDS</span><h3>農務作業</h3><p>依生產週期管理作業、佐證與 Calendar 關聯。</p></div></div>
+        <div class="trace-operations-master-detail">
+        <section class="management-section trace-master-panel">
           <div class="message fullrow ${this._message.includes("作業") && this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
           <div class="fields">
             <label>搜尋<input id="trace-operation-search" value="${this._escape(f.operationSearch || "")}" placeholder="作業、操作者、資材、批號、Calendar UID" /></label><div class="management-search-action"><button id="trace-operation-apply-search">搜尋</button></div>
@@ -971,15 +1067,16 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <div class="fullrow system-note">找到 ${operations.length} 筆農務作業，顯示第 ${operations.length ? paged.start + 1 : 0}–${paged.end} 筆。${operations.length > paged.pageSize ? "結果較多，請縮小搜尋、日期範圍或生產週期。" : ""}</div>
             <div class="fullrow mini-actions"><button id="trace-operation-prev-page" ${paged.page <= 0 ? "disabled" : ""}>上一頁</button><button id="trace-operation-next-page" ${paged.page >= paged.maxPage ? "disabled" : ""}>下一頁</button></div>
           </div>
-          <div class="management-list operation-list fullrow">${visibleOperations.length ? visibleOperations.map((operation) => {
+          <div class="trace-operation-table fullrow" role="table" aria-label="農務作業清單"><div class="trace-table-head" role="row"><span>日期 / 類型</span><span>週期 / 批號</span><span>狀態</span><span>資料完整性</span></div>${visibleOperations.length ? visibleOperations.map((operation) => {
             const cycle = records.cycles?.[operation.cycle_id] || {};
             const evidenceCount = this._operationEvidenceCount(operation.operation_id, evidenceCounts);
             const calendarLinked = operation.calendar_entity && operation.calendar_event_uid;
-            return `<button class="trace-select-operation" data-id="${this._escape(operation.operation_id)}"><b>${this._escape(operation.operation_type || "農務作業")}</b> ${this._escape(cycle.product || "")} ${this._escape(cycle.lot_number || "")} <span class="system-note">${this._escape(operation.status || "planned")}</span><span class="system-note">佐證 ${evidenceCount}</span><span class="system-note">Calendar ${calendarLinked ? "已連結" : "未連結"}</span></button>`;
+            const statusTone = ["completed", "verified", "exported"].includes(operation.status) ? "success" : operation.status === "skipped" ? "neutral" : "active";
+            return `<button class="trace-select-operation" data-id="${this._escape(operation.operation_id)}" role="row"><span><b>${this._escape(operation.operation_type || "農務作業")}</b><small>${this._escape(operation.actual_start || operation.scheduled_start || "未指定時間")}</small></span><span>${this._escape(cycle.product || "未指定產品")}<small>${this._escape(cycle.lot_number || cycle.trace_code || "未指定批號")}</small></span><span>${this._traceStatusChip(operation.status || "planned", statusTone)}</span><span class="trace-row-signals">${this._traceStatusChip(`佐證 ${evidenceCount}`, evidenceCount ? "success" : "warning")}${this._traceStatusChip(calendarLinked ? "Calendar ✓" : "未連結", calendarLinked ? "active" : "warning")}</span></button>`;
           }).join("") : `<p class="message">尚無符合條件的農務作業</p>`}</div>
         </section>
-        <section class="management-section fullrow">
-          <h3>${f.selectedOperationId ? "編輯農務作業" : "請先從清單選擇農務作業"}</h3>
+        <section class="management-section trace-detail-panel">
+          <div class="detail-heading"><div><span class="context-eyebrow">OPERATION DETAIL</span><h3>${f.selectedOperationId ? "作業詳細資料" : "選擇一筆農務作業"}</h3></div>${f.selectedOperationId ? this._traceStatusChip(f.status || "planned", ["completed", "verified", "exported"].includes(f.status) ? "success" : "active") : ""}</div>
           <div class="fields">
             <label>生產週期<select id="trace_operation_cycle">${editCycleOptions}</select></label>
             <label>作業類型<select id="trace_operation_type">${typeOptions}</select></label>
@@ -988,13 +1085,12 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <label>資材/水源<input id="trace_operation_material" value="${this._escape(f.materialName)}" /></label>
             <div class="inline-field"><label>數量<input id="trace_operation_quantity" value="${this._escape(f.quantity)}" /></label><label>單位<input id="trace_operation_unit" value="${this._escape(f.unit)}" /></label></div>
             <label>狀態<select id="trace_operation_status">${this._operationStatusOptions(f.status || "planned")}</select></label>
-            <label>Calendar entity<input id="trace_operation_calendar_entity" value="${this._escape(f.calendarEntity)}" /></label>
-            <label class="fullrow">Calendar event UID<input id="trace_operation_calendar_uid" value="${this._escape(f.calendarEventUid)}" /></label>
-            <label class="fullrow">感測器 entity_id（逗號分隔）<textarea id="trace_operation_sensor_entities">${this._escape(f.sensorEntities)}</textarea></label>
             <label class="fullrow">備註<textarea id="trace_operation_notes">${this._escape(f.notes)}</textarea></label>
+            <details class="trace-tech-details fullrow"><summary>技術資訊</summary><div class="fields"><label>Calendar entity<input id="trace_operation_calendar_entity" value="${this._escape(f.calendarEntity)}" /></label><label>Calendar event UID<input id="trace_operation_calendar_uid" value="${this._escape(f.calendarEventUid)}" /></label><label class="fullrow">感測器 entity_id（逗號分隔）<textarea id="trace_operation_sensor_entities">${this._escape(f.sensorEntities)}</textarea></label><p class="system-note fullrow">Operation ID：<code>${this._escape(f.selectedOperationId || "尚未選擇")}</code></p></div></details>
           </div>
-          <div class="row-actions"><button class="primary" id="trace-operation-save" ${f.selectedOperationId ? "" : "disabled"}>儲存作業</button><button class="archive" id="trace-operation-archive" ${f.selectedOperationId ? "" : "disabled"}>封存作業</button></div>
+          <div class="trace-sticky-actions"><button class="archive" id="trace-operation-archive" ${f.selectedOperationId ? "" : "disabled"}>封存作業</button><button class="primary" id="trace-operation-save" ${f.selectedOperationId ? "" : "disabled"}>儲存作業</button></div>
         </section>
+        </div>
       </section>
     `;
   }
@@ -1093,13 +1189,13 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <h3>一致性掃描</h3>
           <p class="system-note">掃描 Calendar event、stored AgriOperation、生產週期與佐證之間的關聯。發現問題時先列出可修復項目，避免黑盒 blocker。</p>
           <div class="overview-summary fullrow" aria-label="一致性摘要"><div class="stat"><b>${totalIssues}</b>問題</div><div class="stat"><b>${report.orphanOperations.length}</b>missing Calendar linkage</div><div class="stat"><b>${report.orphanEvidence.length}</b>orphan 佐證</div><div class="stat"><b>${report.staleCycleOperations.length}</b>stale cycle</div></div>
-          <div class="fields">
-            <div class="fullrow"><b>Stored operation 指向不存在的 Calendar event</b>${list(report.orphanOperations, (op) => `<code>${this._escape(op.operation_id)}</code> ${this._escape(op.operation_type || "")} / ${this._escape(op.calendar_event_uid || "")}`)}<button id="trace-repair-missing-calendar-linkage" ${report.orphanOperations.length ? "" : "disabled"}>清除 missing Calendar linkage</button></div>
-            <div class="fullrow"><b>Calendar event 找不到 stored operation</b>${list(report.calendarEventsWithoutStoredOperation, (row) => `<code>${this._escape(row.operation_id || "")}</code> ${this._escape(row.summary || row.uid || "")}`)}</div>
-            <div class="fullrow"><b>重複 operation_id 的 Calendar events</b>${list(report.duplicateOperationIds, (id) => `<code>${this._escape(id)}</code>`)}</div>
-            <div class="fullrow"><b>作業指向不存在的生產週期</b>${list(report.staleCycleOperations, (op) => `<code>${this._escape(op.operation_id)}</code> cycle=${this._escape(op.cycle_id || "")}`)}</div>
-            <div class="fullrow"><b>佐證指向不存在的農務作業</b>${list(report.orphanEvidence, (item) => `<code>${this._escape(item.evidence_id)}</code> operation=${this._escape(item.operation_id || "")}`)}<button id="trace-delete-orphan-evidence" ${report.orphanEvidence.length ? "" : "disabled"}>刪除 orphan 佐證</button></div>
-            <div class="message fullrow ${this._message.includes("一致性") && this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
+          <div class="trace-issue-inbox">
+            <div class="trace-issue-card ${report.orphanOperations.length ? "warning" : "resolved"}"><div class="issue-heading">${this._traceStatusChip(report.orphanOperations.length ? "警告" : "正常", report.orphanOperations.length ? "warning" : "success")}<b>Calendar 關聯失效</b></div>${list(report.orphanOperations, (op) => `<code>${this._escape(op.operation_id)}</code> ${this._escape(op.operation_type || "")} / ${this._escape(op.calendar_event_uid || "")}`)}<button id="trace-repair-missing-calendar-linkage" ${report.orphanOperations.length ? "" : "disabled"}>保留作業並解除失效連結</button></div>
+            <div class="trace-issue-card ${report.calendarEventsWithoutStoredOperation.length ? "danger" : "resolved"}"><div class="issue-heading">${this._traceStatusChip(report.calendarEventsWithoutStoredOperation.length ? "嚴重" : "正常", report.calendarEventsWithoutStoredOperation.length ? "danger" : "success")}<b>Calendar event 缺少履歷作業</b></div>${list(report.calendarEventsWithoutStoredOperation, (row) => `<code>${this._escape(row.operation_id || "")}</code> ${this._escape(row.summary || row.uid || "")}`)}</div>
+            <div class="trace-issue-card ${report.duplicateOperationIds.length ? "danger" : "resolved"}"><div class="issue-heading">${this._traceStatusChip(report.duplicateOperationIds.length ? "嚴重" : "正常", report.duplicateOperationIds.length ? "danger" : "success")}<b>重複 operation_id</b></div>${list(report.duplicateOperationIds, (id) => `<code>${this._escape(id)}</code>`)}</div>
+            <div class="trace-issue-card ${report.staleCycleOperations.length ? "danger" : "resolved"}"><div class="issue-heading">${this._traceStatusChip(report.staleCycleOperations.length ? "嚴重" : "正常", report.staleCycleOperations.length ? "danger" : "success")}<b>作業指向不存在的生產週期</b></div>${list(report.staleCycleOperations, (op) => `<code>${this._escape(op.operation_id)}</code> cycle=${this._escape(op.cycle_id || "")}`)}</div>
+            <div class="trace-issue-card ${report.orphanEvidence.length ? "warning" : "resolved"}"><div class="issue-heading">${this._traceStatusChip(report.orphanEvidence.length ? "警告" : "正常", report.orphanEvidence.length ? "warning" : "success")}<b>孤立佐證</b></div>${list(report.orphanEvidence, (item) => `<code>${this._escape(item.evidence_id)}</code> operation=${this._escape(item.operation_id || "")}`)}<button id="trace-delete-orphan-evidence" ${report.orphanEvidence.length ? "" : "disabled"}>刪除孤立佐證</button></div>
+            <div class="message ${this._message.includes("一致性") && this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
           </div>
         </section>
       </section>
@@ -1154,6 +1250,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const preview = f.content ? this._escape(String(f.content).slice(0, 2000)) : "";
     return `
       <section class="workbench-section trace-evidence-inline" aria-label="佐證資料">
+        <div class="workbench-page-heading"><div><span class="context-eyebrow">EVIDENCE</span><h3>佐證中心</h3><p>管理照片、感測器快照、文件與外部佐證。</p></div><div class="view-toggle"><button id="trace-evidence-view-list" class="${f.evidenceView !== "gallery" ? "active" : ""}">列表</button><button id="trace-evidence-view-gallery" class="${f.evidenceView === "gallery" ? "active" : ""}">圖庫</button></div></div>
         <section class="management-section fullrow">
           <h3>佐證資料管理</h3>
           <div class="fields">
@@ -1163,7 +1260,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <div class="fullrow system-note">找到 ${evidenceRows.length} 筆佐證，顯示第 ${evidenceRows.length ? pagedEvidence.start + 1 : 0}–${pagedEvidence.end} 筆。${evidenceRows.length > pagedEvidence.pageSize ? "結果較多，請縮小搜尋或農務作業篩選。" : ""}</div>
             <div class="fullrow mini-actions"><button id="trace-evidence-prev-page" ${pagedEvidence.page <= 0 ? "disabled" : ""}>上一頁</button><button id="trace-evidence-next-page" ${pagedEvidence.page >= pagedEvidence.maxPage ? "disabled" : ""}>下一頁</button></div>
           </div>
-          <div class="management-list evidence-list fullrow">${visibleEvidence.length ? visibleEvidence.map((evidence) => `<button class="trace-select-evidence" data-id="${this._escape(evidence.evidence_id)}"><b>${this._escape(evidence.evidence_type || "evidence")}</b> ${this._escape(evidence.title || evidence.evidence_id)} <span class="system-note">${this._escape(evidence.source_entity || evidence.uri || "無來源")}</span><span class="system-note">hash ${this._escape(String(evidence.content_hash || "").slice(0, 12))}</span></button>`).join("") : `<p class="message">尚無符合條件的佐證資料</p>`}</div>
+          <div class="management-list evidence-list fullrow ${f.evidenceView === "gallery" ? "evidence-gallery" : "evidence-table"}">${visibleEvidence.length ? visibleEvidence.map((evidence) => `<button class="trace-select-evidence" data-id="${this._escape(evidence.evidence_id)}">${f.evidenceView === "gallery" ? `<span class="evidence-thumb">${evidence.evidence_type === "photo" && evidence.uri ? `<img src="${this._escape(evidence.uri)}" alt="" loading="lazy" />` : `<b>${this._escape(evidence.evidence_type || "evidence")}</b>`}</span>` : ""}<span><b>${this._escape(evidence.title || evidence.evidence_id)}</b><small>${this._escape(evidence.source_entity || evidence.uri || "無來源")}</small><span class="trace-row-signals">${this._traceStatusChip(evidence.evidence_type || "evidence", "active")}${this._traceStatusChip(evidence.content_hash ? "Hash ✓" : "未驗證", evidence.content_hash ? "success" : "warning")}</span></span></button>`).join("") : `<p class="message">尚無符合條件的佐證資料</p>`}</div>
         </section>
         <section class="management-section fullrow">
           ${f.selectedEvidenceId ? '<h3>編輯佐證資料</h3>' : '<h3>新增佐證資料</h3>'}
@@ -1319,6 +1416,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const categoryOptions = ["農糧", "水果類", "蔬菜類", "水稻", "雜糧類", "畜禽", "水產", "分裝流通", "林產品"].map((item) => `<option value="${this._escape(item)}" ${item === f.plotTgapCategory ? "selected" : ""}>${this._escape(item)}</option>`).join("");
     return `
       <section class="workbench-section trace-management-inline" aria-label="農場 / 場區 / 生產週期管理">
+        <div class="workbench-page-heading"><div><span class="context-eyebrow">MASTER DATA</span><h3>農場、場區與生產週期</h3><p>依自然層級管理履歷主檔。</p></div></div>
         <section class="management-section fullrow">
           <h3>尋找與選取</h3>
           <div class="message fullrow ${this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
@@ -1330,10 +1428,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <label>生產週期顯示上限<select id="trace-cycle-page-size">${limitOptions}</select></label>
             <div class="fullrow system-note">目前篩選：${farms.length} 個農場、${plots.length} 個場區、${cycles.length} / ${filtered.totalCycles} 個生產週期；${farms.length > visibleFarms.length || plots.length > visiblePlots.length || cycles.length > visibleCycles.length ? `清單只顯示前 ${visibleFarms.length}/${visiblePlots.length}/${visibleCycles.length} 筆，請縮小搜尋或選擇上層資料。` : "未超過顯示上限。"}</div>
           </div>
-          <div class="fields">
-            <div><b>1. 農場</b><div class="management-list">${visibleFarms.length ? visibleFarms.map((farm) => `<button class="trace-select-farm" data-id="${this._escape(farm.farm_id)}">${this._escape(farm.name || farm.farm_id)} <span class="system-note">${this._escape(farm.status || "active")}</span></button>`).join("") : `<p class="message">尚無符合條件的農場</p>`}</div></div>
-            <div><b>2. 場區</b><div class="management-list">${visiblePlots.length ? visiblePlots.map((plot) => `<button class="trace-select-plot" data-id="${this._escape(plot.plot_id)}">${this._escape(plot.name || plot.plot_id)} <span class="system-note">${this._escape(plot.status || "active")}</span></button>`).join("") : `<p class="message">請先選擇農場或調整搜尋</p>`}</div></div>
-            <div class="fullrow"><b>3. 生產週期</b><div class="management-list">${visibleCycles.length ? visibleCycles.map((cycle) => `<button class="trace-select-cycle" data-id="${this._escape(cycle.cycle_id)}">${this._escape(cycle.product || cycle.cycle_id)} ${this._escape(cycle.lot_number || "")} <span class="system-note">${this._escape(cycle.status || "active")}</span></button>`).join("") : `<p class="message">請先選擇場區或調整搜尋</p>`}</div></div>
+          <div class="fields trace-master-hierarchy">
+            <div class="hierarchy-level"><span class="hierarchy-step">01</span><b>農場</b><div class="management-list">${visibleFarms.length ? visibleFarms.map((farm) => `<button class="trace-select-farm" data-id="${this._escape(farm.farm_id)}">${this._escape(farm.name || farm.farm_id)} <span class="system-note">${this._escape(farm.status || "active")}</span></button>`).join("") : `<p class="message">尚無符合條件的農場</p>`}</div></div>
+            <div class="hierarchy-level"><span class="hierarchy-step">02</span><b>場區</b><div class="management-list">${visiblePlots.length ? visiblePlots.map((plot) => `<button class="trace-select-plot" data-id="${this._escape(plot.plot_id)}">${this._escape(plot.name || plot.plot_id)} <span class="system-note">${this._escape(plot.status || "active")}</span></button>`).join("") : `<p class="message">請先選擇農場或調整搜尋</p>`}</div></div>
+            <div class="hierarchy-level fullrow"><span class="hierarchy-step">03</span><b>生產週期</b><div class="management-list">${visibleCycles.length ? visibleCycles.map((cycle) => `<button class="trace-select-cycle" data-id="${this._escape(cycle.cycle_id)}">${this._escape(cycle.product || cycle.cycle_id)} ${this._escape(cycle.lot_number || "")} <span class="system-note">${this._escape(cycle.status || "active")}</span></button>`).join("") : `<p class="message">請先選擇場區或調整搜尋</p>`}</div></div>
           </div>
         </section>
         <section class="management-section fullrow">
@@ -2680,6 +2778,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("agri-open-dialog")?.addEventListener("click", () => this._openDialog(undefined, "agri"));
     this.shadowRoot.getElementById("agri-open-workbench")?.addEventListener("click", () => this._openTraceabilityWorkbench("overview"));
     this.shadowRoot.getElementById("traceability-workbench-close")?.addEventListener("click", () => this._closeTraceabilityWorkbench());
+    this.shadowRoot.getElementById("traceability-workbench-close-top")?.addEventListener("click", () => this._closeTraceabilityWorkbench());
+    this.shadowRoot.getElementById("trace-workbench-cycle-context")?.addEventListener("change", (ev) => { this._selectedExportCycleId = ev.target.value || ""; this._operationForm.operationCycleFilter = this._selectedExportCycleId; this._evidenceForm.evidenceOperationFilter = ""; this._lastCycleExportPayload = undefined; this._render(); });
     this.shadowRoot.getElementById("workbench-tab-overview")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("overview"));
     this.shadowRoot.getElementById("workbench-tab-master-data")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("master-data"));
     this.shadowRoot.getElementById("workbench-tab-operations")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("operations"));
@@ -2704,6 +2804,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     evidenceSearch?.addEventListener("input", () => this._captureEvidenceForm());
     evidenceSearch?.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); this._applyEvidenceSearch(); } });
     this.shadowRoot.getElementById("trace-evidence-apply-search")?.addEventListener("click", () => this._applyEvidenceSearch());
+    this.shadowRoot.getElementById("trace-evidence-view-list")?.addEventListener("click", () => { this._captureEvidenceForm(); this._evidenceForm.evidenceView = "list"; this._render(); });
+    this.shadowRoot.getElementById("trace-evidence-view-gallery")?.addEventListener("click", () => { this._captureEvidenceForm(); this._evidenceForm.evidenceView = "gallery"; this._render(); });
     this.shadowRoot.getElementById("trace-evidence-operation-filter")?.addEventListener("change", () => { this._captureEvidenceForm(); this._evidenceForm.evidencePage = 0; this._render(); });
     this.shadowRoot.getElementById("trace-evidence-page-size")?.addEventListener("change", () => { this._captureEvidenceForm(); this._evidenceForm.evidencePage = 0; this._render(); });
     this.shadowRoot.getElementById("trace-evidence-prev-page")?.addEventListener("click", () => { this._captureEvidenceForm(); this._evidenceForm.evidencePage = Math.max((Number(this._evidenceForm.evidencePage) || 0) - 1, 0); this._render(); });

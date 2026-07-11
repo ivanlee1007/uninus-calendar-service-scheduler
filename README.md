@@ -26,6 +26,19 @@ Implemented:
 
 The `/uninus-calendar` panel includes a traceability workbench designed to keep Calendar events, stored `AgriOperation` records, crop cycles, and evidence understandable and repairable from the UI.
 
+### 產銷履歷專業工作區
+
+The traceability workbench is a cycle-centered, full-screen workspace rather than a generic settings modal:
+
+- Persistent context bar shows the current farm, plot, crop cycle, lot/trace code, lifecycle status, and export readiness.
+- Grouped navigation separates production records, master data, and data governance.
+- Operations use a compact master-detail table with semantic status/evidence/Calendar chips and a sticky save action bar.
+- Evidence supports list and gallery views, photo thumbnails, and visible hash-verification status.
+- Farm → plot → crop-cycle selection is presented as a clear hierarchy.
+- Consistency findings appear as a severity-aware issue inbox.
+- Export follows a scope → integrity check → package delivery flow.
+- Technical identifiers remain available under progressive disclosure instead of dominating daily workflows.
+
 ### 大量資料搜尋與顯示
 
 Traceability workbench lists are capped for long-running farms with many records:

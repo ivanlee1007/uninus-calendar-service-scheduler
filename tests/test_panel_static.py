@@ -150,6 +150,28 @@ def test_readme_documents_traceability_governance_mvp_workflow():
 
 
 
+def test_traceability_workbench_uses_professional_cycle_centered_workspace_layout():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert 'class="workbench-context-bar"' in source
+    assert 'class="workbench-shell"' in source
+    assert 'class="workbench-sidebar"' in source
+    assert "生產紀錄" in source
+    assert "基礎資料" in source
+    assert "資料治理" in source
+    assert 'class="trace-status-chip' in source
+    assert 'class="trace-operations-master-detail"' in source
+    assert "trace-operation-table" in source
+    assert "trace-detail-panel" in source
+    assert "trace-sticky-actions" in source
+    assert "trace-master-hierarchy" in source
+    assert 'id="trace-evidence-view-list"' in source
+    assert 'id="trace-evidence-view-gallery"' in source
+    assert 'class="trace-issue-inbox"' in source
+    assert 'class="trace-export-stepper"' in source
+    assert "技術資訊" in source
+
+
 def test_large_traceability_lists_are_paginated_and_capped_for_mvp_scale():
     source = PANEL_JS.read_text(encoding="utf-8")
 
