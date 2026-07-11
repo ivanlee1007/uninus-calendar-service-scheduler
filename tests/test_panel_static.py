@@ -40,6 +40,31 @@ def test_agri_calendar_rows_reconcile_stale_stored_operations_from_event_payload
     assert 'service: "update_agri_operation"' in source
 
 
+def test_edit_dialog_can_clone_existing_event_into_new_event():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert 'id="clone-event"' in source
+    assert "複製行程" in source
+    assert "_cloneCurrentEventForCreate" in source
+    assert "this._editingEvent = undefined" in source
+    assert "uid: \"\"" in source
+    assert "actionId: \"\"" in source
+    assert "operationId: \"\"" in source
+    assert "calendarEventUid: \"\"" in source
+    assert "已複製行程內容" in source
+    assert "this._create()" in source
+
+
+def test_agri_calendar_dialog_create_persists_new_operation_for_clones():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert "_createAgriEventFromDialog" in source
+    assert 'service: "create_agri_operation"' in source
+    assert "operationId" in source
+    assert "payload.description = await this._composeAgriDescription" in source
+    assert "await this._createAgriEventFromDialog(payload)" in source
+
+
 def test_safe_delete_surfaces_specific_traceability_blockers():
     source = PANEL_JS.read_text(encoding="utf-8")
     init_source = INIT_PY.read_text(encoding="utf-8")

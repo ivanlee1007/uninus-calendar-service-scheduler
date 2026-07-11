@@ -2186,7 +2186,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <div class="message fullrow ${this._message.startsWith("Error:") ? "error" : ""}">${this._escape(this._message)}</div>
         </div>
         <div class="actions">
-          ${this._editingEvent ? `<button id="delete-event">刪除行程</button>` : ""}
+          ${this._editingEvent ? `<button id="delete-event">刪除行程</button><button id="clone-event">複製行程</button>` : ""}
           <button id="cancel">取消</button>
           <button class="primary" id="create">${this._editingEvent ? "儲存修改" : "建立行程"}</button>
         </div>
@@ -2242,6 +2242,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("calendar-create-name")?.addEventListener("input", (ev) => { this._calendarCreateForm.name = ev.target.value; });
     this.shadowRoot.querySelectorAll('input[name="calendar-create-import"]').forEach((el) => el.addEventListener("change", () => { this._captureCalendarCreateForm(); this._render(); }));
     this.shadowRoot.getElementById("delete-event")?.addEventListener("click", () => this._openDeleteConfirm());
+    this.shadowRoot.getElementById("clone-event")?.addEventListener("click", () => this._cloneCurrentEventForCreate());
     this.shadowRoot.getElementById("delete-cancel")?.addEventListener("click", () => this._closeDeleteConfirm());
     this.shadowRoot.getElementById("delete-cancel-x")?.addEventListener("click", () => this._closeDeleteConfirm());
     this.shadowRoot.getElementById("delete-this-event")?.addEventListener("click", () => this._deleteCurrentEvent(""));
@@ -2410,6 +2411,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       quantity: get("agri_quantity") || this._form.agri?.quantity || "",
       unit: get("agri_unit") || this._form.agri?.unit || "",
       sensorEntities: get("agri_sensor_entities") || this._form.agri?.sensorEntities || "",
+      operationId: this._form.agri?.operationId || "",
+      calendarEventUid: this._form.agri?.calendarEventUid || "",
     };
     this._form = {
       calendar: get("calendar"),
@@ -2456,6 +2459,26 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       this._form.start = this._localInputValue(new Date(`${this._form.start}T00:00:00`));
       this._form.end = this._localInputValue(new Date(`${this._form.end}T00:00:00`));
     }
+    this._render();
+  }
+
+  _cloneCurrentEventForCreate() {
+    this._captureForm();
+    this._editingEvent = undefined;
+    this._deleteConfirmOpen = false;
+    this._editConfirmOpen = false;
+    this._form = {
+      ...this._form,
+      uid: "",
+      recurrenceId: null,
+      actionId: "",
+      agri: {
+        ...(this._form.agri || {}),
+        operationId: "",
+        calendarEventUid: "",
+      },
+    };
+    this._message = "已複製行程內容；請修改後按「建立行程」存成新的行程。";
     this._render();
   }
 
@@ -2891,6 +2914,24 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     };
   }
 
+  async _createAgriEventFromDialog(payload) {
+    const serviceData = this._agriOperationServiceDataFromEventPayload(payload);
+    if (!serviceData.cycle_id) throw new Error("農務作業需要選擇生產週期");
+    const response = await this._hass.callWS({
+      type: "call_service",
+      domain: "uninus_calendar_service_scheduler",
+      service: "create_agri_operation",
+      service_data: serviceData,
+      return_response: true,
+    });
+    const operationId = response?.response?.operation_id || response?.operation_id || response?.response?.operation?.operation_id || "";
+    if (!operationId) throw new Error("建立農務作業失敗：服務未回傳 operation_id");
+    this._form.agri = { ...(this._form.agri || {}), operationId, calendarEventUid: "" };
+    payload.description = await this._composeAgriDescription(this._form, { operation_id: operationId });
+    await this._createCalendarOnlyEvent(payload);
+    return operationId;
+  }
+
   async _syncAgriOperationForCurrentEvent(payload) {
     if (this._form?.eventType !== "agri") return false;
     const operationId = this._form?.agri?.operationId || "";
@@ -3038,6 +3079,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       }
       if (wasEditing) {
         await this._updateCurrentEvent(payload, "this");
+      } else if (isAgri) {
+        await this._createAgriEventFromDialog(payload);
       } else if (!payload.service && !payload.end_service) {
         await this._createCalendarOnlyEvent(payload);
       } else {
