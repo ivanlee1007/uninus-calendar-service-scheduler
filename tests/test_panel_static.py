@@ -150,6 +150,37 @@ def test_readme_documents_traceability_governance_mvp_workflow():
 
 
 
+def test_large_traceability_lists_are_paginated_and_capped_for_mvp_scale():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert "_operationEvidenceCountMap" in source
+    assert "_operationDateInRange" in source
+    assert "operationDateRange" in source
+    assert 'id="trace-operation-date-range"' in source
+    assert 'id="trace-operation-page-size"' in source
+    assert 'id="trace-operation-prev-page"' in source
+    assert 'id="trace-operation-next-page"' in source
+    assert "_pagedOperationRecords" in source
+    assert "visibleOperations" in source
+    assert "找到" in source and "顯示第" in source
+    assert "請縮小搜尋" in source
+
+    assert "_pagedEvidenceRecords" in source
+    assert "evidencePageSize" in source
+    assert 'id="trace-evidence-page-size"' in source
+    assert 'id="trace-evidence-prev-page"' in source
+    assert 'id="trace-evidence-next-page"' in source
+    assert "visibleEvidence" in source
+
+    assert "farmLimit" in source
+    assert "plotLimit" in source
+    assert "visibleFarms" in source
+    assert "visiblePlots" in source
+    assert 'id="trace-farm-page-size"' in source
+    assert 'id="trace-plot-page-size"' in source
+
+
+
 def test_safe_delete_surfaces_specific_traceability_blockers():
     source = PANEL_JS.read_text(encoding="utf-8")
     init_source = INIT_PY.read_text(encoding="utf-8")

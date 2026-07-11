@@ -26,6 +26,18 @@ Implemented:
 
 The `/uninus-calendar` panel includes a traceability workbench designed to keep Calendar events, stored `AgriOperation` records, crop cycles, and evidence understandable and repairable from the UI.
 
+### 大量資料搜尋與顯示
+
+Traceability workbench lists are capped for long-running farms with many records:
+
+- 作業管理 defaults to a recent-date view and paginates operation results with 25/50/100 rows per page.
+- 作業管理 includes a date-range filter and warns users to narrow searches when many records match.
+- Evidence counts are aggregated once per render instead of scanning all evidence for every operation row.
+- 佐證資料管理 paginates evidence results with 25/50/100 rows per page.
+- 資料管理 caps farm, plot, and crop-cycle result lists and prompts users to narrow search/selection when results exceed the visible limit.
+
+For very large deployments, metadata can later be moved behind indexed backend search, but the MVP UI avoids rendering thousands of DOM rows at once.
+
 ### 農務作業管理
 
 Use **產銷履歷 → 作業管理** to inspect and maintain agricultural operation records.

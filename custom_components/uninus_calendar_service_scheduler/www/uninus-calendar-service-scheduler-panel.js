@@ -126,6 +126,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       managementSearch: "",
       managementSearchApplied: "",
       managementStatusFilter: "active",
+      farmLimit: "25",
+      plotLimit: "25",
       cycleLimit: "25",
       farmStatus: "active",
       farmName: "",
@@ -158,6 +160,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       evidenceSearch: "",
       evidenceSearchApplied: "",
       evidenceOperationFilter: "",
+      evidencePage: 0,
+      evidencePageSize: "50",
       operationId: "",
       evidenceType: "sensor_snapshot",
       title: "",
@@ -174,6 +178,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       operationSearchApplied: "",
       operationCycleFilter: "",
       operationStatusFilter: "all",
+      operationDateRange: "recent30",
+      operationPage: 0,
+      operationPageSize: "50",
       cycleId: "",
       operationType: "灌溉",
       actualStart: "",
@@ -854,8 +861,65 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return `<section class="workbench-section"><label class="fullrow">目前檢視範圍<select id="trace_overview_cycle">${cycleOptions}</select></label><div class="overview-summary fullrow" aria-label="履歷摘要"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業</div><div class="stat"><b>${summary.evidence_count || this._evidenceRows(selectedCycleId).length || 0}</b>佐證</div></div><div class="workbench-overview-grid fullrow"><div class="workbench-overview-left" aria-label="匯出前檢查">${this._integrityTemplate(integrity)}</div><div class="workbench-overview-middle traceability-recent"><b>最近作業</b>${operations.slice(0, 5).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("") || `<p class="message">尚無農務作業</p>`}</div><div class="workbench-overview-right">${this._evidenceListTemplate(selectedCycleId)}</div></div>${migrationCount ? `<div class="mini-actions"><button id="agri-migrate-legacy">移轉舊作業 ${migrationCount}</button></div>` : ""}</section>`;
   }
 
-  _operationEvidenceCount(operationId) {
-    return Object.values(this._traceabilityRecords().evidence || {}).filter((item) => item.operation_id === operationId).length;
+  _operationEvidenceCountMap() {
+    const counts = new Map();
+    Object.values(this._traceabilityRecords().evidence || {}).forEach((item) => {
+      if (!item.operation_id) return;
+      counts.set(item.operation_id, (counts.get(item.operation_id) || 0) + 1);
+    });
+    return counts;
+  }
+
+  _operationEvidenceCount(operationId, countMap = this._operationEvidenceCountMap()) {
+    return countMap.get(operationId) || 0;
+  }
+
+  _operationDateInRange(operation, range) {
+    if (!range || range === "all") return true;
+    const value = String(operation.actual_start || operation.scheduled_start || operation.created_at || "").slice(0, 10);
+    if (!value) return false;
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return false;
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const daysAgo = (days) => new Date(todayStart.getTime() - days * 24 * 60 * 60 * 1000);
+    if (range === "recent7") return date >= daysAgo(7);
+    if (range === "recent30") return date >= daysAgo(30);
+    if (range === "thisMonth") return date >= new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
+    return true;
+  }
+
+  _pageMeta(total, page, pageSize) {
+    const size = Math.min(Math.max(Number(pageSize || 50) || 50, 1), 100);
+    const maxPage = Math.max(Math.ceil(total / size) - 1, 0);
+    const safePage = Math.min(Math.max(Number(page || 0) || 0, 0), maxPage);
+    const start = safePage * size;
+    const end = Math.min(start + size, total);
+    return { page: safePage, pageSize: size, start, end, maxPage };
+  }
+
+  _pagedOperationRecords(records) {
+    const f = this._operationForm || this._defaultOperationForm();
+    const meta = this._pageMeta(records.length, f.operationPage, f.operationPageSize);
+    return { ...meta, total: records.length, visibleOperations: records.slice(meta.start, meta.end) };
+  }
+
+  _pagedEvidenceRecords(records) {
+    const f = this._evidenceForm || this._defaultEvidenceForm();
+    const meta = this._pageMeta(records.length, f.evidencePage, f.evidencePageSize);
+    return { ...meta, total: records.length, visibleEvidence: records.slice(meta.start, meta.end) };
+  }
+
+  _pageSizeOptions(selected = "50") {
+    return ["25", "50", "100"].map((item) => `<option value="${item}" ${item === String(selected || "50") ? "selected" : ""}>每頁 ${item} 筆</option>`).join("");
+  }
+
+  _limitOptions(selected = "25", noun = "筆") {
+    return ["25", "50", "100"].map((item) => `<option value="${item}" ${item === String(selected || "25") ? "selected" : ""}>只顯示前 ${item} ${noun}</option>`).join("");
+  }
+
+  _operationDateRangeOptions(selected = "recent30") {
+    return [["recent7", "最近 7 天"], ["recent30", "最近 30 天"], ["thisMonth", "本月"], ["all", "全部日期"]].map(([value, label]) => `<option value="${value}" ${value === selected ? "selected" : ""}>${label}</option>`).join("");
   }
 
   _filteredOperationRecords() {
@@ -864,13 +928,15 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const query = String(f.operationSearchApplied || "").trim().toLowerCase();
     const cycleFilter = f.operationCycleFilter || "";
     const statusFilter = f.operationStatusFilter || "all";
+    const dateRange = f.operationDateRange || "recent30";
     return Object.values(records.operations || {}).filter((operation) => {
       const cycle = records.cycles?.[operation.cycle_id] || {};
       const queryFields = [operation.operation_id, operation.operation_type, operation.operator, operation.material_name, operation.notes, operation.calendar_entity, operation.calendar_event_uid, cycle.product, cycle.lot_number, cycle.trace_code];
       const queryMatches = !query || queryFields.some((field) => String(field || "").toLowerCase().includes(query));
       const cycleMatches = !cycleFilter || operation.cycle_id === cycleFilter;
       const statusMatches = statusFilter === "all" || (operation.status || "planned") === statusFilter;
-      return queryMatches && cycleMatches && statusMatches;
+      const dateMatches = this._operationDateInRange(operation, dateRange);
+      return queryMatches && cycleMatches && statusMatches && dateMatches;
     }).sort((a, b) => String(b.actual_start || b.scheduled_start || b.created_at || "").localeCompare(String(a.actual_start || a.scheduled_start || a.created_at || "")));
   }
 
@@ -884,6 +950,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const records = this._traceabilityRecords();
     const f = this._operationForm || this._defaultOperationForm();
     const operations = this._filteredOperationRecords();
+    const paged = this._pagedOperationRecords(operations);
+    const visibleOperations = paged.visibleOperations;
+    const evidenceCounts = this._operationEvidenceCountMap();
     const cycles = Object.values(records.cycles || {});
     const cycleOptions = [`<option value="">全部生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === f.operationCycleFilter ? "selected" : ""}>${this._escape(cycle.product || "週期")} ${this._escape(cycle.lot_number || cycle.trace_code || cycle.cycle_id)}</option>`)).join("");
     const editCycleOptions = [`<option value="">選擇生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === f.cycleId ? "selected" : ""}>${this._escape(cycle.product || "週期")} ${this._escape(cycle.lot_number || cycle.trace_code || cycle.cycle_id)}</option>`)).join("");
@@ -896,12 +965,15 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <div class="fields">
             <label>搜尋<input id="trace-operation-search" value="${this._escape(f.operationSearch || "")}" placeholder="作業、操作者、資材、批號、Calendar UID" /></label><div class="management-search-action"><button id="trace-operation-apply-search">搜尋</button></div>
             <label>生產週期<select id="trace-operation-cycle-filter">${cycleOptions}</select></label>
+            <label>日期範圍<select id="trace-operation-date-range">${this._operationDateRangeOptions(f.operationDateRange || "recent30")}</select></label>
             <label>狀態<select id="trace-operation-status-filter">${this._operationStatusOptions(f.operationStatusFilter || "all", true)}</select></label>
-            <div class="fullrow system-note">目前篩選：${operations.length} 筆農務作業。清單會顯示 Calendar linkage 與佐證數，方便判斷刪除 blocker。</div>
+            <label>每頁筆數<select id="trace-operation-page-size">${this._pageSizeOptions(f.operationPageSize || "50")}</select></label>
+            <div class="fullrow system-note">找到 ${operations.length} 筆農務作業，顯示第 ${operations.length ? paged.start + 1 : 0}–${paged.end} 筆。${operations.length > paged.pageSize ? "結果較多，請縮小搜尋、日期範圍或生產週期。" : ""}</div>
+            <div class="fullrow mini-actions"><button id="trace-operation-prev-page" ${paged.page <= 0 ? "disabled" : ""}>上一頁</button><button id="trace-operation-next-page" ${paged.page >= paged.maxPage ? "disabled" : ""}>下一頁</button></div>
           </div>
-          <div class="management-list operation-list fullrow">${operations.length ? operations.map((operation) => {
+          <div class="management-list operation-list fullrow">${visibleOperations.length ? visibleOperations.map((operation) => {
             const cycle = records.cycles?.[operation.cycle_id] || {};
-            const evidenceCount = this._operationEvidenceCount(operation.operation_id);
+            const evidenceCount = this._operationEvidenceCount(operation.operation_id, evidenceCounts);
             const calendarLinked = operation.calendar_entity && operation.calendar_event_uid;
             return `<button class="trace-select-operation" data-id="${this._escape(operation.operation_id)}"><b>${this._escape(operation.operation_type || "農務作業")}</b> ${this._escape(cycle.product || "")} ${this._escape(cycle.lot_number || "")} <span class="system-note">${this._escape(operation.status || "planned")}</span><span class="system-note">佐證 ${evidenceCount}</span><span class="system-note">Calendar ${calendarLinked ? "已連結" : "未連結"}</span></button>`;
           }).join("") : `<p class="message">尚無符合條件的農務作業</p>`}</div>
@@ -934,6 +1006,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       operationSearch: get("trace-operation-search"),
       operationCycleFilter: get("trace-operation-cycle-filter"),
       operationStatusFilter: get("trace-operation-status-filter") || "all",
+      operationDateRange: get("trace-operation-date-range") || "recent30",
+      operationPageSize: get("trace-operation-page-size") || "50",
       cycleId: get("trace_operation_cycle"),
       operationType: get("trace_operation_type") || "灌溉",
       actualStart: get("trace_operation_actual_start"),
@@ -951,7 +1025,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
   _applyOperationSearch() {
     this._captureOperationForm();
-    this._operationForm = { ...this._operationForm, operationSearchApplied: this._operationForm.operationSearch || "" };
+    this._operationForm = { ...this._operationForm, operationSearchApplied: this._operationForm.operationSearch || "", operationPage: 0 };
     this._render();
   }
 
@@ -1072,6 +1146,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const operations = Object.values(records.operations || {});
     const f = this._evidenceForm || this._defaultEvidenceForm();
     const evidenceRows = this._filteredEvidenceRecords();
+    const pagedEvidence = this._pagedEvidenceRecords(evidenceRows);
+    const visibleEvidence = pagedEvidence.visibleEvidence;
     const operationOptions = [`<option value="">選擇農務作業</option>`].concat(operations.map((operation) => `<option value="${this._escape(operation.operation_id)}" ${operation.operation_id === f.operationId ? "selected" : ""}>${this._escape(operation.operation_type || "農務作業")} ${this._escape(operation.actual_start || operation.operation_id)}</option>`)).join("");
     const operationFilterOptions = [`<option value="">全部農務作業</option>`].concat(operations.map((operation) => `<option value="${this._escape(operation.operation_id)}" ${operation.operation_id === f.evidenceOperationFilter ? "selected" : ""}>${this._escape(operation.operation_type || "農務作業")} ${this._escape(operation.actual_start || operation.operation_id)}</option>`)).join("");
     const typeOptions = ["sensor_snapshot", "photo", "document", "note", "external_uri"].map((item) => `<option value="${item}" ${item === f.evidenceType ? "selected" : ""}>${this._escape(item)}</option>`).join("");
@@ -1083,9 +1159,11 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <div class="fields">
             <label>搜尋<input id="trace-evidence-search" value="${this._escape(f.evidenceSearch || "")}" placeholder="標題、類型、來源、URI、hash" /></label><div class="management-search-action"><button id="trace-evidence-apply-search">搜尋</button></div>
             <label>農務作業<select id="trace-evidence-operation-filter">${operationFilterOptions}</select></label>
-            <div class="fullrow system-note">目前篩選：${evidenceRows.length} 筆佐證。點選佐證可載入下方表單編輯或刪除。</div>
+            <label>每頁筆數<select id="trace-evidence-page-size">${this._pageSizeOptions(f.evidencePageSize || "50")}</select></label>
+            <div class="fullrow system-note">找到 ${evidenceRows.length} 筆佐證，顯示第 ${evidenceRows.length ? pagedEvidence.start + 1 : 0}–${pagedEvidence.end} 筆。${evidenceRows.length > pagedEvidence.pageSize ? "結果較多，請縮小搜尋或農務作業篩選。" : ""}</div>
+            <div class="fullrow mini-actions"><button id="trace-evidence-prev-page" ${pagedEvidence.page <= 0 ? "disabled" : ""}>上一頁</button><button id="trace-evidence-next-page" ${pagedEvidence.page >= pagedEvidence.maxPage ? "disabled" : ""}>下一頁</button></div>
           </div>
-          <div class="management-list evidence-list fullrow">${evidenceRows.length ? evidenceRows.map((evidence) => `<button class="trace-select-evidence" data-id="${this._escape(evidence.evidence_id)}"><b>${this._escape(evidence.evidence_type || "evidence")}</b> ${this._escape(evidence.title || evidence.evidence_id)} <span class="system-note">${this._escape(evidence.source_entity || evidence.uri || "無來源")}</span><span class="system-note">hash ${this._escape(String(evidence.content_hash || "").slice(0, 12))}</span></button>`).join("") : `<p class="message">尚無符合條件的佐證資料</p>`}</div>
+          <div class="management-list evidence-list fullrow">${visibleEvidence.length ? visibleEvidence.map((evidence) => `<button class="trace-select-evidence" data-id="${this._escape(evidence.evidence_id)}"><b>${this._escape(evidence.evidence_type || "evidence")}</b> ${this._escape(evidence.title || evidence.evidence_id)} <span class="system-note">${this._escape(evidence.source_entity || evidence.uri || "無來源")}</span><span class="system-note">hash ${this._escape(String(evidence.content_hash || "").slice(0, 12))}</span></button>`).join("") : `<p class="message">尚無符合條件的佐證資料</p>`}</div>
         </section>
         <section class="management-section fullrow">
           ${f.selectedEvidenceId ? '<h3>編輯佐證資料</h3>' : '<h3>新增佐證資料</h3>'}
@@ -1111,6 +1189,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       ...this._evidenceForm,
       evidenceSearch: get("trace-evidence-search"),
       evidenceOperationFilter: get("trace-evidence-operation-filter"),
+      evidencePageSize: get("trace-evidence-page-size") || "50",
       operationId: get("trace_evidence_operation"),
       evidenceType: get("trace_evidence_type") || "sensor_snapshot",
       title: get("trace_evidence_title"),
@@ -1143,7 +1222,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
   _applyEvidenceSearch() {
     this._captureEvidenceForm();
-    this._evidenceForm = { ...this._evidenceForm, evidenceSearchApplied: this._evidenceForm.evidenceSearch || "" };
+    this._evidenceForm = { ...this._evidenceForm, evidenceSearchApplied: this._evidenceForm.evidenceSearch || "", evidencePage: 0 };
     this._render();
   }
 
@@ -1221,11 +1300,17 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const plots = filtered.plots;
     const cycles = filtered.cycles;
     const f = this._managementForm || this._defaultManagementForm();
+    const farmLimit = Number(f.farmLimit || 25) || 25;
+    const plotLimit = Number(f.plotLimit || 25) || 25;
     const cycleLimit = Number(f.cycleLimit || 25) || 25;
+    const visibleFarms = farms.slice(0, farmLimit);
+    const visiblePlots = plots.slice(0, plotLimit);
     const visibleCycles = filtered.cycles.slice(0, cycleLimit);
     const statusOptions = (selected) => ["active", "inactive", "archived"].map((item) => `<option value="${item}" ${item === selected ? "selected" : ""}>${item === "active" ? "啟用" : item === "inactive" ? "停用" : "封存"}</option>`).join("");
     const filterStatusOptions = ["active", "inactive", "archived", "all"].map((item) => `<option value="${item}" ${item === (f.managementStatusFilter || "active") ? "selected" : ""}>${item === "all" ? "全部狀態" : item === "active" ? "只看啟用" : item === "inactive" ? "只看停用" : "只看封存"}</option>`).join("");
-    const limitOptions = ["10", "25", "50"].map((item) => `<option value="${item}" ${item === String(f.cycleLimit || "25") ? "selected" : ""}>只顯示前 ${item} 筆</option>`).join("");
+    const farmLimitOptions = this._limitOptions(f.farmLimit || "25", "個農場");
+    const plotLimitOptions = this._limitOptions(f.plotLimit || "25", "個場區");
+    const limitOptions = this._limitOptions(f.cycleLimit || "25", "個週期");
     const farmNameOptions = Object.values(records.farms || {}).map((farm) => `<option value="${this._escape(farm.name || farm.farm_id)}" label="${this._escape(farm.farm_id)}"></option>`).join("");
     const plotNameOptions = Object.values(records.plots || {}).filter((plot) => !f.plotFarmId || plot.farm_id === f.plotFarmId).map((plot) => `<option value="${this._escape(plot.name || plot.plot_id)}" label="${this._escape(plot.product || plot.plot_id)}"></option>`).join("");
     const cycleIdentifierOptions = Object.values(records.cycles || {}).filter((cycle) => !f.cyclePlotId || cycle.plot_id === f.cyclePlotId).map((cycle) => `<option value="${this._escape(cycle.trace_code || cycle.lot_number || cycle.cycle_id)}" label="${this._escape(`${cycle.product || "生產週期"} ${cycle.lot_number || cycle.cycle_id}`)}"></option>`).join("");
@@ -1240,12 +1325,14 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <div class="fields">
             <label>搜尋<input id="trace-management-search" value="${this._escape(f.managementSearch || "")}" placeholder="農場、場區、批號、追溯碼" /></label><div class="management-search-action"><button id="trace-management-apply-search">搜尋</button></div>
             <label>狀態<select id="trace-management-status-filter">${filterStatusOptions}</select></label>
+            <label>農場顯示上限<select id="trace-farm-page-size">${farmLimitOptions}</select></label>
+            <label>場區顯示上限<select id="trace-plot-page-size">${plotLimitOptions}</select></label>
             <label>生產週期顯示上限<select id="trace-cycle-page-size">${limitOptions}</select></label>
-            <div class="fullrow system-note">目前篩選：${farms.length} 個農場、${plots.length} 個場區、${cycles.length} / ${filtered.totalCycles} 個生產週期；週期清單${cycles.length > visibleCycles.length ? `只顯示前 ${visibleCycles.length} 筆，請縮小搜尋或選擇場區。` : "未超過顯示上限。"}</div>
+            <div class="fullrow system-note">目前篩選：${farms.length} 個農場、${plots.length} 個場區、${cycles.length} / ${filtered.totalCycles} 個生產週期；${farms.length > visibleFarms.length || plots.length > visiblePlots.length || cycles.length > visibleCycles.length ? `清單只顯示前 ${visibleFarms.length}/${visiblePlots.length}/${visibleCycles.length} 筆，請縮小搜尋或選擇上層資料。` : "未超過顯示上限。"}</div>
           </div>
           <div class="fields">
-            <div><b>1. 農場</b><div class="management-list">${farms.length ? farms.map((farm) => `<button class="trace-select-farm" data-id="${this._escape(farm.farm_id)}">${this._escape(farm.name || farm.farm_id)} <span class="system-note">${this._escape(farm.status || "active")}</span></button>`).join("") : `<p class="message">尚無符合條件的農場</p>`}</div></div>
-            <div><b>2. 場區</b><div class="management-list">${plots.length ? plots.map((plot) => `<button class="trace-select-plot" data-id="${this._escape(plot.plot_id)}">${this._escape(plot.name || plot.plot_id)} <span class="system-note">${this._escape(plot.status || "active")}</span></button>`).join("") : `<p class="message">請先選擇農場或調整搜尋</p>`}</div></div>
+            <div><b>1. 農場</b><div class="management-list">${visibleFarms.length ? visibleFarms.map((farm) => `<button class="trace-select-farm" data-id="${this._escape(farm.farm_id)}">${this._escape(farm.name || farm.farm_id)} <span class="system-note">${this._escape(farm.status || "active")}</span></button>`).join("") : `<p class="message">尚無符合條件的農場</p>`}</div></div>
+            <div><b>2. 場區</b><div class="management-list">${visiblePlots.length ? visiblePlots.map((plot) => `<button class="trace-select-plot" data-id="${this._escape(plot.plot_id)}">${this._escape(plot.name || plot.plot_id)} <span class="system-note">${this._escape(plot.status || "active")}</span></button>`).join("") : `<p class="message">請先選擇農場或調整搜尋</p>`}</div></div>
             <div class="fullrow"><b>3. 生產週期</b><div class="management-list">${visibleCycles.length ? visibleCycles.map((cycle) => `<button class="trace-select-cycle" data-id="${this._escape(cycle.cycle_id)}">${this._escape(cycle.product || cycle.cycle_id)} ${this._escape(cycle.lot_number || "")} <span class="system-note">${this._escape(cycle.status || "active")}</span></button>`).join("") : `<p class="message">請先選擇場區或調整搜尋</p>`}</div></div>
           </div>
         </section>
@@ -1301,6 +1388,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       ...this._managementForm,
       managementSearch: get("trace-management-search"),
       managementStatusFilter: get("trace-management-status-filter") || "active",
+      farmLimit: get("trace-farm-page-size") || "25",
+      plotLimit: get("trace-plot-page-size") || "25",
       cycleLimit: get("trace-cycle-page-size") || "25",
       farmStatus: get("trace_farm_status") || "active",
       farmName: get("trace_farm_name"),
@@ -2615,7 +2704,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     evidenceSearch?.addEventListener("input", () => this._captureEvidenceForm());
     evidenceSearch?.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); this._applyEvidenceSearch(); } });
     this.shadowRoot.getElementById("trace-evidence-apply-search")?.addEventListener("click", () => this._applyEvidenceSearch());
-    this.shadowRoot.getElementById("trace-evidence-operation-filter")?.addEventListener("change", () => { this._captureEvidenceForm(); this._render(); });
+    this.shadowRoot.getElementById("trace-evidence-operation-filter")?.addEventListener("change", () => { this._captureEvidenceForm(); this._evidenceForm.evidencePage = 0; this._render(); });
+    this.shadowRoot.getElementById("trace-evidence-page-size")?.addEventListener("change", () => { this._captureEvidenceForm(); this._evidenceForm.evidencePage = 0; this._render(); });
+    this.shadowRoot.getElementById("trace-evidence-prev-page")?.addEventListener("click", () => { this._captureEvidenceForm(); this._evidenceForm.evidencePage = Math.max((Number(this._evidenceForm.evidencePage) || 0) - 1, 0); this._render(); });
+    this.shadowRoot.getElementById("trace-evidence-next-page")?.addEventListener("click", () => { this._captureEvidenceForm(); this._evidenceForm.evidencePage = (Number(this._evidenceForm.evidencePage) || 0) + 1; this._render(); });
     this.shadowRoot.querySelectorAll(".trace-select-evidence").forEach((button) => button.addEventListener("click", () => this._selectEvidenceRecord(button.dataset.id)));
     ["trace_evidence_operation", "trace_evidence_type", "trace_evidence_title", "trace_evidence_source_entity", "trace_evidence_uri", "trace_evidence_content"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureEvidenceForm());
@@ -2627,9 +2719,11 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     operationSearch?.addEventListener("input", () => this._captureOperationForm());
     operationSearch?.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); this._applyOperationSearch(); } });
     this.shadowRoot.getElementById("trace-operation-apply-search")?.addEventListener("click", () => this._applyOperationSearch());
-    ["trace-operation-cycle-filter", "trace-operation-status-filter"].forEach((id) => {
-      this.shadowRoot.getElementById(id)?.addEventListener("change", () => { this._captureOperationForm(); this._render(); });
+    ["trace-operation-cycle-filter", "trace-operation-status-filter", "trace-operation-date-range", "trace-operation-page-size"].forEach((id) => {
+      this.shadowRoot.getElementById(id)?.addEventListener("change", () => { this._captureOperationForm(); this._operationForm.operationPage = 0; this._render(); });
     });
+    this.shadowRoot.getElementById("trace-operation-prev-page")?.addEventListener("click", () => { this._captureOperationForm(); this._operationForm.operationPage = Math.max((Number(this._operationForm.operationPage) || 0) - 1, 0); this._render(); });
+    this.shadowRoot.getElementById("trace-operation-next-page")?.addEventListener("click", () => { this._captureOperationForm(); this._operationForm.operationPage = (Number(this._operationForm.operationPage) || 0) + 1; this._render(); });
     this.shadowRoot.querySelectorAll(".trace-select-operation").forEach((button) => button.addEventListener("click", () => this._selectTraceOperation(button.dataset.id)));
     ["trace_operation_cycle", "trace_operation_type", "trace_operation_actual_start", "trace_operation_operator", "trace_operation_material", "trace_operation_quantity", "trace_operation_unit", "trace_operation_status", "trace_operation_calendar_entity", "trace_operation_calendar_uid", "trace_operation_sensor_entities", "trace_operation_notes"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureOperationForm());
@@ -2647,7 +2741,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("trace_plot_name")?.addEventListener("change", () => this._applyPlotNameComboboxSelection());
     this.shadowRoot.getElementById("trace_cycle_trace_code")?.addEventListener("input", () => this._captureManagementForm());
     this.shadowRoot.getElementById("trace_cycle_trace_code")?.addEventListener("change", () => this._applyCycleIdentifierComboboxSelection());
-    ["trace-management-status-filter", "trace-cycle-page-size"].forEach((id) => {
+    ["trace-management-status-filter", "trace-farm-page-size", "trace-plot-page-size", "trace-cycle-page-size"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => { this._captureManagementForm(); this._render(); });
     });
     this.shadowRoot.querySelectorAll(".trace-select-farm").forEach((button) => button.addEventListener("click", () => this._selectTraceFarm(button.dataset.id)));
