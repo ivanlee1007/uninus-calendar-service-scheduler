@@ -34,11 +34,13 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._managementForm = this._defaultManagementForm();
     this._operationForm = this._defaultOperationForm();
     this._evidenceForm = this._defaultEvidenceForm();
+    this._traceabilityRecordsOverride = undefined;
   }
 
   set hass(hass) {
     const oldHass = this._hass;
     this._hass = hass;
+    this._reconcileTraceabilityRecordsOverride();
     const calendarIds = this._calendarIds();
     if (!this._selectedCalendars.length) {
       const savedCalendars = this._loadSelectedCalendars().filter((id) => calendarIds.includes(id));
@@ -815,15 +817,46 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   }
 
   _traceabilityRecords() {
-    return this._hass?.states?.["sensor.uninus_calendar_service_scheduler_status"]?.attributes?.traceability_records || { farms: {}, plots: {}, cycles: {}, operations: {} };
+    return this._traceabilityRecordsOverride || this._hassTraceabilityRecords();
+  }
+
+  _hassTraceabilityRecords() {
+    return this._hass?.states?.["sensor.uninus_calendar_service_scheduler_status"]?.attributes?.traceability_records || { farms: {}, plots: {}, cycles: {}, operations: {}, evidence: {} };
+  }
+
+  _upsertTraceabilityRecord(kind, id, record) {
+    if (!id) return;
+    const current = this._traceabilityRecords();
+    this._traceabilityRecordsOverride = {
+      ...current,
+      [kind]: { ...(current[kind] || {}), [id]: { ...(record || {}), [`${kind === "cycles" ? "cycle" : kind === "farms" ? "farm" : "plot"}_id`]: id } },
+    };
+  }
+
+  _reconcileTraceabilityRecordsOverride() {
+    if (!this._traceabilityRecordsOverride) return;
+    const hassRecords = this._hassTraceabilityRecords();
+    const caughtUp = ["farms", "plots", "cycles", "operations", "evidence"].every(
+      (kind) => Object.keys(hassRecords[kind] || {}).length >= Object.keys(this._traceabilityRecordsOverride[kind] || {}).length,
+    );
+    if (caughtUp) this._traceabilityRecordsOverride = undefined;
   }
 
   _traceabilitySummary() {
     const legacy = this._hass?.states?.["sensor.uninus_calendar_service_scheduler_status"]?.attributes?.traceability || { farm_count: 0, plot_count: 0, cycle_count: 0, operation_count: 0, missing_link_count: 0, recent_operations: [] };
-    const calendarRows = this._calendarTraceabilityRows || [];
-    if (!calendarRows.length) return legacy;
-    return {
+    const records = this._traceabilityRecords();
+    const base = {
       ...legacy,
+      farm_count: Object.keys(records.farms || {}).length,
+      plot_count: Object.keys(records.plots || {}).length,
+      cycle_count: Object.keys(records.cycles || {}).length,
+      operation_count: Object.keys(records.operations || {}).length,
+      evidence_count: Object.keys(records.evidence || {}).length,
+    };
+    const calendarRows = this._calendarTraceabilityRows || [];
+    if (!calendarRows.length) return base;
+    return {
+      ...base,
       operation_count: calendarRows.length,
       calendar_operation_count: calendarRows.length,
       calendar_hash_mismatch_count: calendarRows.filter((row) => !row.hash_valid).length,
@@ -1865,6 +1898,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "create_farm", service_data: { name: this._managementForm.farmName, operator: this._managementForm.farmOperator, address: this._managementForm.farmAddress, phone: this._managementForm.farmPhone }, return_response: true });
       const payload = this._serviceResponsePayload(response);
       const farmId = payload.farm_id || payload.farm?.farm_id || "";
+      this._upsertTraceabilityRecord("farms", farmId, payload.farm || { name: this._managementForm.farmName, operator: this._managementForm.farmOperator, address: this._managementForm.farmAddress, phone: this._managementForm.farmPhone, status: "active" });
       this._managementForm.plotFarmId = farmId || this._managementForm.plotFarmId;
       this._managementForm.farmName = "";
       this._message = `已建立農場${farmId ? `：${farmId}` : ""}`;
@@ -1880,6 +1914,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "create_plot", service_data: { farm_id: this._managementForm.plotFarmId, name: this._managementForm.plotName, product: this._managementForm.plotProduct, tgap_category: this._managementForm.plotTgapCategory, area: this._managementForm.plotArea, location: this._managementForm.plotLocation }, return_response: true });
       const payload = this._serviceResponsePayload(response);
       const plotId = payload.plot_id || payload.plot?.plot_id || "";
+      this._upsertTraceabilityRecord("plots", plotId, payload.plot || { farm_id: this._managementForm.plotFarmId, name: this._managementForm.plotName, product: this._managementForm.plotProduct, tgap_category: this._managementForm.plotTgapCategory, area: this._managementForm.plotArea, location: this._managementForm.plotLocation, status: "active" });
       this._managementForm.cyclePlotId = plotId || this._managementForm.cyclePlotId;
       this._managementForm.cycleProduct = this._managementForm.cycleProduct || this._managementForm.plotProduct;
       this._managementForm.plotName = "";
@@ -1898,6 +1933,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "create_crop_cycle", service_data: { plot_id: this._managementForm.cyclePlotId, product: this._managementForm.cycleProduct, variety: this._managementForm.cycleVariety, lot_number: cycleIdentity.lotNumber, trace_code: cycleIdentity.traceCode, start_date: this._managementForm.cycleStartDate, expected_harvest_date: this._managementForm.cycleExpectedHarvestDate }, return_response: true });
       const payload = this._serviceResponsePayload(response);
       const cycleId = payload.cycle_id || payload.cycle?.cycle_id || "";
+      this._upsertTraceabilityRecord("cycles", cycleId, payload.cycle || { plot_id: this._managementForm.cyclePlotId, product: this._managementForm.cycleProduct, variety: this._managementForm.cycleVariety, lot_number: cycleIdentity.lotNumber, trace_code: cycleIdentity.traceCode, start_date: this._managementForm.cycleStartDate, expected_harvest_date: this._managementForm.cycleExpectedHarvestDate, status: "active" });
       this._agriForm.cycleId = cycleId || this._agriForm.cycleId;
       this._managementForm.cycleLotNumber = "";
       this._message = `已建立生產週期${cycleId ? `：${cycleId}` : ""}`;

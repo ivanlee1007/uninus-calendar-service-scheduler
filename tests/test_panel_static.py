@@ -173,6 +173,17 @@ def test_traceability_workbench_uses_professional_cycle_centered_workspace_layou
     assert "技術資訊" in source
 
 
+def test_master_data_mutations_merge_service_response_until_hass_state_catches_up():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert "_traceabilityRecordsOverride" in source
+    assert "_upsertTraceabilityRecord" in source
+    assert "_reconcileTraceabilityRecordsOverride" in source
+    assert '_upsertTraceabilityRecord("farms"' in source
+    assert '_upsertTraceabilityRecord("plots"' in source
+    assert '_upsertTraceabilityRecord("cycles"' in source
+
+
 def test_master_data_forms_use_visible_sticky_action_bars():
     source = PANEL_JS.read_text(encoding="utf-8")
 
