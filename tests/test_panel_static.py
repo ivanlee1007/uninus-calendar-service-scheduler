@@ -173,6 +173,17 @@ def test_traceability_workbench_uses_professional_cycle_centered_workspace_layou
     assert "技術資訊" in source
 
 
+def test_operation_quantity_and_unit_are_container_responsive():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert 'class="inline-field operation-quantity-unit"' in source
+    assert ".trace-operation-detail { container-type: inline-size;" in source
+    assert ".operation-quantity-unit { grid-template-columns: repeat(2, minmax(0, 1fr));" in source
+    assert "@container (max-width: 390px)" in source
+    assert ".operation-quantity-unit { grid-template-columns: 1fr;" in source
+    assert ".operation-quantity-unit label { min-width: 0; white-space: nowrap;" in source
+
+
 def test_evidence_and_master_data_share_compact_master_detail_table_design():
     source = PANEL_JS.read_text(encoding="utf-8")
 

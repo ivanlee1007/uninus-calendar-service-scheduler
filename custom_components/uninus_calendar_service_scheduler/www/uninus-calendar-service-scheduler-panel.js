@@ -741,6 +741,11 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .workbench-page-heading p { margin: 0; color: var(--secondary-text-color); font-size: 13px; }
       .trace-operations-master-detail { display: grid; grid-template-columns: minmax(520px, 1.35fr) minmax(360px, .85fr); gap: 14px; align-items: start; }
       .trace-master-panel, .trace-detail-panel { min-width: 0; }
+      .trace-operation-detail { container-type: inline-size; container-name: operation-detail; }
+      .operation-quantity-unit { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; }
+      .operation-quantity-unit label { min-width: 0; white-space: nowrap; }
+      .operation-quantity-unit input { width: 100%; min-width: 0; box-sizing: border-box; }
+      @container (max-width: 390px) { .operation-quantity-unit { grid-template-columns: 1fr; } }
       .trace-detail-panel { position: sticky; top: 0; }
       .detail-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
       .detail-heading h3 { margin: 2px 0 0; }
@@ -1093,7 +1098,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             return `<button class="trace-select-operation" data-id="${this._escape(operation.operation_id)}" role="row"><span><b>${this._escape(operation.operation_type || "農務作業")}</b><small>${this._escape(operation.actual_start || operation.scheduled_start || "未指定時間")}</small></span><span>${this._escape(cycle.product || "未指定產品")}<small>${this._escape(cycle.lot_number || cycle.trace_code || "未指定批號")}</small></span><span>${this._traceStatusChip(operation.status || "planned", statusTone)}</span><span class="trace-row-signals">${this._traceStatusChip(`佐證 ${evidenceCount}`, evidenceCount ? "success" : "warning")}${this._traceStatusChip(calendarLinked ? "Calendar ✓" : "未連結", calendarLinked ? "active" : "warning")}</span></button>`;
           }).join("") : `<p class="message">尚無符合條件的農務作業</p>`}</div>
         </section>
-        <section class="management-section trace-detail-panel">
+        <section class="management-section trace-detail-panel trace-operation-detail">
           <div class="detail-heading"><div><span class="context-eyebrow">OPERATION DETAIL</span><h3>${f.selectedOperationId ? "作業詳細資料" : "選擇一筆農務作業"}</h3></div>${f.selectedOperationId ? this._traceStatusChip(f.status || "planned", ["completed", "verified", "exported"].includes(f.status) ? "success" : "active") : ""}</div>
           <div class="fields">
             <label>生產週期<select id="trace_operation_cycle">${editCycleOptions}</select></label>
@@ -1101,7 +1106,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <label>實際時間<input id="trace_operation_actual_start" value="${this._escape(f.actualStart)}" /></label>
             <label>操作者<input id="trace_operation_operator" value="${this._escape(f.operator)}" /></label>
             <label>資材/水源<input id="trace_operation_material" value="${this._escape(f.materialName)}" /></label>
-            <div class="inline-field"><label>數量<input id="trace_operation_quantity" value="${this._escape(f.quantity)}" /></label><label>單位<input id="trace_operation_unit" value="${this._escape(f.unit)}" /></label></div>
+            <div class="inline-field operation-quantity-unit"><label>數量<input id="trace_operation_quantity" value="${this._escape(f.quantity)}" /></label><label>單位<input id="trace_operation_unit" value="${this._escape(f.unit)}" /></label></div>
             <label>狀態<select id="trace_operation_status">${this._operationStatusOptions(f.status || "planned")}</select></label>
             <label class="fullrow">備註<textarea id="trace_operation_notes">${this._escape(f.notes)}</textarea></label>
             <details class="trace-tech-details fullrow"><summary>技術資訊</summary><div class="fields"><label>Calendar entity<input id="trace_operation_calendar_entity" value="${this._escape(f.calendarEntity)}" /></label><label>Calendar event UID<input id="trace_operation_calendar_uid" value="${this._escape(f.calendarEventUid)}" /></label><label class="fullrow">感測器 entity_id（逗號分隔）<textarea id="trace_operation_sensor_entities">${this._escape(f.sensorEntities)}</textarea></label><p class="system-note fullrow">Operation ID：<code>${this._escape(f.selectedOperationId || "尚未選擇")}</code></p></div></details>
