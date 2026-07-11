@@ -897,6 +897,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       { id: "has_cycle", label: "生產週期資料", ok: cycleId ? Boolean(cycle) : Boolean(Object.keys(cycles).length) },
       { id: "has_operations", label: "農務作業", ok: operations.length > 0 || calendarRows.length > 0 },
       { id: "has_evidence", label: "佐證資料", ok: evidence.length > 0 },
+      { id: "evidence_complete", label: "佐證關聯與標題完整", ok: evidence.every((item) => Boolean(item.operation_id && records.operations?.[item.operation_id] && String(item.title || "").trim())) },
       { id: "hash_valid", label: "Calendar hash 驗證", ok: calendarRows.every((row) => row.hash_valid !== false) },
       { id: "rows_match_cycle", label: "rows 屬於指定生產週期", ok: !cycleId || calendarRows.every((row) => row.cycle_id === cycleId) },
     ].map((item) => ({ ...item, status: item.ok ? "ok" : "warning", message: item.ok ? "OK" : `缺少或不完整：${item.label}` }));
@@ -1278,7 +1279,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const orphanOperations = operations.filter((operation) => operation.calendar_event_uid && !eventUids.has(operation.calendar_event_uid));
     const calendarEventsWithoutStoredOperation = calendarRows.filter((row) => row.operation_id && !records.operations?.[row.operation_id]);
     const staleCycleOperations = operations.filter((operation) => operation.cycle_id && !cycles[operation.cycle_id]);
-    const orphanEvidence = evidence.filter((item) => item.operation_id && !records.operations?.[item.operation_id]);
+    const orphanEvidence = evidence.filter((item) => !item.operation_id || !records.operations?.[item.operation_id]);
     return { orphanOperations, calendarEventsWithoutStoredOperation, duplicateOperationIds, staleCycleOperations, orphanEvidence };
   }
 

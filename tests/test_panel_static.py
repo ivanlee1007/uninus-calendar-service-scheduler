@@ -348,6 +348,14 @@ def test_traceability_management_ui_exposes_edit_archive_controls():
 
 
 
+def test_consistency_and_export_reject_blank_or_orphan_evidence_links():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert "!item.operation_id || !records.operations?.[item.operation_id]" in source
+    assert 'id: "evidence_complete"' in source
+    assert "item.title || \"\"" in source
+
+
 def test_evidence_requires_operation_and_title_at_ui_and_service_boundaries():
     source = PANEL_JS.read_text(encoding="utf-8")
     init_source = (PANEL_JS.parents[1] / "__init__.py").read_text(encoding="utf-8")
