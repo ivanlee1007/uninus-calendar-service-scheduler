@@ -173,6 +173,27 @@ def test_traceability_workbench_uses_professional_cycle_centered_workspace_layou
     assert "技術資訊" in source
 
 
+def test_sidebar_traceability_snapshot_is_compact_and_has_no_duplicate_quick_add():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    start = source.index("\n  _traceabilityTemplate()")
+    end = source.index("\n  _handleDelegatedClick", start)
+    template = source[start:end]
+
+    assert 'class="traceability-card traceability-snapshot"' in template
+    assert 'class="traceability-scope"' in template
+    assert 'class="traceability-snapshot-metrics"' in template
+    assert 'data-workbench-tab="management"' in template
+    assert 'data-workbench-tab="operations"' in template
+    assert 'data-workbench-tab="evidence"' in template
+    assert 'data-workbench-tab="consistency"' in template
+    assert 'class="traceability-issue-preview' in template
+    assert 'class="traceability-recent-operation"' in template
+    assert "開啟工作台" in template
+    assert "新增農務作業" not in template
+    assert "＋農務作業" not in template
+    assert "@container traceability-sidebar (max-width: 220px)" in source
+
+
 def test_all_agri_operation_type_selects_share_one_canonical_source():
     source = PANEL_JS.read_text(encoding="utf-8")
     canonical = '["播種/定植", "灌溉", "施肥", "病蟲害防治", "除草", "採收", "分級包裝", "清潔消毒", "自我查核", "異常事件"]'
@@ -619,7 +640,8 @@ def test_traceability_scope_and_integrity_move_from_sidebar_to_overview():
 
     assert "目前週期<select" not in sidebar_template
     assert 'id="trace_export_cycle"' not in sidebar_template
-    assert 'class="traceability-status compact"' in sidebar_template
+    assert 'class="traceability-scope"' in sidebar_template
+    assert 'class="traceability-issue-preview' in sidebar_template
     assert 'id="trace_overview_cycle"' in overview_template
     assert "目前檢視範圍" in overview_template
     assert "履歷摘要" in overview_template

@@ -652,16 +652,25 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .pill .time { opacity: .88; margin-inline-end: 4px; }
       .empty { padding: 24px; text-align: center; color: var(--secondary-text-color); }
       .message { color: var(--secondary-text-color); white-space: pre-wrap; }
-      .traceability-card { border: 1px solid var(--divider-color); border-radius: 14px; padding: 12px; margin-top: 14px; background: var(--card-background-color); }
-      .traceability-card h2 { font-size: 16px; margin: 0 0 8px; }
-      .traceability-card .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 10px; }
-      .traceability-card .stat { border-radius: 10px; background: var(--secondary-background-color); padding: 8px; font-size: 12px; }
-      .traceability-card .stat b { display: block; font-size: 18px; }
-      .traceability-card textarea { min-height: 54px; }
-      .traceability-card .mini-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-      .traceability-card code { font-size: 11px; word-break: break-all; }
-      .traceability-recent { margin-top: 10px; }
-      .traceability-recent p { margin: 6px 0 0; }
+      .traceability-card { container-type: inline-size; container-name: traceability-sidebar; border: 1px solid var(--divider-color); border-radius: 14px; padding: 12px; margin-top: 14px; background: var(--card-background-color); }
+      .traceability-card h2 { font-size: 15px; margin: 0 0 5px; }
+      .traceability-snapshot-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
+      .traceability-snapshot-head > div { min-width: 0; }
+      .traceability-snapshot-head small, .traceability-recent-operation small, .traceability-recent-operation em { display: block; color: var(--secondary-text-color); font-size: 10px; font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .traceability-scope { display: block; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .traceability-snapshot-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 10px 0 8px; }
+      .traceability-snapshot-metrics button { display: flex; align-items: baseline; justify-content: space-between; gap: 4px; min-width: 0; padding: 7px 8px; border-radius: 9px; background: var(--secondary-background-color); color: var(--primary-text-color); }
+      .traceability-snapshot-metrics button.warning { color: #8a5700; background: rgba(251,140,0,.14); }
+      .traceability-snapshot-metrics b { font-size: 17px; font-variant-numeric: tabular-nums; }
+      .traceability-snapshot-metrics span { font-size: 10px; }
+      .traceability-issue-preview, .traceability-recent-operation { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; width: 100%; padding: 8px 9px; margin: 0 0 7px; border-radius: 9px; text-align: start; background: var(--secondary-background-color); color: var(--primary-text-color); }
+      .traceability-issue-preview.warning { color: #8a5700; background: rgba(251,140,0,.14); }
+      .traceability-issue-preview.resolved { color: var(--success-color, #2e7d32); background: color-mix(in srgb, var(--success-color, #2e7d32) 10%, transparent); }
+      .traceability-issue-preview b, .traceability-recent-operation b { display: block; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .traceability-issue-preview small { display: block; margin-top: 2px; font-size: 10px; color: inherit; opacity: .8; }
+      .traceability-recent-operation > span:first-child { min-width: 0; }
+      .traceability-workbench-cta { width: 100%; margin-top: 1px; padding: 8px 10px; }
+      @container traceability-sidebar (max-width: 220px) { .traceability-snapshot-head { display: grid; } .traceability-snapshot-head .trace-status-chip { justify-self: start; } .traceability-snapshot-metrics button { display: grid; justify-content: start; } }
       .error { color: var(--error-color); }
 
       .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 9; display: ${this._dialogOpen || this._agriDialogOpen || this._traceabilityWorkbenchOpen || this._calendarCreateDialogOpen ? "block" : "none"}; }
@@ -871,14 +880,43 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
   _traceabilityTemplate() {
     const summary = this._traceabilitySummary();
-    const integrity = this._traceabilityIntegrity(this._selectedExportCycleId || "");
-    const statusText = integrity.ok ? "✅ 可匯出" : `⚠️ ${integrity.warning_count} 項需檢查`;
-    return `<section class="traceability-card"><h2>產銷履歷輔助</h2><div class="stats"><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業</div></div><button class="traceability-status compact" id="traceability-status-open" title="開啟總覽查看目前週期與檢查項目">${this._escape(statusText)}</button><div class="mini-actions"><button id="agri-open-workbench">產銷履歷工作台</button></div></section>`;
+    const cycleId = this._selectedExportCycleId || "";
+    const records = this._traceabilityRecords();
+    const cycle = records.cycles?.[cycleId] || {};
+    const plot = records.plots?.[cycle.plot_id] || {};
+    const farm = records.farms?.[plot.farm_id] || {};
+    const integrity = this._traceabilityIntegrity(cycleId);
+    const evidenceCount = this._evidenceRows(cycleId).length;
+    const recent = (summary.recent_operations || [])[0] || {};
+    const scope = cycleId ? `${cycle.product || "週期"}${cycle.variety ? `・${cycle.variety}` : ""}` : "全部週期";
+    const scopeMeta = cycleId ? `${farm.name || "農場"} 〉 ${plot.name || "場區"} · ${cycle.lot_number || cycle.trace_code || "未設批號"}` : `${summary.cycle_count || 0} 週期 · 跨週期`;
+    const firstIssue = integrity.checks.find((item) => !item.ok);
+    const recentLabel = recent.operation_type ? `${recent.operation_type} · ${recent.product || "農務"}` : "尚無最近作業";
+    const recentMeta = recent.lot_number || recent.actual_start || recent.scheduled_start || "";
+    return `<section class="traceability-card traceability-snapshot">
+      <div class="traceability-snapshot-head"><div><h2>產銷履歷</h2><b class="traceability-scope">${this._escape(scope)}</b><small>${this._escape(scopeMeta)}</small></div>${this._traceStatusChip(integrity.ok ? "可匯出" : `${integrity.warning_count} 待辦`, integrity.ok ? "success" : "warning")}</div>
+      <div class="traceability-snapshot-metrics">
+        <button data-workbench-tab="management"><b>${summary.cycle_count || 0}</b><span>週期</span></button>
+        <button data-workbench-tab="operations"><b>${summary.operation_count || 0}</b><span>作業</span></button>
+        <button data-workbench-tab="evidence"><b>${evidenceCount}</b><span>佐證</span></button>
+        <button data-workbench-tab="consistency" class="${integrity.ok ? "" : "warning"}"><b>${integrity.warning_count}</b><span>待辦</span></button>
+      </div>
+      <button class="traceability-issue-preview ${integrity.ok ? "resolved" : "warning"}" data-workbench-tab="consistency"><b>${integrity.ok ? "✓ 資料正常" : `⚠ ${integrity.warning_count} 項待辦`}</b><small>${this._escape(firstIssue?.label || "可建立履歷包")}</small><span>›</span></button>
+      <button class="traceability-recent-operation" data-workbench-tab="operations"><span><small>最近作業</small><b>${this._escape(recentLabel)}</b><em>${this._escape(recentMeta)}</em></span><span>›</span></button>
+      <button class="primary traceability-workbench-cta" id="agri-open-workbench">開啟工作台</button>
+    </section>`;
   }
 
   _handleDelegatedClick(ev) {
     const target = ev.target;
     if (!(target instanceof Element)) return;
+    const deepLink = target.closest("[data-workbench-tab]");
+    if (deepLink) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      this._openTraceabilityWorkbench(deepLink.dataset.workbenchTab || "overview");
+      return;
+    }
     if (target.closest("#agri-open-workbench") || target.closest("#traceability-status-open")) {
       ev.preventDefault();
       ev.stopPropagation();
