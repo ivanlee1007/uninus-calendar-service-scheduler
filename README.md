@@ -6,7 +6,7 @@ A Home Assistant custom integration and Lovelace card for creating **Local Calen
 
 ## Status
 
-Initial MVP implementation.
+MVP implementation with service scheduling and agricultural traceability governance workflows.
 
 Implemented:
 
@@ -17,14 +17,71 @@ Implemented:
 - Runtime timers rebuilt from stored future actions
 - Manual `test_action`, `delete_event_action`, and `reload_actions` services
 - Status sensor exposing stored actions and the next action
-- Lovelace card for creating scheduled actions
+- Home Assistant panel for Calendar event CRUD, service scheduling, and agricultural traceability
+- Agricultural traceability workbench for farms, plots, crop cycles, operations, evidence, export, and consistency repair
+- Lovelace card fallback for creating scheduled actions
 - GitHub Actions CI for Python syntax, tests, JSON validation, and frontend syntax
 
-Current MVP limitation:
+## 產銷履歷資料治理 MVP
 
-- `delete_event_action` removes the stored service action but does not delete the Local Calendar event yet.
-- Calendar event edits made directly in the native Local Calendar UI are not yet reconciled back into stored actions.
-- Repeating calendar events are not yet expanded into multiple action runs.
+The `/uninus-calendar` panel includes a traceability workbench designed to keep Calendar events, stored `AgriOperation` records, crop cycles, and evidence understandable and repairable from the UI.
+
+### 農務作業管理
+
+Use **產銷履歷 → 作業管理** to inspect and maintain agricultural operation records.
+
+The tab supports:
+
+- Operation list with search, crop-cycle filter, and status filter.
+- Per-operation Calendar linkage status.
+- Per-operation evidence count, so delete blockers are visible.
+- Editing cycle, operation type, actual time, operator, material/water source, quantity/unit, status, Calendar entity, Calendar event UID, sensor entities, and notes.
+- `儲存作業` for updates.
+- `封存作業`, which marks the operation as `skipped` instead of hard-deleting traceability history.
+
+### 佐證資料管理
+
+Use **產銷履歷 → 佐證** to manage evidence records attached to operations.
+
+The tab supports:
+
+- Evidence list with search and operation filter.
+- Selecting existing evidence into the editor.
+- Creating, editing, and deleting evidence records.
+- Editing evidence type, title, source entity, URI/file reference, and JSON content.
+- Inline **佐證預覽** so users can see JSON content before saving.
+
+### AGRI Calendar event 刪除策略
+
+When deleting a Calendar event that represents an agricultural operation, the panel asks for an explicit linkage strategy:
+
+- **只刪除 Calendar 行程，保留農務作業** — removes the Calendar event but leaves the stored operation for traceability history.
+- **封存農務作業並刪除行程** — marks the stored operation as `skipped`, clears Calendar linkage, then deletes the Calendar event.
+
+This prevents accidental orphaned `AgriOperation` records and avoids silently deleting traceability history.
+
+### 一致性掃描
+
+Use **產銷履歷 → 一致性掃描** to review repairable data-governance issues:
+
+- Stored operations pointing to missing Calendar events.
+- Calendar AGRI events whose stored operation no longer exists.
+- Duplicate operation IDs across Calendar events.
+- Operations pointing to missing crop cycles.
+- Evidence records pointing to missing operations.
+
+MVP repair buttons include:
+
+- **清除 missing Calendar linkage** for operations whose referenced Calendar event is gone.
+- **刪除 orphan 佐證** for evidence records whose operation no longer exists.
+
+### 安全刪除與封存
+
+Traceability data favors reversible lifecycle changes over hard delete:
+
+- Use **封存** / `skipped` for operation records that should remain auditable.
+- Use **安全刪除** only for master data without references.
+- If a delete is blocked, use 作業管理, 佐證資料管理, and 一致性掃描 to find the linked records first.
 
 ## Installation
 

@@ -56,6 +56,16 @@ class AgriStore:
         self.records.evidence[evidence.evidence_id] = evidence
         await self.async_save()
 
+    async def async_update_evidence(self, evidence: EvidenceRecord) -> None:
+        self.records.evidence[evidence.evidence_id] = evidence
+        await self.async_save()
+
+    async def async_delete_evidence(self, evidence_id: str) -> bool:
+        deleted = self.records.evidence.pop(evidence_id, None) is not None
+        if deleted:
+            await self.async_save()
+        return deleted
+
     async def async_update_farm(self, farm: Farm) -> None:
         self.records.farms[farm.farm_id] = farm
         await self.async_save()

@@ -592,6 +592,49 @@ create_evidence:
       selector:
         text:
 
+update_evidence:
+  name: Update traceability evidence
+  description: Edit evidence metadata/content for an agricultural operation.
+  fields:
+    evidence_id:
+      required: true
+      selector:
+        text:
+    operation_id:
+      required: false
+      selector:
+        text:
+    evidence_type:
+      required: false
+      selector:
+        select:
+          options: [sensor_snapshot, photo, document, note, external_uri]
+    title:
+      required: false
+      selector:
+        text:
+    content:
+      required: false
+      selector:
+        object:
+    source_entity:
+      required: false
+      selector:
+        entity:
+    uri:
+      required: false
+      selector:
+        text:
+
+delete_evidence:
+  name: Delete traceability evidence
+  description: Permanently delete an evidence record after explicit UI selection.
+  fields:
+    evidence_id:
+      required: true
+      selector:
+        text:
+
 export_traceability_package:
   name: Export traceability package
   description: Return flattened rows, CSV text, and evidence metadata for an agricultural traceability export package.

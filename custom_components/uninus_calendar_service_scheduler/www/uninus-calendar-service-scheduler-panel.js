@@ -32,6 +32,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._calendarListScrollTop = 0;
     this._agriForm = this._defaultAgriForm();
     this._managementForm = this._defaultManagementForm();
+    this._operationForm = this._defaultOperationForm();
     this._evidenceForm = this._defaultEvidenceForm();
   }
 
@@ -153,12 +154,38 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
   _defaultEvidenceForm() {
     return {
+      selectedEvidenceId: "",
+      evidenceSearch: "",
+      evidenceSearchApplied: "",
+      evidenceOperationFilter: "",
       operationId: "",
       evidenceType: "sensor_snapshot",
       title: "",
       sourceEntity: "",
       uri: "",
       content: "{}",
+    };
+  }
+
+  _defaultOperationForm() {
+    return {
+      selectedOperationId: "",
+      operationSearch: "",
+      operationSearchApplied: "",
+      operationCycleFilter: "",
+      operationStatusFilter: "all",
+      cycleId: "",
+      operationType: "灌溉",
+      actualStart: "",
+      operator: "",
+      materialName: "",
+      quantity: "",
+      unit: "",
+      sensorEntities: "",
+      notes: "",
+      calendarEntity: "",
+      calendarEventUid: "",
+      status: "planned",
     };
   }
 
@@ -787,7 +814,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         <nav class="workbench-tabs">
           ${tabButton("overview", "總覽")}
           ${tabButton("master-data", "資料管理")}
+          ${tabButton("operations", "作業管理")}
           ${tabButton("evidence", "佐證")}
+          ${tabButton("consistency", "一致性掃描")}
           ${tabButton("export", "匯出")}
         </nav>
         <div class="content">${this._traceabilityWorkbenchContent(tab)}</div>
@@ -800,8 +829,14 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     if (tab === "master-data") {
       return this._managementContentTemplate();
     }
+    if (tab === "operations") {
+      return this._operationsContentTemplate();
+    }
     if (tab === "evidence") {
       return this._evidenceContentTemplate();
+    }
+    if (tab === "consistency") {
+      return this._consistencyContentTemplate();
     }
     if (tab === "export") {
       const cycles = Object.values(this._traceabilityRecords().cycles || {});
@@ -819,16 +854,241 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return `<section class="workbench-section"><label class="fullrow">目前檢視範圍<select id="trace_overview_cycle">${cycleOptions}</select></label><div class="overview-summary fullrow" aria-label="履歷摘要"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業</div><div class="stat"><b>${summary.evidence_count || this._evidenceRows(selectedCycleId).length || 0}</b>佐證</div></div><div class="workbench-overview-grid fullrow"><div class="workbench-overview-left" aria-label="匯出前檢查">${this._integrityTemplate(integrity)}</div><div class="workbench-overview-middle traceability-recent"><b>最近作業</b>${operations.slice(0, 5).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("") || `<p class="message">尚無農務作業</p>`}</div><div class="workbench-overview-right">${this._evidenceListTemplate(selectedCycleId)}</div></div>${migrationCount ? `<div class="mini-actions"><button id="agri-migrate-legacy">移轉舊作業 ${migrationCount}</button></div>` : ""}</section>`;
   }
 
+  _operationEvidenceCount(operationId) {
+    return Object.values(this._traceabilityRecords().evidence || {}).filter((item) => item.operation_id === operationId).length;
+  }
+
+  _filteredOperationRecords() {
+    const records = this._traceabilityRecords();
+    const f = this._operationForm || this._defaultOperationForm();
+    const query = String(f.operationSearchApplied || "").trim().toLowerCase();
+    const cycleFilter = f.operationCycleFilter || "";
+    const statusFilter = f.operationStatusFilter || "all";
+    return Object.values(records.operations || {}).filter((operation) => {
+      const cycle = records.cycles?.[operation.cycle_id] || {};
+      const queryFields = [operation.operation_id, operation.operation_type, operation.operator, operation.material_name, operation.notes, operation.calendar_entity, operation.calendar_event_uid, cycle.product, cycle.lot_number, cycle.trace_code];
+      const queryMatches = !query || queryFields.some((field) => String(field || "").toLowerCase().includes(query));
+      const cycleMatches = !cycleFilter || operation.cycle_id === cycleFilter;
+      const statusMatches = statusFilter === "all" || (operation.status || "planned") === statusFilter;
+      return queryMatches && cycleMatches && statusMatches;
+    }).sort((a, b) => String(b.actual_start || b.scheduled_start || b.created_at || "").localeCompare(String(a.actual_start || a.scheduled_start || a.created_at || "")));
+  }
+
+  _operationStatusOptions(selected = "all", includeAll = false) {
+    const options = includeAll ? [["all", "全部狀態"]] : [];
+    options.push(["planned", "計畫中"], ["completed", "已完成"], ["skipped", "封存/略過"], ["verified", "已驗證"], ["exported", "已匯出"]);
+    return options.map(([value, label]) => `<option value="${this._escape(value)}" ${value === selected ? "selected" : ""}>${this._escape(label)}</option>`).join("");
+  }
+
+  _operationsContentTemplate() {
+    const records = this._traceabilityRecords();
+    const f = this._operationForm || this._defaultOperationForm();
+    const operations = this._filteredOperationRecords();
+    const cycles = Object.values(records.cycles || {});
+    const cycleOptions = [`<option value="">全部生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === f.operationCycleFilter ? "selected" : ""}>${this._escape(cycle.product || "週期")} ${this._escape(cycle.lot_number || cycle.trace_code || cycle.cycle_id)}</option>`)).join("");
+    const editCycleOptions = [`<option value="">選擇生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === f.cycleId ? "selected" : ""}>${this._escape(cycle.product || "週期")} ${this._escape(cycle.lot_number || cycle.trace_code || cycle.cycle_id)}</option>`)).join("");
+    const typeOptions = ["播種/定植", "灌溉", "施肥", "病蟲害防治", "除草", "採收", "分級包裝", "清潔消毒", "自我查核", "異常事件"].map((item) => `<option value="${this._escape(item)}" ${item === f.operationType ? "selected" : ""}>${this._escape(item)}</option>`).join("");
+    return `
+      <section class="workbench-section trace-operations-inline" aria-label="農務作業管理">
+        <section class="management-section fullrow">
+          <h3>農務作業管理</h3>
+          <div class="message fullrow ${this._message.includes("作業") && this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
+          <div class="fields">
+            <label>搜尋<input id="trace-operation-search" value="${this._escape(f.operationSearch || "")}" placeholder="作業、操作者、資材、批號、Calendar UID" /></label><div class="management-search-action"><button id="trace-operation-apply-search">搜尋</button></div>
+            <label>生產週期<select id="trace-operation-cycle-filter">${cycleOptions}</select></label>
+            <label>狀態<select id="trace-operation-status-filter">${this._operationStatusOptions(f.operationStatusFilter || "all", true)}</select></label>
+            <div class="fullrow system-note">目前篩選：${operations.length} 筆農務作業。清單會顯示 Calendar linkage 與佐證數，方便判斷刪除 blocker。</div>
+          </div>
+          <div class="management-list operation-list fullrow">${operations.length ? operations.map((operation) => {
+            const cycle = records.cycles?.[operation.cycle_id] || {};
+            const evidenceCount = this._operationEvidenceCount(operation.operation_id);
+            const calendarLinked = operation.calendar_entity && operation.calendar_event_uid;
+            return `<button class="trace-select-operation" data-id="${this._escape(operation.operation_id)}"><b>${this._escape(operation.operation_type || "農務作業")}</b> ${this._escape(cycle.product || "")} ${this._escape(cycle.lot_number || "")} <span class="system-note">${this._escape(operation.status || "planned")}</span><span class="system-note">佐證 ${evidenceCount}</span><span class="system-note">Calendar ${calendarLinked ? "已連結" : "未連結"}</span></button>`;
+          }).join("") : `<p class="message">尚無符合條件的農務作業</p>`}</div>
+        </section>
+        <section class="management-section fullrow">
+          <h3>${f.selectedOperationId ? "編輯農務作業" : "請先從清單選擇農務作業"}</h3>
+          <div class="fields">
+            <label>生產週期<select id="trace_operation_cycle">${editCycleOptions}</select></label>
+            <label>作業類型<select id="trace_operation_type">${typeOptions}</select></label>
+            <label>實際時間<input id="trace_operation_actual_start" value="${this._escape(f.actualStart)}" /></label>
+            <label>操作者<input id="trace_operation_operator" value="${this._escape(f.operator)}" /></label>
+            <label>資材/水源<input id="trace_operation_material" value="${this._escape(f.materialName)}" /></label>
+            <div class="inline-field"><label>數量<input id="trace_operation_quantity" value="${this._escape(f.quantity)}" /></label><label>單位<input id="trace_operation_unit" value="${this._escape(f.unit)}" /></label></div>
+            <label>狀態<select id="trace_operation_status">${this._operationStatusOptions(f.status || "planned")}</select></label>
+            <label>Calendar entity<input id="trace_operation_calendar_entity" value="${this._escape(f.calendarEntity)}" /></label>
+            <label class="fullrow">Calendar event UID<input id="trace_operation_calendar_uid" value="${this._escape(f.calendarEventUid)}" /></label>
+            <label class="fullrow">感測器 entity_id（逗號分隔）<textarea id="trace_operation_sensor_entities">${this._escape(f.sensorEntities)}</textarea></label>
+            <label class="fullrow">備註<textarea id="trace_operation_notes">${this._escape(f.notes)}</textarea></label>
+          </div>
+          <div class="row-actions"><button class="primary" id="trace-operation-save" ${f.selectedOperationId ? "" : "disabled"}>儲存作業</button><button class="archive" id="trace-operation-archive" ${f.selectedOperationId ? "" : "disabled"}>封存作業</button></div>
+        </section>
+      </section>
+    `;
+  }
+
+  _captureOperationForm() {
+    const get = (id) => this.shadowRoot.getElementById(id)?.value || "";
+    this._operationForm = {
+      ...this._operationForm,
+      operationSearch: get("trace-operation-search"),
+      operationCycleFilter: get("trace-operation-cycle-filter"),
+      operationStatusFilter: get("trace-operation-status-filter") || "all",
+      cycleId: get("trace_operation_cycle"),
+      operationType: get("trace_operation_type") || "灌溉",
+      actualStart: get("trace_operation_actual_start"),
+      operator: get("trace_operation_operator"),
+      materialName: get("trace_operation_material"),
+      quantity: get("trace_operation_quantity"),
+      unit: get("trace_operation_unit"),
+      status: get("trace_operation_status") || "planned",
+      calendarEntity: get("trace_operation_calendar_entity"),
+      calendarEventUid: get("trace_operation_calendar_uid"),
+      sensorEntities: get("trace_operation_sensor_entities"),
+      notes: get("trace_operation_notes"),
+    };
+  }
+
+  _applyOperationSearch() {
+    this._captureOperationForm();
+    this._operationForm = { ...this._operationForm, operationSearchApplied: this._operationForm.operationSearch || "" };
+    this._render();
+  }
+
+  _selectTraceOperation(operationId) {
+    const operation = this._traceabilityRecords().operations?.[operationId];
+    if (!operation) return;
+    this._operationForm = {
+      ...(this._operationForm || this._defaultOperationForm()),
+      selectedOperationId: operation.operation_id,
+      cycleId: operation.cycle_id || "",
+      operationType: operation.operation_type || "灌溉",
+      actualStart: operation.actual_start || operation.scheduled_start || "",
+      operator: operation.operator || "",
+      materialName: operation.material_name || "",
+      quantity: operation.quantity ?? "",
+      unit: operation.unit || "",
+      sensorEntities: Object.keys(operation.sensor_snapshot || {}).join(", "),
+      notes: operation.notes || "",
+      calendarEntity: operation.calendar_entity || "",
+      calendarEventUid: operation.calendar_event_uid || "",
+      status: operation.status || "planned",
+    };
+    this._message = `已載入農務作業：${operation.operation_id}`;
+    this._render();
+  }
+
+  async _updateTraceOperation(statusOverride = "") {
+    this._captureOperationForm();
+    const f = this._operationForm || this._defaultOperationForm();
+    if (!f.selectedOperationId) { this._message = "儲存農務作業失敗：請先點選既有作業。"; this._render(); return; }
+    if (!f.cycleId) { this._message = "儲存農務作業失敗：請選擇生產週期。"; this._render(); return; }
+    const status = statusOverride || f.status || "planned";
+    try {
+      await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "update_agri_operation", service_data: { operation_id: f.selectedOperationId, cycle_id: f.cycleId, operation_type: f.operationType || "灌溉", actual_start: f.actualStart, operator: f.operator, material_name: f.materialName, quantity: f.quantity, unit: f.unit, sensor_entities: String(f.sensorEntities || "").split(",").map((item) => item.trim()).filter(Boolean), notes: f.notes, calendar_entity: f.calendarEntity, calendar_event_uid: f.calendarEventUid, status }, return_response: true });
+      this._operationForm.status = status;
+      this._message = status === "skipped" ? "已封存/略過農務作業。" : "已儲存農務作業。";
+      this._render();
+    } catch (err) { this._message = `儲存農務作業失敗: ${err?.message || err}`; this._render(); }
+  }
+
+  _traceabilityConsistencyReport() {
+    const records = this._traceabilityRecords();
+    const operations = Object.values(records.operations || {});
+    const evidence = Object.values(records.evidence || {});
+    const cycles = records.cycles || {};
+    const eventUids = new Set((this._events || []).map((event) => event.uid || event.id).filter(Boolean));
+    const calendarRows = this._calendarTraceabilityRows || [];
+    const rowOperationIds = calendarRows.map((row) => row.operation_id).filter(Boolean);
+    const seen = new Set();
+    const duplicateOperationIds = [...new Set(rowOperationIds.filter((id) => seen.has(id) || !seen.add(id)))];
+    const orphanOperations = operations.filter((operation) => operation.calendar_event_uid && !eventUids.has(operation.calendar_event_uid));
+    const calendarEventsWithoutStoredOperation = calendarRows.filter((row) => row.operation_id && !records.operations?.[row.operation_id]);
+    const staleCycleOperations = operations.filter((operation) => operation.cycle_id && !cycles[operation.cycle_id]);
+    const orphanEvidence = evidence.filter((item) => item.operation_id && !records.operations?.[item.operation_id]);
+    return { orphanOperations, calendarEventsWithoutStoredOperation, duplicateOperationIds, staleCycleOperations, orphanEvidence };
+  }
+
+  _consistencyContentTemplate() {
+    const report = this._traceabilityConsistencyReport();
+    const totalIssues = report.orphanOperations.length + report.calendarEventsWithoutStoredOperation.length + report.duplicateOperationIds.length + report.staleCycleOperations.length + report.orphanEvidence.length;
+    const list = (items, formatter) => items.length ? `<ul>${items.slice(0, 20).map((item) => `<li>${formatter(item)}</li>`).join("")}</ul>` : `<p class="message">目前沒有發現</p>`;
+    return `
+      <section class="workbench-section trace-consistency-inline" aria-label="一致性掃描">
+        <section class="management-section fullrow">
+          <h3>一致性掃描</h3>
+          <p class="system-note">掃描 Calendar event、stored AgriOperation、生產週期與佐證之間的關聯。發現問題時先列出可修復項目，避免黑盒 blocker。</p>
+          <div class="overview-summary fullrow" aria-label="一致性摘要"><div class="stat"><b>${totalIssues}</b>問題</div><div class="stat"><b>${report.orphanOperations.length}</b>missing Calendar linkage</div><div class="stat"><b>${report.orphanEvidence.length}</b>orphan 佐證</div><div class="stat"><b>${report.staleCycleOperations.length}</b>stale cycle</div></div>
+          <div class="fields">
+            <div class="fullrow"><b>Stored operation 指向不存在的 Calendar event</b>${list(report.orphanOperations, (op) => `<code>${this._escape(op.operation_id)}</code> ${this._escape(op.operation_type || "")} / ${this._escape(op.calendar_event_uid || "")}`)}<button id="trace-repair-missing-calendar-linkage" ${report.orphanOperations.length ? "" : "disabled"}>清除 missing Calendar linkage</button></div>
+            <div class="fullrow"><b>Calendar event 找不到 stored operation</b>${list(report.calendarEventsWithoutStoredOperation, (row) => `<code>${this._escape(row.operation_id || "")}</code> ${this._escape(row.summary || row.uid || "")}`)}</div>
+            <div class="fullrow"><b>重複 operation_id 的 Calendar events</b>${list(report.duplicateOperationIds, (id) => `<code>${this._escape(id)}</code>`)}</div>
+            <div class="fullrow"><b>作業指向不存在的生產週期</b>${list(report.staleCycleOperations, (op) => `<code>${this._escape(op.operation_id)}</code> cycle=${this._escape(op.cycle_id || "")}`)}</div>
+            <div class="fullrow"><b>佐證指向不存在的農務作業</b>${list(report.orphanEvidence, (item) => `<code>${this._escape(item.evidence_id)}</code> operation=${this._escape(item.operation_id || "")}`)}<button id="trace-delete-orphan-evidence" ${report.orphanEvidence.length ? "" : "disabled"}>刪除 orphan 佐證</button></div>
+            <div class="message fullrow ${this._message.includes("一致性") && this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
+          </div>
+        </section>
+      </section>
+    `;
+  }
+
+  async _repairMissingCalendarLinkage() {
+    const report = this._traceabilityConsistencyReport();
+    try {
+      for (const operation of report.orphanOperations) {
+        await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "update_agri_operation", service_data: { operation_id: operation.operation_id, cycle_id: operation.cycle_id || "", operation_type: operation.operation_type || "灌溉", actual_start: operation.actual_start || operation.scheduled_start || "", operator: operation.operator || "", material_name: operation.material_name || "", quantity: operation.quantity ?? "", unit: operation.unit || "", sensor_entities: Object.keys(operation.sensor_snapshot || {}), notes: operation.notes || "", calendar_entity: "", calendar_event_uid: "", status: operation.status || "planned" }, return_response: true });
+      }
+      this._message = `一致性修復完成：已清除 ${report.orphanOperations.length} 筆 missing Calendar linkage。`;
+      this._render();
+    } catch (err) { this._message = `一致性修復失敗: ${err?.message || err}`; this._render(); }
+  }
+
+  async _deleteOrphanEvidence() {
+    const report = this._traceabilityConsistencyReport();
+    try {
+      for (const item of report.orphanEvidence) {
+        await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "delete_evidence", service_data: { evidence_id: item.evidence_id }, return_response: true });
+      }
+      this._message = `一致性修復完成：已刪除 ${report.orphanEvidence.length} 筆 orphan 佐證。`;
+      this._render();
+    } catch (err) { this._message = `一致性修復失敗: ${err?.message || err}`; this._render(); }
+  }
+
+  _filteredEvidenceRecords() {
+    const records = this._traceabilityRecords();
+    const f = this._evidenceForm || this._defaultEvidenceForm();
+    const query = String(f.evidenceSearchApplied || "").trim().toLowerCase();
+    const operationFilter = f.evidenceOperationFilter || "";
+    return Object.values(records.evidence || {}).filter((evidence) => {
+      const op = records.operations?.[evidence.operation_id] || {};
+      const cycle = records.cycles?.[op.cycle_id] || {};
+      const fields = [evidence.evidence_id, evidence.evidence_type, evidence.title, evidence.source_entity, evidence.uri, evidence.content_hash, evidence.operation_id, op.operation_type, cycle.product, cycle.lot_number];
+      return (!operationFilter || evidence.operation_id === operationFilter) && (!query || fields.some((field) => String(field || "").toLowerCase().includes(query)));
+    }).sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+  }
+
   _evidenceContentTemplate() {
     const records = this._traceabilityRecords();
     const operations = Object.values(records.operations || {});
     const f = this._evidenceForm || this._defaultEvidenceForm();
+    const evidenceRows = this._filteredEvidenceRecords();
     const operationOptions = [`<option value="">選擇農務作業</option>`].concat(operations.map((operation) => `<option value="${this._escape(operation.operation_id)}" ${operation.operation_id === f.operationId ? "selected" : ""}>${this._escape(operation.operation_type || "農務作業")} ${this._escape(operation.actual_start || operation.operation_id)}</option>`)).join("");
+    const operationFilterOptions = [`<option value="">全部農務作業</option>`].concat(operations.map((operation) => `<option value="${this._escape(operation.operation_id)}" ${operation.operation_id === f.evidenceOperationFilter ? "selected" : ""}>${this._escape(operation.operation_type || "農務作業")} ${this._escape(operation.actual_start || operation.operation_id)}</option>`)).join("");
     const typeOptions = ["sensor_snapshot", "photo", "document", "note", "external_uri"].map((item) => `<option value="${item}" ${item === f.evidenceType ? "selected" : ""}>${this._escape(item)}</option>`).join("");
+    const preview = f.content ? this._escape(String(f.content).slice(0, 2000)) : "";
     return `
       <section class="workbench-section trace-evidence-inline" aria-label="佐證資料">
         <section class="management-section fullrow">
-          <h3>新增佐證資料</h3>
+          <h3>佐證資料管理</h3>
+          <div class="fields">
+            <label>搜尋<input id="trace-evidence-search" value="${this._escape(f.evidenceSearch || "")}" placeholder="標題、類型、來源、URI、hash" /></label><div class="management-search-action"><button id="trace-evidence-apply-search">搜尋</button></div>
+            <label>農務作業<select id="trace-evidence-operation-filter">${operationFilterOptions}</select></label>
+            <div class="fullrow system-note">目前篩選：${evidenceRows.length} 筆佐證。點選佐證可載入下方表單編輯或刪除。</div>
+          </div>
+          <div class="management-list evidence-list fullrow">${evidenceRows.length ? evidenceRows.map((evidence) => `<button class="trace-select-evidence" data-id="${this._escape(evidence.evidence_id)}"><b>${this._escape(evidence.evidence_type || "evidence")}</b> ${this._escape(evidence.title || evidence.evidence_id)} <span class="system-note">${this._escape(evidence.source_entity || evidence.uri || "無來源")}</span><span class="system-note">hash ${this._escape(String(evidence.content_hash || "").slice(0, 12))}</span></button>`).join("") : `<p class="message">尚無符合條件的佐證資料</p>`}</div>
+        </section>
+        <section class="management-section fullrow">
+          ${f.selectedEvidenceId ? '<h3>編輯佐證資料</h3>' : '<h3>新增佐證資料</h3>'}
           <div class="fields">
             <label>綁定農務作業<select id="trace_evidence_operation">${operationOptions}</select></label>
             <label>佐證類型<select id="trace_evidence_type">${typeOptions}</select></label>
@@ -836,9 +1096,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <label>來源 entity_id<input id="trace_evidence_source_entity" value="${this._escape(f.sourceEntity)}" placeholder="sensor.soil_moisture" /></label>
             <label class="fullrow">URI / 檔案參照<input id="trace_evidence_uri" value="${this._escape(f.uri)}" placeholder="/local/... 或外部連結" /></label>
             <label class="fullrow">佐證 JSON 內容<textarea id="trace_evidence_content" rows="8">${this._escape(f.content)}</textarea></label>
+            <div class="evidence-preview fullrow"><b>佐證預覽</b><pre>${preview}</pre></div>
             <div class="message fullrow ${this._message.includes("佐證") && this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
           </div>
-          <div class="row-actions"><button class="primary" id="trace-evidence-create">建立佐證資料</button></div>
+          <div class="row-actions"><button class="primary" id="trace-evidence-create">建立佐證資料</button><button id="trace-evidence-save" ${f.selectedEvidenceId ? "" : "disabled"}>儲存佐證</button><button class="archive" id="trace-evidence-delete" ${f.selectedEvidenceId ? "" : "disabled"}>刪除佐證</button></div>
         </section>
       </section>
     `;
@@ -848,6 +1109,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const get = (id) => this.shadowRoot.getElementById(id)?.value || "";
     this._evidenceForm = {
       ...this._evidenceForm,
+      evidenceSearch: get("trace-evidence-search"),
+      evidenceOperationFilter: get("trace-evidence-operation-filter"),
       operationId: get("trace_evidence_operation"),
       evidenceType: get("trace_evidence_type") || "sensor_snapshot",
       title: get("trace_evidence_title"),
@@ -876,6 +1139,62 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       this._traceabilityWorkbenchTab = "evidence";
       this._render();
     } catch (err) { this._message = `建立佐證資料失敗: ${err?.message || err}`; this._render(); }
+  }
+
+  _applyEvidenceSearch() {
+    this._captureEvidenceForm();
+    this._evidenceForm = { ...this._evidenceForm, evidenceSearchApplied: this._evidenceForm.evidenceSearch || "" };
+    this._render();
+  }
+
+  _selectEvidenceRecord(evidenceId) {
+    const evidence = this._traceabilityRecords().evidence?.[evidenceId];
+    if (!evidence) return;
+    this._evidenceForm = {
+      ...(this._evidenceForm || this._defaultEvidenceForm()),
+      selectedEvidenceId: evidence.evidence_id,
+      operationId: evidence.operation_id || "",
+      evidenceType: evidence.evidence_type || "sensor_snapshot",
+      title: evidence.title || "",
+      sourceEntity: evidence.source_entity || "",
+      uri: evidence.uri || "",
+      content: JSON.stringify(evidence.content || {}, null, 2),
+    };
+    this._message = `已載入佐證資料：${evidence.evidence_id}`;
+    this._render();
+  }
+
+  _evidenceServiceData() {
+    this._captureEvidenceForm();
+    return {
+      operation_id: this._evidenceForm.operationId,
+      evidence_type: this._evidenceForm.evidenceType,
+      title: this._evidenceForm.title,
+      content: this._evidenceForm.content.trim() ? JSON.parse(this._evidenceForm.content) : {},
+      source_entity: this._evidenceForm.sourceEntity,
+      uri: this._evidenceForm.uri,
+    };
+  }
+
+  async _updateEvidenceRecord() {
+    try {
+      const serviceData = this._evidenceServiceData();
+      if (!this._evidenceForm.selectedEvidenceId) { this._message = "儲存佐證資料失敗：請先點選既有佐證。"; this._render(); return; }
+      await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "update_evidence", service_data: { ...serviceData, evidence_id: this._evidenceForm.selectedEvidenceId }, return_response: true });
+      this._message = "已儲存佐證資料。";
+      this._render();
+    } catch (err) { this._message = `儲存佐證資料失敗: ${err?.message || err}`; this._render(); }
+  }
+
+  async _deleteEvidenceRecord() {
+    this._captureEvidenceForm();
+    if (!this._evidenceForm.selectedEvidenceId) { this._message = "刪除佐證資料失敗：請先點選既有佐證。"; this._render(); return; }
+    try {
+      await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "delete_evidence", service_data: { evidence_id: this._evidenceForm.selectedEvidenceId }, return_response: true });
+      this._message = "已刪除佐證資料。";
+      this._evidenceForm = this._defaultEvidenceForm();
+      this._render();
+    } catch (err) { this._message = `刪除佐證資料失敗: ${err?.message || err}`; this._render(); }
   }
 
   _filteredManagementRecords() {
@@ -1340,6 +1659,16 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   _agriOperationById(operationId) {
     const operations = this._traceabilityRecords().operations || {};
     return operations[operationId];
+  }
+
+  _currentAgriOperationId() {
+    const fromForm = this._form?.agri?.operationId || "";
+    if (fromForm) return fromForm;
+    const description = this._editingEvent?.description || "";
+    const fromMarker = this._agriOperationIdFromDescription(description);
+    if (fromMarker) return fromMarker;
+    const match = this._agriJsonBlock(description).match(/"operation_id"\s*:\s*"([^"]+)"/);
+    return match?.[1] || "";
   }
 
   _agriEventSummary(form) {
@@ -2096,14 +2425,19 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   _deleteConfirmTemplate() {
     if (!this._editingEvent) return "";
     const recurring = this._isRecurringCurrentEvent();
+    const agriOperationId = this._currentAgriOperationId();
+    const agriOptions = agriOperationId ? `<p class="warning">這是農務作業行程。請選擇 Calendar event 刪除後，產銷履歷作業要如何處理。</p>` : "";
     return `<section class="delete-confirm" role="alertdialog" aria-modal="true" aria-label="刪除行程">
       <header><button class="close" id="delete-cancel-x" aria-label="取消">×</button><span>刪除行程</span></header>
       <p>${recurring ? "僅刪除此行程、或所有未來的行程？" : "要刪除此行程嗎？"}</p>
+      ${agriOptions}
       <div class="delete-actions">
         <button class="text" id="delete-cancel">取消</button>
-        ${recurring
-          ? `<button class="danger" id="delete-this-event">僅刪除此<br/>行程</button><button class="danger" id="delete-future-events">刪除所有未來<br/>行程</button>`
-          : `<button class="danger" id="delete-this-event">刪除行程</button>`}
+        ${agriOperationId
+          ? `<button class="danger" id="delete-this-event-keep-operation">只刪除 Calendar 行程，保留農務作業</button><button class="danger" id="delete-this-event-archive-operation">封存農務作業並刪除行程</button>`
+          : (recurring
+            ? `<button class="danger" id="delete-this-event">僅刪除此<br/>行程</button><button class="danger" id="delete-future-events">刪除所有未來<br/>行程</button>`
+            : `<button class="danger" id="delete-this-event">刪除行程</button>`)}
       </div>
     </section>`;
   }
@@ -2247,6 +2581,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("delete-cancel-x")?.addEventListener("click", () => this._closeDeleteConfirm());
     this.shadowRoot.getElementById("delete-this-event")?.addEventListener("click", () => this._deleteCurrentEvent(""));
     this.shadowRoot.getElementById("delete-future-events")?.addEventListener("click", () => this._deleteCurrentEvent("THISANDFUTURE"));
+    this.shadowRoot.getElementById("delete-this-event-keep-operation")?.addEventListener("click", () => this._deleteCurrentEvent("", "keep"));
+    this.shadowRoot.getElementById("delete-this-event-archive-operation")?.addEventListener("click", () => this._deleteCurrentEvent("", "archive"));
     this.shadowRoot.getElementById("edit-cancel")?.addEventListener("click", () => this._closeEditConfirm());
     this.shadowRoot.getElementById("edit-cancel-x")?.addEventListener("click", () => this._closeEditConfirm());
     this.shadowRoot.getElementById("edit-this-event")?.addEventListener("click", () => this._confirmUpdateCurrentEvent("this"));
@@ -2257,7 +2593,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("traceability-workbench-close")?.addEventListener("click", () => this._closeTraceabilityWorkbench());
     this.shadowRoot.getElementById("workbench-tab-overview")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("overview"));
     this.shadowRoot.getElementById("workbench-tab-master-data")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("master-data"));
+    this.shadowRoot.getElementById("workbench-tab-operations")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("operations"));
     this.shadowRoot.getElementById("workbench-tab-evidence")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("evidence"));
+    this.shadowRoot.getElementById("workbench-tab-consistency")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("consistency"));
     this.shadowRoot.getElementById("workbench-tab-export")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("export"));
     this.shadowRoot.getElementById("agri-cancel")?.addEventListener("click", () => this._closeAgriDialog());
     this.shadowRoot.getElementById("agri-create-operation")?.addEventListener("click", () => this._createAgriOperation());
@@ -2270,7 +2608,35 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("agri-migrate-legacy")?.addEventListener("click", () => this._migrateLegacyAgriOperations());
     this.shadowRoot.getElementById("trace_overview_cycle")?.addEventListener("change", (ev) => { this._selectedExportCycleId = ev.target.value || ""; this._lastCycleExportPayload = undefined; this._render(); });
     this.shadowRoot.getElementById("trace_export_cycle_workbench")?.addEventListener("change", (ev) => { this._selectedExportCycleId = ev.target.value || ""; this._lastCycleExportPayload = undefined; this._render(); });
+    this.shadowRoot.getElementById("trace-repair-missing-calendar-linkage")?.addEventListener("click", () => this._repairMissingCalendarLinkage());
+    this.shadowRoot.getElementById("trace-delete-orphan-evidence")?.addEventListener("click", () => this._deleteOrphanEvidence());
     this.shadowRoot.getElementById("trace-evidence-create")?.addEventListener("click", () => this._createEvidenceRecord());
+    const evidenceSearch = this.shadowRoot.getElementById("trace-evidence-search");
+    evidenceSearch?.addEventListener("input", () => this._captureEvidenceForm());
+    evidenceSearch?.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); this._applyEvidenceSearch(); } });
+    this.shadowRoot.getElementById("trace-evidence-apply-search")?.addEventListener("click", () => this._applyEvidenceSearch());
+    this.shadowRoot.getElementById("trace-evidence-operation-filter")?.addEventListener("change", () => { this._captureEvidenceForm(); this._render(); });
+    this.shadowRoot.querySelectorAll(".trace-select-evidence").forEach((button) => button.addEventListener("click", () => this._selectEvidenceRecord(button.dataset.id)));
+    ["trace_evidence_operation", "trace_evidence_type", "trace_evidence_title", "trace_evidence_source_entity", "trace_evidence_uri", "trace_evidence_content"].forEach((id) => {
+      this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureEvidenceForm());
+      this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureEvidenceForm());
+    });
+    this.shadowRoot.getElementById("trace-evidence-save")?.addEventListener("click", () => this._updateEvidenceRecord());
+    this.shadowRoot.getElementById("trace-evidence-delete")?.addEventListener("click", () => this._deleteEvidenceRecord());
+    const operationSearch = this.shadowRoot.getElementById("trace-operation-search");
+    operationSearch?.addEventListener("input", () => this._captureOperationForm());
+    operationSearch?.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); this._applyOperationSearch(); } });
+    this.shadowRoot.getElementById("trace-operation-apply-search")?.addEventListener("click", () => this._applyOperationSearch());
+    ["trace-operation-cycle-filter", "trace-operation-status-filter"].forEach((id) => {
+      this.shadowRoot.getElementById(id)?.addEventListener("change", () => { this._captureOperationForm(); this._render(); });
+    });
+    this.shadowRoot.querySelectorAll(".trace-select-operation").forEach((button) => button.addEventListener("click", () => this._selectTraceOperation(button.dataset.id)));
+    ["trace_operation_cycle", "trace_operation_type", "trace_operation_actual_start", "trace_operation_operator", "trace_operation_material", "trace_operation_quantity", "trace_operation_unit", "trace_operation_status", "trace_operation_calendar_entity", "trace_operation_calendar_uid", "trace_operation_sensor_entities", "trace_operation_notes"].forEach((id) => {
+      this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureOperationForm());
+      this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureOperationForm());
+    });
+    this.shadowRoot.getElementById("trace-operation-save")?.addEventListener("click", () => this._updateTraceOperation());
+    this.shadowRoot.getElementById("trace-operation-archive")?.addEventListener("click", () => this._updateTraceOperation("skipped"));
     const managementSearch = this.shadowRoot.getElementById("trace-management-search");
     managementSearch?.addEventListener("input", () => this._captureManagementForm());
     managementSearch?.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); this._applyManagementSearch(); } });
@@ -3001,7 +3367,33 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     });
   }
 
-  async _deleteCurrentEvent(recurrenceRange = "") {
+  async _archiveAgriOperationForDeletedEvent(operationId) {
+    const operation = this._agriOperationById(operationId);
+    if (!operation) return;
+    await this._hass.callWS({
+      type: "call_service",
+      domain: "uninus_calendar_service_scheduler",
+      service: "update_agri_operation",
+      service_data: {
+        operation_id: operationId,
+        cycle_id: operation.cycle_id || "",
+        operation_type: operation.operation_type || "灌溉",
+        actual_start: operation.actual_start || operation.scheduled_start || "",
+        operator: operation.operator || "",
+        material_name: operation.material_name || "",
+        quantity: operation.quantity ?? "",
+        unit: operation.unit || "",
+        sensor_entities: Object.keys(operation.sensor_snapshot || {}),
+        notes: operation.notes || "",
+        calendar_entity: "",
+        calendar_event_uid: "",
+        status: "skipped",
+      },
+      return_response: true,
+    });
+  }
+
+  async _deleteCurrentEvent(recurrenceRange = "", deleteAgriStrategy = "") {
     try {
       const eventUid = this._currentEventUid();
       const recurrenceId = this._currentEventRecurrenceId();
@@ -3020,6 +3412,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           return_response: true,
         });
         this._actionOverrides?.delete(this._form.actionId);
+      }
+      const agriOperationId = this._currentAgriOperationId();
+      if (agriOperationId && deleteAgriStrategy === "archive") {
+        await this._archiveAgriOperationForDeletedEvent(agriOperationId);
       }
       const deleteMessage = {
         type: "calendar/event/delete",

@@ -65,6 +65,91 @@ def test_agri_calendar_dialog_create_persists_new_operation_for_clones():
     assert "await this._createAgriEventFromDialog(payload)" in source
 
 
+def test_workbench_exposes_operation_management_tab_for_mvp_traceability_governance():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert 'workbench-tab-operations' in source
+    assert "作業管理" in source
+    assert "_operationsContentTemplate" in source
+    assert "_filteredOperationRecords" in source
+    assert 'id="trace-operation-search"' in source
+    assert 'id="trace-operation-cycle-filter"' in source
+    assert 'id="trace-operation-status-filter"' in source
+    assert 'class="trace-select-operation"' in source
+    assert "佐證" in source
+    assert "Calendar" in source
+    assert 'id="trace-operation-save"' in source
+    assert 'id="trace-operation-archive"' in source
+    assert 'service: "update_agri_operation"' in source
+
+
+
+def test_evidence_tab_manages_existing_evidence_records_for_mvp_traceability_governance():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    services_source = Path("custom_components/uninus_calendar_service_scheduler/services.yaml").read_text(encoding="utf-8")
+    init_source = INIT_PY.read_text(encoding="utf-8")
+
+    assert "_filteredEvidenceRecords" in source
+    assert 'id="trace-evidence-search"' in source
+    assert 'id="trace-evidence-operation-filter"' in source
+    assert 'class="trace-select-evidence"' in source
+    assert 'id="trace-evidence-save"' in source
+    assert 'id="trace-evidence-delete"' in source
+    assert "佐證預覽" in source
+    assert 'service: "update_evidence"' in source
+    assert 'service: "delete_evidence"' in source
+    assert "update_evidence:" in services_source
+    assert "delete_evidence:" in services_source
+    assert "_update_evidence" in init_source
+    assert "_delete_evidence" in init_source
+
+
+
+def test_delete_agri_calendar_event_requires_explicit_operation_linkage_strategy():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert "_currentAgriOperationId" in source
+    assert "delete-this-event-keep-operation" in source
+    assert "delete-this-event-archive-operation" in source
+    assert "只刪除 Calendar 行程，保留農務作業" in source
+    assert "封存農務作業並刪除行程" in source
+    assert "_archiveAgriOperationForDeletedEvent" in source
+    assert "deleteAgriStrategy" in source
+    assert 'service: "update_agri_operation"' in source
+    assert 'status: "skipped"' in source
+
+
+
+def test_workbench_exposes_consistency_scan_and_repair_tools_for_traceability_mvp():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert 'workbench-tab-consistency' in source
+    assert "一致性掃描" in source
+    assert "_traceabilityConsistencyReport" in source
+    assert "orphanOperations" in source
+    assert "calendarEventsWithoutStoredOperation" in source
+    assert "duplicateOperationIds" in source
+    assert "staleCycleOperations" in source
+    assert "orphanEvidence" in source
+    assert 'id="trace-repair-missing-calendar-linkage"' in source
+    assert 'id="trace-delete-orphan-evidence"' in source
+    assert "_repairMissingCalendarLinkage" in source
+    assert "_deleteOrphanEvidence" in source
+
+
+
+def test_readme_documents_traceability_governance_mvp_workflow():
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "產銷履歷資料治理 MVP" in readme
+    assert "農務作業管理" in readme
+    assert "佐證資料管理" in readme
+    assert "AGRI Calendar event 刪除策略" in readme
+    assert "一致性掃描" in readme
+    assert "安全刪除與封存" in readme
+
+
+
 def test_safe_delete_surfaces_specific_traceability_blockers():
     source = PANEL_JS.read_text(encoding="utf-8")
     init_source = INIT_PY.read_text(encoding="utf-8")

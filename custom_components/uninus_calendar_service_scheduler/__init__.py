@@ -49,6 +49,7 @@ from .const import (
     SERVICE_CREATE_PLOT,
     SERVICE_DELETE_CROP_CYCLE,
     SERVICE_DELETE_EVENT_ACTION,
+    SERVICE_DELETE_EVIDENCE,
     SERVICE_DELETE_FARM,
     SERVICE_DELETE_PLOT,
     SERVICE_EXPORT_TRACEABILITY_PACKAGE,
@@ -58,6 +59,7 @@ from .const import (
     SERVICE_UPDATE_AGRI_OPERATION,
     SERVICE_UPDATE_CROP_CYCLE,
     SERVICE_UPDATE_EVENT_ACTION,
+    SERVICE_UPDATE_EVIDENCE,
     SERVICE_UPDATE_FARM,
     SERVICE_UPDATE_PLOT,
 )
@@ -192,6 +194,13 @@ CREATE_EVIDENCE_SCHEMA = vol.Schema(
         vol.Optional("uri", default=""): cv.string,
     }
 )
+
+UPDATE_EVIDENCE_SCHEMA = CREATE_EVIDENCE_SCHEMA.extend(
+    {
+        vol.Required("evidence_id"): cv.string,
+    }
+)
+DELETE_EVIDENCE_SCHEMA = vol.Schema({vol.Required("evidence_id"): cv.string})
 
 EXPORT_TRACEABILITY_PACKAGE_SCHEMA = vol.Schema(
     {
@@ -741,6 +750,39 @@ def _register_services_once(hass: HomeAssistant) -> None:
         _notify_agri_changed()
         return {"evidence_id": evidence.evidence_id, "evidence": evidence.as_dict()}
 
+    async def _update_evidence(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        evidence_id = call.data["evidence_id"]
+        existing = agri_store.records.evidence.get(evidence_id)
+        if existing is None:
+            raise vol.Invalid(f"Unknown evidence_id {evidence_id!r}")
+        operation_id = call.data.get("operation_id") or ""
+        if operation_id and operation_id not in agri_store.records.operations:
+            raise vol.Invalid(f"Unknown operation_id {operation_id!r}")
+        evidence = EvidenceRecord(
+            evidence_id=evidence_id,
+            operation_id=operation_id,
+            evidence_type=call.data.get("evidence_type") or "sensor_snapshot",
+            title=call.data.get("title") or "",
+            content=call.data.get("content") or {},
+            source_entity=call.data.get("source_entity") or "",
+            uri=call.data.get("uri") or "",
+            created_at=existing.created_at,
+        )
+        evidence.content_hash = _stable_hash(evidence.as_dict())
+        await agri_store.async_update_evidence(evidence)
+        _notify_agri_changed()
+        return {"evidence_id": evidence.evidence_id, "evidence": evidence.as_dict()}
+
+    async def _delete_evidence(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        evidence_id = call.data["evidence_id"]
+        removed = await agri_store.async_delete_evidence(evidence_id)
+        if not removed:
+            raise vol.Invalid(f"Unknown evidence_id {evidence_id!r}")
+        _notify_agri_changed()
+        return {"removed": removed, "evidence_id": evidence_id}
+
     async def _clear_traceability_calendar_events(agri_store: AgriStore) -> dict[str, Any]:
         """Delete only Calendar events that are explicitly marked as traceability operations.
 
@@ -965,6 +1007,20 @@ def _register_services_once(hass: HomeAssistant) -> None:
         SERVICE_CREATE_EVIDENCE,
         _create_evidence,
         schema=CREATE_EVIDENCE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_UPDATE_EVIDENCE,
+        _update_evidence,
+        schema=UPDATE_EVIDENCE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DELETE_EVIDENCE,
+        _delete_evidence,
+        schema=DELETE_EVIDENCE_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(
