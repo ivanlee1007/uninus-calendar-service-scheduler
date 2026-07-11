@@ -1446,15 +1446,30 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const f = this._managementForm || this._defaultManagementForm();
     const query = String(f.managementSearchApplied || "").trim().toLowerCase();
     const status = f.managementStatusFilter || "active";
-    const matches = (item, fields) => !query || fields.some((field) => String(item[field] || "").toLowerCase().includes(query));
+    const matchesValues = (values) => !query || values.some((value) => String(value || "").toLowerCase().includes(query));
     const statusMatches = (item) => status === "all" || (item.status || "active") === status;
-    const farms = Object.values(records.farms || {}).filter((farm) => statusMatches(farm) && matches(farm, ["name", "operator", "address", "farm_id"]));
-    const farmIds = new Set(farms.map((farm) => farm.farm_id));
+
+    const statusFarms = Object.values(records.farms || {}).filter(statusMatches);
+    const statusFarmIds = new Set(statusFarms.map((farm) => farm.farm_id));
+    const farms = statusFarms.filter((farm) => matchesValues([farm.name, farm.operator, farm.address, farm.farm_id]));
+
     const selectedFarmId = f.selectedFarmId || f.plotFarmId || "";
-    const plots = Object.values(records.plots || {}).filter((plot) => statusMatches(plot) && (!selectedFarmId ? farmIds.has(plot.farm_id) : plot.farm_id === selectedFarmId) && matches(plot, ["name", "product", "location", "plot_id"]));
-    const plotIds = new Set(plots.map((plot) => plot.plot_id));
+    const statusPlots = Object.values(records.plots || {}).filter((plot) => statusMatches(plot) && (!selectedFarmId ? statusFarmIds.has(plot.farm_id) : plot.farm_id === selectedFarmId));
+    const statusPlotIds = new Set(statusPlots.map((plot) => plot.plot_id));
+    const plots = statusPlots.filter((plot) => {
+      const farm = records.farms?.[plot.farm_id] || {};
+      const plotSearchValues = [plot.name, plot.product, plot.location, plot.plot_id, farm.name, farm.operator];
+      return matchesValues(plotSearchValues);
+    });
+
     const selectedPlotId = f.selectedPlotId || f.cyclePlotId || "";
-    const cycles = Object.values(records.cycles || {}).filter((cycle) => statusMatches(cycle) && (!selectedPlotId ? plotIds.has(cycle.plot_id) : cycle.plot_id === selectedPlotId) && matches(cycle, ["product", "variety", "lot_number", "trace_code", "cycle_id"]));
+    const statusCycles = Object.values(records.cycles || {}).filter((cycle) => statusMatches(cycle) && (!selectedPlotId ? statusPlotIds.has(cycle.plot_id) : cycle.plot_id === selectedPlotId));
+    const cycles = statusCycles.filter((cycle) => {
+      const plot = records.plots?.[cycle.plot_id] || {};
+      const farm = records.farms?.[plot.farm_id] || {};
+      const cycleSearchValues = [cycle.product, cycle.variety, cycle.lot_number, cycle.trace_code, cycle.cycle_id, plot.name, plot.product, farm.name];
+      return matchesValues(cycleSearchValues);
+    });
     return { farms, plots, cycles, totalCycles: Object.values(records.cycles || {}).length };
   }
 

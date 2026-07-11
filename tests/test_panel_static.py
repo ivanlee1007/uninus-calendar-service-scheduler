@@ -173,6 +173,20 @@ def test_traceability_workbench_uses_professional_cycle_centered_workspace_layou
     assert "技術資訊" in source
 
 
+def test_master_data_search_does_not_require_ancestor_name_to_match_child_query():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    start = source.index("\n  _filteredManagementRecords()")
+    end = source.index("\n  _managementTableRows", start)
+    method = source[start:end]
+
+    assert "statusFarms" in method
+    assert "statusPlots" in method
+    assert "plotSearchValues" in method
+    assert "cycleSearchValues" in method
+    assert "farmIds = new Set(farms.map" not in method
+    assert "plotIds = new Set(plots.map" not in method
+
+
 def test_sidebar_traceability_snapshot_is_compact_and_has_no_duplicate_quick_add():
     source = PANEL_JS.read_text(encoding="utf-8")
     start = source.index("\n  _traceabilityTemplate()")
