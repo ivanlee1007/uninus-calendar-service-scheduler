@@ -2820,6 +2820,13 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       this.shadowRoot.addEventListener("click", (ev) => this._handleDelegatedClick(ev));
       this._delegatedClickBound = true;
     }
+    this.shadowRoot.querySelectorAll("#agri-open-workbench, [data-workbench-tab]").forEach((control) => {
+      control.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        this._openTraceabilityWorkbench(control.dataset.workbenchTab || "overview");
+      });
+    });
     this.shadowRoot.querySelectorAll(".calendar-choice").forEach((checkbox) => {
       checkbox.addEventListener("change", () => {
         this._selectedCalendars = Array.from(this.shadowRoot.querySelectorAll(".calendar-choice:checked")).map((el) => el.value);

@@ -390,6 +390,16 @@ def test_traceability_sidebar_uses_compact_workbench_entry():
     assert "_traceabilityWorkbenchTab" in source
 
 
+def test_workbench_open_button_has_direct_binding_and_delegated_fallback():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert "_handleDelegatedClick" in source
+    assert "_delegatedClickBound" in source
+    assert 'querySelectorAll("#agri-open-workbench, [data-workbench-tab]")' in source
+    assert 'control.addEventListener("click"' in source
+    assert 'control.dataset.workbenchTab || "overview"' in source
+
+
 def test_workbench_open_button_has_delegated_click_fallback():
     source = PANEL_JS.read_text(encoding="utf-8")
 
