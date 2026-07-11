@@ -735,13 +735,18 @@ def _register_services_once(hass: HomeAssistant) -> None:
 
     async def _create_evidence(call: ServiceCall) -> dict[str, Any]:
         agri_store: AgriStore = _entry_data(hass)["agri_store"]
-        operation_id = call.data.get("operation_id") or ""
-        if operation_id and operation_id not in agri_store.records.operations:
+        operation_id = str(call.data.get("operation_id") or "").strip()
+        title = str(call.data.get("title") or "").strip()
+        if not operation_id:
+            raise vol.Invalid("operation_id is required")
+        if not title:
+            raise vol.Invalid("title is required")
+        if operation_id not in agri_store.records.operations:
             raise vol.Invalid(f"Unknown operation_id {operation_id!r}")
         evidence = EvidenceRecord.create(
             operation_id=operation_id,
             evidence_type=call.data.get("evidence_type") or "sensor_snapshot",
-            title=call.data.get("title") or "",
+            title=title,
             content=call.data.get("content") or {},
             source_entity=call.data.get("source_entity") or "",
             uri=call.data.get("uri") or "",
@@ -756,14 +761,19 @@ def _register_services_once(hass: HomeAssistant) -> None:
         existing = agri_store.records.evidence.get(evidence_id)
         if existing is None:
             raise vol.Invalid(f"Unknown evidence_id {evidence_id!r}")
-        operation_id = call.data.get("operation_id") or ""
-        if operation_id and operation_id not in agri_store.records.operations:
+        operation_id = str(call.data.get("operation_id") or "").strip()
+        title = str(call.data.get("title") or "").strip()
+        if not operation_id:
+            raise vol.Invalid("operation_id is required")
+        if not title:
+            raise vol.Invalid("title is required")
+        if operation_id not in agri_store.records.operations:
             raise vol.Invalid(f"Unknown operation_id {operation_id!r}")
         evidence = EvidenceRecord(
             evidence_id=evidence_id,
             operation_id=operation_id,
             evidence_type=call.data.get("evidence_type") or "sensor_snapshot",
-            title=call.data.get("title") or "",
+            title=title,
             content=call.data.get("content") or {},
             source_entity=call.data.get("source_entity") or "",
             uri=call.data.get("uri") or "",

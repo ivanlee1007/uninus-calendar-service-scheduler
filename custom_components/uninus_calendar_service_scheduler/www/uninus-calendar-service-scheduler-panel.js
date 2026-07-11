@@ -785,6 +785,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .trace-evidence-table-head, .trace-master-table-head, .trace-data-table > button { display: grid; grid-template-columns: minmax(150px, 1.2fr) minmax(130px, 1fr) minmax(110px, .8fr) minmax(90px, .65fr); gap: 10px; align-items: center; }
       .trace-evidence-table-head, .trace-master-table-head { padding: 8px 11px; background: var(--trace-subtle); color: var(--secondary-text-color); font-size: 11px; font-weight: 700; }
       .trace-data-table > button { width: 100%; padding: 10px 11px; border-radius: 0; border-top: 1px solid var(--trace-border); background: var(--trace-surface); text-align: start; font-weight: 400; }
+      .trace-data-table .trace-select-evidence { color: var(--primary-text-color); }
       .trace-data-table > button:hover { background: color-mix(in srgb, var(--trace-primary) 5%, var(--trace-surface)); }
       .trace-data-table > button small { display: block; margin-top: 3px; color: var(--secondary-text-color); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .evidence-preview { display: grid; gap: 8px; margin: 0 0 12px; padding: 10px; border-radius: 9px; background: var(--trace-subtle); }
@@ -1399,6 +1400,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
   async _createEvidenceRecord() {
     this._captureEvidenceForm();
+    if (!this._evidenceForm.operationId) { this._message = "建立佐證資料失敗：請選擇要綁定的農務作業。"; this._render(); return; }
+    if (!this._evidenceForm.title.trim()) { this._message = "建立佐證資料失敗：請輸入佐證標題。"; this._render(); return; }
     let content = {};
     try {
       content = this._evidenceForm.content.trim() ? JSON.parse(this._evidenceForm.content) : {};
@@ -1457,6 +1460,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     try {
       const serviceData = this._evidenceServiceData();
       if (!this._evidenceForm.selectedEvidenceId) { this._message = "儲存佐證資料失敗：請先點選既有佐證。"; this._render(); return; }
+      if (!serviceData.operation_id) { this._message = "儲存佐證資料失敗：請選擇要綁定的農務作業。"; this._render(); return; }
+      if (!serviceData.title.trim()) { this._message = "儲存佐證資料失敗：請輸入佐證標題。"; this._render(); return; }
       await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "update_evidence", service_data: { ...serviceData, evidence_id: this._evidenceForm.selectedEvidenceId }, return_response: true });
       this._message = "已儲存佐證資料。";
       this._render();

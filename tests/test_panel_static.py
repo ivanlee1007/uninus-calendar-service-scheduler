@@ -348,6 +348,22 @@ def test_traceability_management_ui_exposes_edit_archive_controls():
 
 
 
+def test_evidence_requires_operation_and_title_at_ui_and_service_boundaries():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    init_source = (PANEL_JS.parents[1] / "__init__.py").read_text(encoding="utf-8")
+
+    assert "請選擇要綁定的農務作業" in source
+    assert "請輸入佐證標題" in source
+    assert 'raise vol.Invalid("operation_id is required")' in init_source
+    assert 'raise vol.Invalid("title is required")' in init_source
+
+
+def test_evidence_table_rows_have_explicit_readable_text_color():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert ".trace-data-table .trace-select-evidence { color: var(--primary-text-color);" in source
+
+
 def test_panel_export_includes_csv_package_and_evidence_markers():
     source = PANEL_JS.read_text(encoding="utf-8")
 
