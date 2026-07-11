@@ -1547,7 +1547,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <label>電話<input id="trace_farm_phone" value="${this._escape(f.farmPhone)}" /></label>
             <label>狀態<select id="trace_farm_status">${statusOptions(f.farmStatus || "active")}</select></label>
           </div>
-          <div class="row-actions"><button class="primary" id="trace-farm-create">建立農場</button><button id="trace-farm-save" ${f.selectedFarmId ? "" : "disabled"}>儲存農場</button><button class="archive" id="trace-farm-archive" ${f.selectedFarmId ? "" : "disabled"}>封存農場</button><button class="archive" id="trace-farm-delete" ${f.selectedFarmId ? "" : "disabled"}>安全刪除</button></div>
+          <div class="row-actions trace-sticky-actions"><button class="primary" id="trace-farm-create">建立農場</button><button id="trace-farm-save" ${f.selectedFarmId ? "" : "disabled"}>儲存農場</button><button class="archive" id="trace-farm-archive" ${f.selectedFarmId ? "" : "disabled"}>封存農場</button><button class="archive" id="trace-farm-delete" ${f.selectedFarmId ? "" : "disabled"}>安全刪除</button></div>
           <div class="safe-delete-note system-note">只有無關聯資料才能刪除：農場不可有場區、場區不可有生產週期、生產週期不可有農務作業或佐證資料；有關聯時請改用封存。</div>
         </section>
         <section class="management-section master-kind-panel" style="display:${managementKind === "plot" ? "block" : "none"}">
@@ -1561,7 +1561,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <label>位置<input id="trace_plot_location" value="${this._escape(f.plotLocation)}" /></label>
             <label>狀態<select id="trace_plot_status">${statusOptions(f.plotStatus || "active")}</select></label>
           </div>
-          <div class="row-actions"><button class="primary" id="trace-plot-create">建立場區</button><button id="trace-plot-save" ${f.selectedPlotId ? "" : "disabled"}>儲存場區</button><button class="archive" id="trace-plot-archive" ${f.selectedPlotId ? "" : "disabled"}>封存場區</button><button class="archive" id="trace-plot-delete" ${f.selectedPlotId ? "" : "disabled"}>安全刪除</button></div>
+          <div class="row-actions trace-sticky-actions"><button class="primary" id="trace-plot-create">建立場區</button><button id="trace-plot-save" ${f.selectedPlotId ? "" : "disabled"}>儲存場區</button><button class="archive" id="trace-plot-archive" ${f.selectedPlotId ? "" : "disabled"}>封存場區</button><button class="archive" id="trace-plot-delete" ${f.selectedPlotId ? "" : "disabled"}>安全刪除</button></div>
           <div class="safe-delete-note system-note">只有無關聯資料才能刪除：農場不可有場區、場區不可有生產週期、生產週期不可有農務作業或佐證資料；有關聯時請改用封存。</div>
         </section>
         <section class="management-section master-kind-panel" style="display:${managementKind === "cycle" ? "block" : "none"}">
@@ -1577,7 +1577,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
             <label>實際採收日<input id="trace_cycle_actual_harvest" type="date" value="${this._escape(f.cycleActualHarvestDate)}" /></label>
             <label>狀態<select id="trace_cycle_status">${statusOptions(f.cycleStatus || "active")}</select></label>
           </div>
-          <div class="row-actions"><button class="primary" id="trace-cycle-create">建立生產週期</button><button id="trace-cycle-save" ${f.selectedCycleId ? "" : "disabled"}>儲存生產週期</button><button class="archive" id="trace-cycle-archive" ${f.selectedCycleId ? "" : "disabled"}>封存生產週期</button><button class="archive" id="trace-cycle-delete" ${f.selectedCycleId ? "" : "disabled"}>安全刪除</button></div>
+          <div class="row-actions trace-sticky-actions"><button class="primary" id="trace-cycle-create">建立生產週期</button><button id="trace-cycle-save" ${f.selectedCycleId ? "" : "disabled"}>儲存生產週期</button><button class="archive" id="trace-cycle-archive" ${f.selectedCycleId ? "" : "disabled"}>封存生產週期</button><button class="archive" id="trace-cycle-delete" ${f.selectedCycleId ? "" : "disabled"}>安全刪除</button></div>
           <div class="safe-delete-note system-note">只有無關聯資料才能刪除：農場不可有場區、場區不可有生產週期、生產週期不可有農務作業或佐證資料；有關聯時請改用封存。</div>
         </section>
         </div>

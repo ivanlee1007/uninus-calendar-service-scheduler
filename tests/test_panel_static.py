@@ -173,6 +173,16 @@ def test_traceability_workbench_uses_professional_cycle_centered_workspace_layou
     assert "技術資訊" in source
 
 
+def test_master_data_forms_use_visible_sticky_action_bars():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    for action_id in ("trace-farm-create", "trace-plot-create", "trace-cycle-create"):
+        marker = f'id="{action_id}"'
+        position = source.index(marker)
+        opening = source.rfind('<div class="', 0, position)
+        assert 'row-actions trace-sticky-actions' in source[opening:position]
+
+
 def test_master_data_search_does_not_require_ancestor_name_to_match_child_query():
     source = PANEL_JS.read_text(encoding="utf-8")
     start = source.index("\n  _filteredManagementRecords()")
