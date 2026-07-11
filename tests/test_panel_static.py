@@ -187,6 +187,7 @@ def test_sidebar_traceability_snapshot_is_compact_and_has_no_duplicate_quick_add
     assert 'data-workbench-tab="evidence"' in template
     assert 'data-workbench-tab="consistency"' in template
     assert 'class="traceability-issue-preview' in template
+    assert 'data-workbench-tab="consistency"><span><b>' in template
     assert 'class="traceability-recent-operation"' in template
     assert "開啟工作台" in template
     assert "新增農務作業" not in template

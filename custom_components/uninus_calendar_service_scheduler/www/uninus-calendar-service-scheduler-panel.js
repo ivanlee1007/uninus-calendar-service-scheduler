@@ -901,7 +901,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         <button data-workbench-tab="evidence"><b>${evidenceCount}</b><span>佐證</span></button>
         <button data-workbench-tab="consistency" class="${integrity.ok ? "" : "warning"}"><b>${integrity.warning_count}</b><span>待辦</span></button>
       </div>
-      <button class="traceability-issue-preview ${integrity.ok ? "resolved" : "warning"}" data-workbench-tab="consistency"><b>${integrity.ok ? "✓ 資料正常" : `⚠ ${integrity.warning_count} 項待辦`}</b><small>${this._escape(firstIssue?.label || "可建立履歷包")}</small><span>›</span></button>
+      <button class="traceability-issue-preview ${integrity.ok ? "resolved" : "warning"}" data-workbench-tab="consistency"><span><b>${integrity.ok ? "✓ 資料正常" : `⚠ ${integrity.warning_count} 項待辦`}</b><small>${this._escape(firstIssue?.label || "可建立履歷包")}</small></span><span>›</span></button>
       <button class="traceability-recent-operation" data-workbench-tab="operations"><span><small>最近作業</small><b>${this._escape(recentLabel)}</b><em>${this._escape(recentMeta)}</em></span><span>›</span></button>
       <button class="primary traceability-workbench-cta" id="agri-open-workbench">開啟工作台</button>
     </section>`;
