@@ -173,6 +173,28 @@ def test_traceability_workbench_uses_professional_cycle_centered_workspace_layou
     assert "技術資訊" in source
 
 
+def test_evidence_and_master_data_share_compact_master_detail_table_design():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert 'class="trace-evidence-master-detail"' in source
+    assert 'class="trace-data-table evidence-data-table"' in source
+    assert "trace-evidence-detail trace-detail-panel" in source
+    assert 'id="trace-evidence-new"' in source
+    assert "佐證預覽" in source
+    assert "trace-evidence-tech-details" in source
+
+    assert 'id="trace-master-kind-farm"' in source
+    assert 'id="trace-master-kind-plot"' in source
+    assert 'id="trace-master-kind-cycle"' in source
+    assert 'class="trace-master-breadcrumb"' in source
+    assert 'class="trace-data-table master-data-table"' in source
+    assert 'class="trace-master-detail trace-detail-panel"' in source
+    assert "_managementTableRows" in source
+    assert "managementKind" in source
+    assert 'id="trace-management-page-size"' in source
+    assert "_captureManagementPageSize" in source
+
+
 def test_large_traceability_lists_are_paginated_and_capped_for_mvp_scale():
     source = PANEL_JS.read_text(encoding="utf-8")
 
@@ -523,7 +545,7 @@ def test_evidence_management_is_inline_in_workbench_not_second_dialog():
     assert "_closeEvidenceDialog" not in source
 
 
-def test_evidence_tab_starts_with_create_form_without_recent_summary():
+def test_evidence_tab_starts_with_master_detail_without_recent_summary():
     source = PANEL_JS.read_text(encoding="utf-8")
     template_start = source.index("\n  _evidenceContentTemplate()")
     template_end = source.index("_captureEvidenceForm()", template_start)
@@ -532,7 +554,9 @@ def test_evidence_tab_starts_with_create_form_without_recent_summary():
     assert '<h3>佐證資料</h3>' not in template
     assert "_evidenceListTemplate" not in template
     assert "最近佐證資料" not in template
-    assert '<h3>新增佐證資料</h3>' in template
+    assert 'class="trace-evidence-master-detail"' in template
+    assert "新增佐證資料" in template
+    assert 'id="trace-evidence-new"' in template
 
 
 def test_workbench_tabs_do_not_open_secondary_management_or_evidence_dialogs():

@@ -126,6 +126,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       managementSearch: "",
       managementSearchApplied: "",
       managementStatusFilter: "active",
+      managementKind: "cycle",
       farmLimit: "25",
       plotLimit: "25",
       cycleLimit: "25",
@@ -758,6 +759,22 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .evidence-gallery button { display: grid; grid-template-rows: 120px auto; gap: 8px; margin: 0; padding: 8px; background: var(--trace-surface); border: 1px solid var(--trace-border); }
       .evidence-thumb { display: grid; place-items: center; overflow: hidden; border-radius: 7px; background: var(--trace-subtle); color: var(--secondary-text-color); }
       .evidence-thumb img { width: 100%; height: 100%; object-fit: cover; }
+      .page-heading-actions, .master-kind-tabs { display: flex; align-items: center; gap: 8px; }
+      .master-kind-tabs { padding: 3px; border-radius: 9px; background: var(--trace-subtle); }
+      .master-kind-tabs button { padding: 7px 11px; background: transparent; border-radius: 7px; }
+      .master-kind-tabs button.active { background: var(--trace-surface); color: var(--trace-primary); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+      .trace-evidence-master-detail, .trace-master-data-master-detail { display: grid; grid-template-columns: minmax(560px, 1.35fr) minmax(360px, .85fr); gap: 14px; align-items: start; }
+      .trace-master-breadcrumb { padding: 9px 12px; border: 1px solid var(--trace-border); border-radius: 9px; background: var(--trace-subtle); color: var(--secondary-text-color); font-size: 12px; }
+      .trace-data-table { border: 1px solid var(--trace-border); border-radius: 10px; overflow: hidden; margin-top: 12px; }
+      .trace-evidence-table-head, .trace-master-table-head, .trace-data-table > button { display: grid; grid-template-columns: minmax(150px, 1.2fr) minmax(130px, 1fr) minmax(110px, .8fr) minmax(90px, .65fr); gap: 10px; align-items: center; }
+      .trace-evidence-table-head, .trace-master-table-head { padding: 8px 11px; background: var(--trace-subtle); color: var(--secondary-text-color); font-size: 11px; font-weight: 700; }
+      .trace-data-table > button { width: 100%; padding: 10px 11px; border-radius: 0; border-top: 1px solid var(--trace-border); background: var(--trace-surface); text-align: start; font-weight: 400; }
+      .trace-data-table > button:hover { background: color-mix(in srgb, var(--trace-primary) 5%, var(--trace-surface)); }
+      .trace-data-table > button small { display: block; margin-top: 3px; color: var(--secondary-text-color); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .evidence-preview { display: grid; gap: 8px; margin: 0 0 12px; padding: 10px; border-radius: 9px; background: var(--trace-subtle); }
+      .evidence-preview pre { margin: 0; max-height: 180px; overflow: auto; white-space: pre-wrap; }
+      .evidence-preview img { width: 100%; max-height: 260px; object-fit: contain; border-radius: 7px; background: var(--trace-surface); }
+      .trace-master-detail > .management-section { margin: 0; border: 0; padding: 0; box-shadow: none; }
       .trace-master-hierarchy { position: relative; margin-top: 12px; }
       .hierarchy-level { position: relative; padding: 10px 10px 10px 36px; border: 1px solid var(--trace-border); border-radius: 10px; background: var(--trace-subtle); }
       .hierarchy-step { position: absolute; left: 10px; top: 10px; color: var(--trace-primary); font: 700 11px var(--code-font-family, monospace); }
@@ -777,7 +794,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .export-step > span { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: color-mix(in srgb, var(--trace-primary) 14%, var(--trace-surface)); color: var(--trace-primary); font: 700 11px var(--code-font-family, monospace); }
       .export-step > div { border: 1px solid var(--trace-border); border-radius: 10px; padding: 14px; }
       .export-step label { margin-top: 10px; }
-      @media (max-width: 1040px) { .trace-operations-master-detail { grid-template-columns: 1fr; } .trace-detail-panel { position: static; } .workbench-context-bar { grid-template-columns: minmax(0, 1fr) auto; } .context-cycle-picker { grid-column: 1 / -1; } }
+      @media (max-width: 1040px) { .trace-operations-master-detail, .trace-evidence-master-detail, .trace-master-data-master-detail { grid-template-columns: 1fr; } .trace-detail-panel { position: static; } .workbench-context-bar { grid-template-columns: minmax(0, 1fr) auto; } .context-cycle-picker { grid-column: 1 / -1; } }
       @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .side { border-inline-end: 0; border-block-end: 1px solid var(--divider-color); } .day { min-height: 88px; } .agri-dialog .content { grid-template-columns: repeat(2, minmax(0, 1fr)); } .management-section .fields { grid-template-columns: 1fr; } .workbench-shell { grid-template-columns: 150px minmax(0, 1fr); } .trace-table-head { display: none; } .trace-select-operation { grid-template-columns: 1fr 1fr; } }
       @media (max-width: 640px) { .traceability-workbench { inset: 0; left: 0; top: 0; border-radius: 0; } .workbench-header { padding: 12px 14px; } .workbench-context-bar { padding: 10px 14px; grid-template-columns: 1fr; } .workbench-context-status { grid-row: 2; } .context-cycle-picker { grid-column: auto; } .workbench-shell { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } .workbench-sidebar { display: flex; gap: 4px; overflow-x: auto; border-inline-end: 0; border-bottom: 1px solid var(--trace-border); padding: 6px; } .workbench-nav-group { display: contents; } .workbench-nav-group > span { display: none; } .workbench-nav-group button { width: auto; white-space: nowrap; } .workbench-main > .content { padding: 14px; } .dialog .content, .agri-dialog .content, .workbench-grid, .workbench-overview-grid { grid-template-columns: 1fr; } .weekday { font-size: 11px; padding: 8px 4px; text-align: center; } .day { min-height: 74px; padding: 4px; } .pill { font-size: 10px; padding: 2px 4px; } .trace-select-operation { grid-template-columns: 1fr; } .workbench-footer { display: none; } }
     `;
@@ -1251,32 +1268,31 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const preview = f.content ? this._escape(String(f.content).slice(0, 2000)) : "";
     return `
       <section class="workbench-section trace-evidence-inline" aria-label="佐證資料">
-        <div class="workbench-page-heading"><div><span class="context-eyebrow">EVIDENCE</span><h3>佐證中心</h3><p>管理照片、感測器快照、文件與外部佐證。</p></div><div class="view-toggle"><button id="trace-evidence-view-list" class="${f.evidenceView !== "gallery" ? "active" : ""}">列表</button><button id="trace-evidence-view-gallery" class="${f.evidenceView === "gallery" ? "active" : ""}">圖庫</button></div></div>
-        <section class="management-section fullrow">
-          <h3>佐證資料管理</h3>
-          <div class="fields">
-            <label>搜尋<input id="trace-evidence-search" value="${this._escape(f.evidenceSearch || "")}" placeholder="標題、類型、來源、URI、hash" /></label><div class="management-search-action"><button id="trace-evidence-apply-search">搜尋</button></div>
-            <label>農務作業<select id="trace-evidence-operation-filter">${operationFilterOptions}</select></label>
-            <label>每頁筆數<select id="trace-evidence-page-size">${this._pageSizeOptions(f.evidencePageSize || "50")}</select></label>
-            <div class="fullrow system-note">找到 ${evidenceRows.length} 筆佐證，顯示第 ${evidenceRows.length ? pagedEvidence.start + 1 : 0}–${pagedEvidence.end} 筆。${evidenceRows.length > pagedEvidence.pageSize ? "結果較多，請縮小搜尋或農務作業篩選。" : ""}</div>
-            <div class="fullrow mini-actions"><button id="trace-evidence-prev-page" ${pagedEvidence.page <= 0 ? "disabled" : ""}>上一頁</button><button id="trace-evidence-next-page" ${pagedEvidence.page >= pagedEvidence.maxPage ? "disabled" : ""}>下一頁</button></div>
-          </div>
-          <div class="management-list evidence-list fullrow ${f.evidenceView === "gallery" ? "evidence-gallery" : "evidence-table"}">${visibleEvidence.length ? visibleEvidence.map((evidence) => `<button class="trace-select-evidence" data-id="${this._escape(evidence.evidence_id)}">${f.evidenceView === "gallery" ? `<span class="evidence-thumb">${evidence.evidence_type === "photo" && evidence.uri ? `<img src="${this._escape(evidence.uri)}" alt="" loading="lazy" />` : `<b>${this._escape(evidence.evidence_type || "evidence")}</b>`}</span>` : ""}<span><b>${this._escape(evidence.title || evidence.evidence_id)}</b><small>${this._escape(evidence.source_entity || evidence.uri || "無來源")}</small><span class="trace-row-signals">${this._traceStatusChip(evidence.evidence_type || "evidence", "active")}${this._traceStatusChip(evidence.content_hash ? "Hash ✓" : "未驗證", evidence.content_hash ? "success" : "warning")}</span></span></button>`).join("") : `<p class="message">尚無符合條件的佐證資料</p>`}</div>
-        </section>
-        <section class="management-section fullrow">
-          ${f.selectedEvidenceId ? '<h3>編輯佐證資料</h3>' : '<h3>新增佐證資料</h3>'}
-          <div class="fields">
-            <label>綁定農務作業<select id="trace_evidence_operation">${operationOptions}</select></label>
-            <label>佐證類型<select id="trace_evidence_type">${typeOptions}</select></label>
-            <label>標題<input id="trace_evidence_title" value="${this._escape(f.title)}" /></label>
-            <label>來源 entity_id<input id="trace_evidence_source_entity" value="${this._escape(f.sourceEntity)}" placeholder="sensor.soil_moisture" /></label>
-            <label class="fullrow">URI / 檔案參照<input id="trace_evidence_uri" value="${this._escape(f.uri)}" placeholder="/local/... 或外部連結" /></label>
-            <label class="fullrow">佐證 JSON 內容<textarea id="trace_evidence_content" rows="8">${this._escape(f.content)}</textarea></label>
-            <div class="evidence-preview fullrow"><b>佐證預覽</b><pre>${preview}</pre></div>
-            <div class="message fullrow ${this._message.includes("佐證") && this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
-          </div>
-          <div class="row-actions"><button class="primary" id="trace-evidence-create">建立佐證資料</button><button id="trace-evidence-save" ${f.selectedEvidenceId ? "" : "disabled"}>儲存佐證</button><button class="archive" id="trace-evidence-delete" ${f.selectedEvidenceId ? "" : "disabled"}>刪除佐證</button></div>
-        </section>
+        <div class="workbench-page-heading"><div><span class="context-eyebrow">EVIDENCE</span><h3>佐證中心</h3><p>管理照片、感測器快照、文件與外部佐證。</p></div><div class="page-heading-actions"><div class="view-toggle"><button id="trace-evidence-view-list" class="${f.evidenceView !== "gallery" ? "active" : ""}">列表</button><button id="trace-evidence-view-gallery" class="${f.evidenceView === "gallery" ? "active" : ""}">圖庫</button></div><button class="primary" id="trace-evidence-new">＋ 新增佐證</button></div></div>
+        <div class="trace-evidence-master-detail">
+          <section class="management-section trace-master-panel">
+            <div class="fields">
+              <label>搜尋<input id="trace-evidence-search" value="${this._escape(f.evidenceSearch || "")}" placeholder="標題、類型、來源、URI、hash" /></label><div class="management-search-action"><button id="trace-evidence-apply-search">搜尋</button></div>
+              <label>農務作業<select id="trace-evidence-operation-filter">${operationFilterOptions}</select></label>
+              <label>每頁筆數<select id="trace-evidence-page-size">${this._pageSizeOptions(f.evidencePageSize || "50")}</select></label>
+              <div class="fullrow system-note">找到 ${evidenceRows.length} 筆佐證，顯示第 ${evidenceRows.length ? pagedEvidence.start + 1 : 0}–${pagedEvidence.end} 筆。</div>
+              <div class="fullrow mini-actions"><button id="trace-evidence-prev-page" ${pagedEvidence.page <= 0 ? "disabled" : ""}>上一頁</button><button id="trace-evidence-next-page" ${pagedEvidence.page >= pagedEvidence.maxPage ? "disabled" : ""}>下一頁</button></div>
+            </div>
+            ${f.evidenceView === "gallery" ? `<div class="management-list evidence-gallery">${visibleEvidence.length ? visibleEvidence.map((evidence) => `<button class="trace-select-evidence" data-id="${this._escape(evidence.evidence_id)}"><span class="evidence-thumb">${evidence.evidence_type === "photo" && evidence.uri ? `<img src="${this._escape(evidence.uri)}" alt="" loading="lazy" />` : `<b>${this._escape(evidence.evidence_type || "evidence")}</b>`}</span><span><b>${this._escape(evidence.title || evidence.evidence_id)}</b><small>${this._escape(evidence.source_entity || evidence.uri || "無來源")}</small><span class="trace-row-signals">${this._traceStatusChip(evidence.content_hash ? "Hash ✓" : "未驗證", evidence.content_hash ? "success" : "warning")}</span></span></button>`).join("") : `<p class="message">尚無符合條件的佐證資料</p>`}</div>` : `<div class="trace-data-table evidence-data-table" role="table"><div class="trace-evidence-table-head"><span>日期／標題</span><span>類型／來源</span><span>關聯作業</span><span>完整性</span></div>${visibleEvidence.length ? visibleEvidence.map((evidence) => { const op = records.operations?.[evidence.operation_id] || {}; return `<button class="trace-select-evidence" data-id="${this._escape(evidence.evidence_id)}" role="row"><span><b>${this._escape(evidence.title || evidence.evidence_id)}</b><small>${this._escape(evidence.created_at || "未指定時間")}</small></span><span>${this._traceStatusChip(evidence.evidence_type || "evidence", "active")}<small>${this._escape(evidence.source_entity || evidence.uri || "無來源")}</small></span><span>${this._escape(op.operation_type || "未連結作業")}<small>${this._escape(op.actual_start || evidence.operation_id || "")}</small></span><span>${this._traceStatusChip(evidence.content_hash ? "Hash ✓" : "未驗證", evidence.content_hash ? "success" : "warning")}</span></button>`; }).join("") : `<p class="message">尚無符合條件的佐證資料</p>`}</div>`}
+          </section>
+          <section class="management-section trace-evidence-detail trace-detail-panel">
+            <div class="detail-heading"><div><span class="context-eyebrow">EVIDENCE DETAIL</span><h3>${f.selectedEvidenceId ? "佐證詳細資料" : "新增佐證資料"}</h3></div>${f.selectedEvidenceId ? this._traceStatusChip(f.contentHash ? "Hash ✓" : "已載入", "success") : ""}</div>
+            <div class="evidence-preview"><b>佐證預覽</b>${f.evidenceType === "photo" && f.uri ? `<img src="${this._escape(f.uri)}" alt="${this._escape(f.title || "佐證照片")}" />` : `<pre>${preview || "選擇佐證後顯示內容，或填寫資料建立新佐證。"}</pre>`}</div>
+            <div class="fields">
+              <label>綁定農務作業<select id="trace_evidence_operation">${operationOptions}</select></label>
+              <label>佐證類型<select id="trace_evidence_type">${typeOptions}</select></label>
+              <label class="fullrow">標題<input id="trace_evidence_title" value="${this._escape(f.title)}" /></label>
+              <details class="trace-tech-details trace-evidence-tech-details fullrow"><summary>技術資訊</summary><div class="fields"><label>來源 entity_id<input id="trace_evidence_source_entity" value="${this._escape(f.sourceEntity)}" placeholder="sensor.soil_moisture" /></label><label>URI / 檔案參照<input id="trace_evidence_uri" value="${this._escape(f.uri)}" placeholder="/local/... 或外部連結" /></label><label class="fullrow">佐證 JSON 內容<textarea id="trace_evidence_content" rows="8">${this._escape(f.content)}</textarea></label><p class="system-note fullrow">Evidence ID：<code>${this._escape(f.selectedEvidenceId || "尚未建立")}</code></p></div></details>
+              <div class="message fullrow ${this._message.includes("佐證") && this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
+            </div>
+            <div class="trace-sticky-actions"><button class="archive" id="trace-evidence-delete" ${f.selectedEvidenceId ? "" : "disabled"}>刪除佐證</button>${f.selectedEvidenceId ? `<button class="primary" id="trace-evidence-save">儲存佐證</button>` : `<button class="primary" id="trace-evidence-create">建立佐證資料</button>`}</div>
+          </section>
+        </div>
       </section>
     `;
   }
@@ -1391,6 +1407,24 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return { farms, plots, cycles, totalCycles: Object.values(records.cycles || {}).length };
   }
 
+  _managementTableRows(kind, rows, records) {
+    if (kind === "farm") return rows.map((farm) => {
+      const plotCount = Object.values(records.plots || {}).filter((plot) => plot.farm_id === farm.farm_id).length;
+      return `<button class="trace-select-farm" data-id="${this._escape(farm.farm_id)}"><span><b>${this._escape(farm.name || farm.farm_id)}</b><small>${this._escape(farm.operator || "未指定經營者")}</small></span><span>${this._escape(farm.address || "未指定地址")}</span><span>${plotCount} 個場區</span><span>${this._traceStatusChip(farm.status || "active", farm.status === "archived" ? "neutral" : "success")}</span></button>`;
+    }).join("");
+    if (kind === "plot") return rows.map((plot) => {
+      const farm = records.farms?.[plot.farm_id] || {};
+      const cycleCount = Object.values(records.cycles || {}).filter((cycle) => cycle.plot_id === plot.plot_id).length;
+      return `<button class="trace-select-plot" data-id="${this._escape(plot.plot_id)}"><span><b>${this._escape(plot.name || plot.plot_id)}</b><small>${this._escape(farm.name || plot.farm_id || "未指定農場")}</small></span><span>${this._escape(plot.product || plot.tgap_category || "未指定產品")}</span><span>${cycleCount} 個週期</span><span>${this._traceStatusChip(plot.status || "active", plot.status === "archived" ? "neutral" : "success")}</span></button>`;
+    }).join("");
+    return rows.map((cycle) => {
+      const plot = records.plots?.[cycle.plot_id] || {};
+      const farm = records.farms?.[plot.farm_id] || {};
+      const operationCount = Object.values(records.operations || {}).filter((op) => op.cycle_id === cycle.cycle_id).length;
+      return `<button class="trace-select-cycle" data-id="${this._escape(cycle.cycle_id)}"><span><b>${this._escape(cycle.product || cycle.cycle_id)}${cycle.variety ? `・${this._escape(cycle.variety)}` : ""}</b><small>${this._escape(farm.name || "")} 〉 ${this._escape(plot.name || cycle.plot_id || "")}</small></span><span>${this._escape(cycle.lot_number || cycle.trace_code || "未指定批號")}</span><span>${operationCount} 筆作業</span><span>${this._traceStatusChip(cycle.status || "active", cycle.status === "archived" ? "neutral" : "success")}</span></button>`;
+    }).join("");
+  }
+
   _managementContentTemplate() {
     const records = this._traceabilityRecords();
     const filtered = this._filteredManagementRecords();
@@ -1404,6 +1438,12 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const visibleFarms = farms.slice(0, farmLimit);
     const visiblePlots = plots.slice(0, plotLimit);
     const visibleCycles = filtered.cycles.slice(0, cycleLimit);
+    const managementKind = f.managementKind || "cycle";
+    const visibleRows = managementKind === "farm" ? visibleFarms : managementKind === "plot" ? visiblePlots : visibleCycles;
+    const selectedPlot = records.plots?.[f.selectedPlotId || f.cyclePlotId] || {};
+    const selectedFarm = records.farms?.[f.selectedFarmId || f.plotFarmId || selectedPlot.farm_id] || {};
+    const breadcrumb = [selectedFarm.name, selectedPlot.name, f.selectedCycleId ? (records.cycles?.[f.selectedCycleId]?.product || "生產週期") : ""].filter(Boolean).join(" 〉 ") || "全部農場與生產週期";
+    const tableHead = managementKind === "farm" ? ["農場／經營者", "地址", "場區", "狀態"] : managementKind === "plot" ? ["場區／農場", "產品／類別", "週期", "狀態"] : ["產品／場區", "批號／追溯碼", "作業", "狀態"];
     const statusOptions = (selected) => ["active", "inactive", "archived"].map((item) => `<option value="${item}" ${item === selected ? "selected" : ""}>${item === "active" ? "啟用" : item === "inactive" ? "停用" : "封存"}</option>`).join("");
     const filterStatusOptions = ["active", "inactive", "archived", "all"].map((item) => `<option value="${item}" ${item === (f.managementStatusFilter || "active") ? "selected" : ""}>${item === "all" ? "全部狀態" : item === "active" ? "只看啟用" : item === "inactive" ? "只看停用" : "只看封存"}</option>`).join("");
     const farmLimitOptions = this._limitOptions(f.farmLimit || "25", "個農場");
@@ -1417,25 +1457,22 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const categoryOptions = ["農糧", "水果類", "蔬菜類", "水稻", "雜糧類", "畜禽", "水產", "分裝流通", "林產品"].map((item) => `<option value="${this._escape(item)}" ${item === f.plotTgapCategory ? "selected" : ""}>${this._escape(item)}</option>`).join("");
     return `
       <section class="workbench-section trace-management-inline" aria-label="農場 / 場區 / 生產週期管理">
-        <div class="workbench-page-heading"><div><span class="context-eyebrow">MASTER DATA</span><h3>農場、場區與生產週期</h3><p>依自然層級管理履歷主檔。</p></div></div>
-        <section class="management-section fullrow">
-          <h3>尋找與選取</h3>
-          <div class="message fullrow ${this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
+        <div class="workbench-page-heading"><div><span class="context-eyebrow">MASTER DATA</span><h3>農場、場區與生產週期</h3><p>依自然層級管理履歷主檔。</p></div><div class="master-kind-tabs"><button id="trace-master-kind-farm" class="${managementKind === "farm" ? "active" : ""}">農場</button><button id="trace-master-kind-plot" class="${managementKind === "plot" ? "active" : ""}">場區</button><button id="trace-master-kind-cycle" class="${managementKind === "cycle" ? "active" : ""}">生產週期</button></div></div>
+        <div class="trace-master-breadcrumb">${this._escape(breadcrumb)}</div>
+        <div class="trace-master-data-master-detail">
+        <section class="management-section trace-master-panel">
+          <div class="message ${this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
           <div class="fields">
             <label>搜尋<input id="trace-management-search" value="${this._escape(f.managementSearch || "")}" placeholder="農場、場區、批號、追溯碼" /></label><div class="management-search-action"><button id="trace-management-apply-search">搜尋</button></div>
             <label>狀態<select id="trace-management-status-filter">${filterStatusOptions}</select></label>
-            <label>農場顯示上限<select id="trace-farm-page-size">${farmLimitOptions}</select></label>
-            <label>場區顯示上限<select id="trace-plot-page-size">${plotLimitOptions}</select></label>
-            <label>生產週期顯示上限<select id="trace-cycle-page-size">${limitOptions}</select></label>
-            <div class="fullrow system-note">目前篩選：${farms.length} 個農場、${plots.length} 個場區、${cycles.length} / ${filtered.totalCycles} 個生產週期；${farms.length > visibleFarms.length || plots.length > visiblePlots.length || cycles.length > visibleCycles.length ? `清單只顯示前 ${visibleFarms.length}/${visiblePlots.length}/${visibleCycles.length} 筆，請縮小搜尋或選擇上層資料。` : "未超過顯示上限。"}</div>
+            <label>顯示上限<select id="trace-management-page-size">${managementKind === "farm" ? farmLimitOptions : managementKind === "plot" ? plotLimitOptions : limitOptions}</select></label>
+            <select id="trace-farm-page-size" hidden>${farmLimitOptions}</select><select id="trace-plot-page-size" hidden>${plotLimitOptions}</select><select id="trace-cycle-page-size" hidden>${limitOptions}</select>
+            <div class="fullrow system-note">找到 ${visibleRows.length} 筆${managementKind === "farm" ? "農場" : managementKind === "plot" ? "場區" : "生產週期"}。</div>
           </div>
-          <div class="fields trace-master-hierarchy">
-            <div class="hierarchy-level"><span class="hierarchy-step">01</span><b>農場</b><div class="management-list">${visibleFarms.length ? visibleFarms.map((farm) => `<button class="trace-select-farm" data-id="${this._escape(farm.farm_id)}">${this._escape(farm.name || farm.farm_id)} <span class="system-note">${this._escape(farm.status || "active")}</span></button>`).join("") : `<p class="message">尚無符合條件的農場</p>`}</div></div>
-            <div class="hierarchy-level"><span class="hierarchy-step">02</span><b>場區</b><div class="management-list">${visiblePlots.length ? visiblePlots.map((plot) => `<button class="trace-select-plot" data-id="${this._escape(plot.plot_id)}">${this._escape(plot.name || plot.plot_id)} <span class="system-note">${this._escape(plot.status || "active")}</span></button>`).join("") : `<p class="message">請先選擇農場或調整搜尋</p>`}</div></div>
-            <div class="hierarchy-level fullrow"><span class="hierarchy-step">03</span><b>生產週期</b><div class="management-list">${visibleCycles.length ? visibleCycles.map((cycle) => `<button class="trace-select-cycle" data-id="${this._escape(cycle.cycle_id)}">${this._escape(cycle.product || cycle.cycle_id)} ${this._escape(cycle.lot_number || "")} <span class="system-note">${this._escape(cycle.status || "active")}</span></button>`).join("") : `<p class="message">請先選擇場區或調整搜尋</p>`}</div></div>
-          </div>
+          <div class="trace-data-table master-data-table"><div class="trace-master-table-head">${tableHead.map((label) => `<span>${label}</span>`).join("")}</div>${visibleRows.length ? this._managementTableRows(managementKind, visibleRows, records) : `<p class="message">尚無符合條件的資料</p>`}</div>
         </section>
-        <section class="management-section fullrow">
+        <div class="trace-master-detail trace-detail-panel">
+        <section class="management-section master-kind-panel" style="display:${managementKind === "farm" ? "block" : "none"}">
           <h3>${f.selectedFarmId ? "編輯農場" : "新增農場"}</h3>
           <div class="fields">
             <label>農場名稱<input id="trace_farm_name" list="trace-farm-name-options" autocomplete="off" value="${this._escape(f.farmName)}" /></label><datalist id="trace-farm-name-options">${farmNameOptions}</datalist>
@@ -1447,7 +1484,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <div class="row-actions"><button class="primary" id="trace-farm-create">建立農場</button><button id="trace-farm-save" ${f.selectedFarmId ? "" : "disabled"}>儲存農場</button><button class="archive" id="trace-farm-archive" ${f.selectedFarmId ? "" : "disabled"}>封存農場</button><button class="archive" id="trace-farm-delete" ${f.selectedFarmId ? "" : "disabled"}>安全刪除</button></div>
           <div class="safe-delete-note system-note">只有無關聯資料才能刪除：農場不可有場區、場區不可有生產週期、生產週期不可有農務作業或佐證資料；有關聯時請改用封存。</div>
         </section>
-        <section class="management-section fullrow">
+        <section class="management-section master-kind-panel" style="display:${managementKind === "plot" ? "block" : "none"}">
           <h3>${f.selectedPlotId ? "編輯場區" : "新增場區"}</h3>
           <div class="fields">
             <label>農場<select id="trace_plot_farm">${farmOptions}</select></label>
@@ -1461,7 +1498,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <div class="row-actions"><button class="primary" id="trace-plot-create">建立場區</button><button id="trace-plot-save" ${f.selectedPlotId ? "" : "disabled"}>儲存場區</button><button class="archive" id="trace-plot-archive" ${f.selectedPlotId ? "" : "disabled"}>封存場區</button><button class="archive" id="trace-plot-delete" ${f.selectedPlotId ? "" : "disabled"}>安全刪除</button></div>
           <div class="safe-delete-note system-note">只有無關聯資料才能刪除：農場不可有場區、場區不可有生產週期、生產週期不可有農務作業或佐證資料；有關聯時請改用封存。</div>
         </section>
-        <section class="management-section fullrow">
+        <section class="management-section master-kind-panel" style="display:${managementKind === "cycle" ? "block" : "none"}">
           <h3>${f.selectedCycleId ? "編輯生產週期" : "新增生產週期"}</h3>
           <div class="fields">
             <label>場區<select id="trace_cycle_plot">${plotOptions}</select></label>
@@ -1477,6 +1514,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <div class="row-actions"><button class="primary" id="trace-cycle-create">建立生產週期</button><button id="trace-cycle-save" ${f.selectedCycleId ? "" : "disabled"}>儲存生產週期</button><button class="archive" id="trace-cycle-archive" ${f.selectedCycleId ? "" : "disabled"}>封存生產週期</button><button class="archive" id="trace-cycle-delete" ${f.selectedCycleId ? "" : "disabled"}>安全刪除</button></div>
           <div class="safe-delete-note system-note">只有無關聯資料才能刪除：農場不可有場區、場區不可有生產週期、生產週期不可有農務作業或佐證資料；有關聯時請改用封存。</div>
         </section>
+        </div>
+        </div>
       </section>
     `;
   }
@@ -1514,6 +1553,13 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     };
   }
 
+
+  _captureManagementPageSize() {
+    const value = this.shadowRoot.getElementById("trace-management-page-size")?.value || "25";
+    this._captureManagementForm();
+    const key = this._managementForm.managementKind === "farm" ? "farmLimit" : this._managementForm.managementKind === "plot" ? "plotLimit" : "cycleLimit";
+    this._managementForm[key] = value;
+  }
 
   _applyManagementSearch() {
     this._captureManagementForm();
@@ -2807,6 +2853,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("trace-evidence-apply-search")?.addEventListener("click", () => this._applyEvidenceSearch());
     this.shadowRoot.getElementById("trace-evidence-view-list")?.addEventListener("click", () => { this._captureEvidenceForm(); this._evidenceForm.evidenceView = "list"; this._render(); });
     this.shadowRoot.getElementById("trace-evidence-view-gallery")?.addEventListener("click", () => { this._captureEvidenceForm(); this._evidenceForm.evidenceView = "gallery"; this._render(); });
+    this.shadowRoot.getElementById("trace-evidence-new")?.addEventListener("click", () => { const current = this._evidenceForm || this._defaultEvidenceForm(); this._evidenceForm = { ...this._defaultEvidenceForm(), evidenceSearch: current.evidenceSearch, evidenceSearchApplied: current.evidenceSearchApplied, evidenceOperationFilter: current.evidenceOperationFilter, evidencePageSize: current.evidencePageSize, evidenceView: current.evidenceView }; this._message = "建立新的佐證資料。"; this._render(); });
     this.shadowRoot.getElementById("trace-evidence-operation-filter")?.addEventListener("change", () => { this._captureEvidenceForm(); this._evidenceForm.evidencePage = 0; this._render(); });
     this.shadowRoot.getElementById("trace-evidence-page-size")?.addEventListener("change", () => { this._captureEvidenceForm(); this._evidenceForm.evidencePage = 0; this._render(); });
     this.shadowRoot.getElementById("trace-evidence-prev-page")?.addEventListener("click", () => { this._captureEvidenceForm(); this._evidenceForm.evidencePage = Math.max((Number(this._evidenceForm.evidencePage) || 0) - 1, 0); this._render(); });
@@ -2838,12 +2885,14 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     managementSearch?.addEventListener("input", () => this._captureManagementForm());
     managementSearch?.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); this._applyManagementSearch(); } });
     this.shadowRoot.getElementById("trace-management-apply-search")?.addEventListener("click", () => this._applyManagementSearch());
+    [["trace-master-kind-farm", "farm"], ["trace-master-kind-plot", "plot"], ["trace-master-kind-cycle", "cycle"]].forEach(([id, kind]) => this.shadowRoot.getElementById(id)?.addEventListener("click", () => { this._captureManagementForm(); this._managementForm.managementKind = kind; this._render(); }));
     this.shadowRoot.getElementById("trace_farm_name")?.addEventListener("input", () => this._captureManagementForm());
     this.shadowRoot.getElementById("trace_farm_name")?.addEventListener("change", () => this._applyFarmNameComboboxSelection());
     this.shadowRoot.getElementById("trace_plot_name")?.addEventListener("input", () => this._captureManagementForm());
     this.shadowRoot.getElementById("trace_plot_name")?.addEventListener("change", () => this._applyPlotNameComboboxSelection());
     this.shadowRoot.getElementById("trace_cycle_trace_code")?.addEventListener("input", () => this._captureManagementForm());
     this.shadowRoot.getElementById("trace_cycle_trace_code")?.addEventListener("change", () => this._applyCycleIdentifierComboboxSelection());
+    this.shadowRoot.getElementById("trace-management-page-size")?.addEventListener("change", () => { this._captureManagementPageSize(); this._render(); });
     ["trace-management-status-filter", "trace-farm-page-size", "trace-plot-page-size", "trace-cycle-page-size"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => { this._captureManagementForm(); this._render(); });
     });
