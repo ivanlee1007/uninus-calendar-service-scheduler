@@ -30,6 +30,16 @@ def test_agri_calendar_event_edit_syncs_back_to_stored_operation():
     assert "await this._syncAgriOperationForCurrentEvent" in source
 
 
+def test_agri_calendar_rows_reconcile_stale_stored_operations_from_event_payload():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert "_reconcileStoredAgriOperationsFromCalendarRows" in source
+    assert "calendarRow.cycle_id !== storedOperation.cycle_id" in source
+    assert "event payload" in source
+    assert "await this._reconcileStoredAgriOperationsFromCalendarRows" in source
+    assert 'service: "update_agri_operation"' in source
+
+
 def test_safe_delete_surfaces_specific_traceability_blockers():
     source = PANEL_JS.read_text(encoding="utf-8")
     init_source = INIT_PY.read_text(encoding="utf-8")

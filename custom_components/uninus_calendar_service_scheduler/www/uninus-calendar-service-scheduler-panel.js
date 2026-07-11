@@ -1533,6 +1533,42 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return rows.sort((a, b) => String(a.actual_start || "").localeCompare(String(b.actual_start || "")));
   }
 
+  async _reconcileStoredAgriOperationsFromCalendarRows(rows = this._calendarTraceabilityRows || []) {
+    const operations = this._traceabilityRecords().operations || {};
+    const cycles = this._traceabilityRecords().cycles || {};
+    let reconciled = 0;
+    for (const calendarRow of rows || []) {
+      const storedOperation = operations[calendarRow.operation_id];
+      if (!storedOperation || !calendarRow.cycle_id || !cycles[calendarRow.cycle_id]) continue;
+      if (calendarRow.cycle_id !== storedOperation.cycle_id) {
+        await this._hass.callWS({
+          type: "call_service",
+          domain: "uninus_calendar_service_scheduler",
+          service: "update_agri_operation",
+          service_data: {
+            operation_id: calendarRow.operation_id,
+            cycle_id: calendarRow.cycle_id,
+            operation_type: calendarRow.operation_type || storedOperation.operation_type || "灌溉",
+            actual_start: calendarRow.actual_start || storedOperation.actual_start || storedOperation.scheduled_start || "",
+            operator: calendarRow.operator || storedOperation.operator || "",
+            material_name: calendarRow.material_name || storedOperation.material_name || "",
+            quantity: calendarRow.quantity ?? storedOperation.quantity ?? "",
+            unit: calendarRow.unit || storedOperation.unit || "",
+            sensor_entities: calendarRow.sensor_entities?.length ? calendarRow.sensor_entities : Object.keys(storedOperation.sensor_snapshot || {}),
+            notes: calendarRow.notes || storedOperation.notes || "",
+            calendar_entity: calendarRow.calendar_entity || storedOperation.calendar_entity || "",
+            calendar_event_uid: calendarRow.calendar_event_uid || storedOperation.calendar_event_uid || "",
+            status: storedOperation.status || "completed",
+          },
+          return_response: true,
+        });
+        reconciled += 1;
+      }
+    }
+    if (reconciled) this._message = `已依 Calendar event payload 同步 ${reconciled} 筆農務作業關聯。`;
+    return reconciled;
+  }
+
 
   _traceabilityCsv(rows) {
     const headers = ["operation_id", "cycle_id", "farm_name", "plot_name", "product", "lot_number", "operation_type", "actual_start", "operator", "material_name", "quantity", "unit", "status", "record_hash"];
@@ -2610,6 +2646,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       }));
       this._events = results.flat().sort((a, b) => String(this._eventStart(a) || "").localeCompare(String(this._eventStart(b) || "")));
       this._calendarTraceabilityRows = await this._calendarEventTraceabilityRows(this._events);
+      await this._reconcileStoredAgriOperationsFromCalendarRows(this._calendarTraceabilityRows);
     } catch (err) {
       this._message = `Error: ${err?.message || err}`;
       this._events = [];
