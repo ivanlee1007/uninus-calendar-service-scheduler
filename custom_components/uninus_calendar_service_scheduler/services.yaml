@@ -458,6 +458,18 @@ update_agri_operation:
             - verified
             - exported
 
+    profile_id:
+      required: false
+      selector:
+        text:
+    start_actions:
+      required: false
+      selector:
+        object:
+    end_actions:
+      required: false
+      selector:
+        object:
 export_traceability_records:
   name: Export traceability records
   description: Return flattened operation rows and summary for audit/export workflows.
@@ -590,18 +602,6 @@ update_crop_cycle:
         text:
 
 
-    profile_id:
-      required: false
-      selector:
-        text:
-    start_actions:
-      required: false
-      selector:
-        object:
-    end_actions:
-      required: false
-      selector:
-        object:
 create_evidence:
   name: Create traceability evidence
   description: Store evidence metadata or small JSON content for an agricultural operation.
