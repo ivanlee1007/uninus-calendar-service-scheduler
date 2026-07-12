@@ -8,6 +8,27 @@ INIT_PY = Path("custom_components/uninus_calendar_service_scheduler/__init__.py"
 SCHEDULER_PY = Path("custom_components/uninus_calendar_service_scheduler/scheduler.py")
 
 
+def test_service_metadata_exposes_operation_profile_and_action_linkage_fields():
+    source = Path("custom_components/uninus_calendar_service_scheduler/services.yaml").read_text(encoding="utf-8")
+
+    def section(name, next_name):
+        return source.split(f"{name}:\n", 1)[1].split(f"\n{next_name}:\n", 1)[0]
+
+    for body in (
+        section("create_event_action", "update_event_action"),
+        section("update_event_action", "delete_event_action"),
+    ):
+        assert "    operation_id:" in body
+        assert "    profile_id:" in body
+    for body in (
+        section("create_agri_operation", "update_agri_operation"),
+        section("update_agri_operation", "create_evidence"),
+    ):
+        assert "    profile_id:" in body
+        assert "    start_actions:" in body
+        assert "    end_actions:" in body
+
+
 def test_raw_and_reviewed_ai_evidence_are_backend_immutable():
     init_source = INIT_PY.read_text(encoding="utf-8")
 

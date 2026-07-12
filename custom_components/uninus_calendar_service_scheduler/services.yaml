@@ -74,6 +74,14 @@ create_event_action:
         text:
           multiline: true
 
+    operation_id:
+      required: false
+      selector:
+        text:
+    profile_id:
+      required: false
+      selector:
+        text:
 update_event_action:
   name: Update calendar service action
   description: Update a stored service action after editing the linked Local Calendar event.
@@ -149,6 +157,14 @@ update_event_action:
         text:
           multiline: true
 
+    operation_id:
+      required: false
+      selector:
+        text:
+    profile_id:
+      required: false
+      selector:
+        text:
 delete_event_action:
   name: Delete service action
   description: Delete the stored service action and cancel its timer. Calendar event deletion is handled by the panel when available.
@@ -345,6 +361,18 @@ create_agri_operation:
             - verified
             - exported
 
+    profile_id:
+      required: false
+      selector:
+        text:
+    start_actions:
+      required: false
+      selector:
+        object:
+    end_actions:
+      required: false
+      selector:
+        object:
 update_agri_operation:
   name: Update agricultural traceability operation
   description: Update an existing agricultural operation record and its optional calendar linkage metadata.
@@ -562,6 +590,18 @@ update_crop_cycle:
         text:
 
 
+    profile_id:
+      required: false
+      selector:
+        text:
+    start_actions:
+      required: false
+      selector:
+        object:
+    end_actions:
+      required: false
+      selector:
+        object:
 create_evidence:
   name: Create traceability evidence
   description: Store evidence metadata or small JSON content for an agricultural operation.
