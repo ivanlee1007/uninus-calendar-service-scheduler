@@ -166,6 +166,23 @@ def test_agri_calendar_event_edit_syncs_back_to_stored_operation():
     assert "await this._syncAgriOperationForCurrentEvent" in source
 
 
+def test_quick_and_workbench_agri_forms_bind_operation_profiles_and_actions():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert 'id="agri_quick_profile"' in source
+    assert 'id="trace_operation_profile"' in source
+    assert "_applyQuickAgriOperationProfile" in source
+    assert "_applyWorkbenchOperationProfile" in source
+    assert "profileId: operation.profile_id" in source
+    assert "startActions: structuredClone(operation.start_actions" in source
+    assert "endActions: structuredClone(operation.end_actions" in source
+    assert "profile_id: f.profileId" in source
+    assert "start_actions: f.startActions" in source
+    assert "end_actions: f.endActions" in source
+    assert "預設開始 Action" in source
+    assert "預設結束 Action" in source
+
+
 def test_agri_calendar_rows_reconcile_stale_stored_operations_from_event_payload():
     source = PANEL_JS.read_text(encoding="utf-8")
 

@@ -903,6 +903,32 @@ class TraceabilityRecordSet:
 
         return json.dumps(normalize(value), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
+    def prepare_operation_profile_binding(
+        self,
+        *,
+        cycle_id: str,
+        profile_id: str = "",
+        start_actions: list[dict[str, Any]] | None = None,
+        end_actions: list[dict[str, Any]] | None = None,
+    ) -> tuple[str, list[dict[str, Any]], list[dict[str, Any]]]:
+        """Validate a profile against the cycle plot and apply its default actions."""
+        clean_profile_id = str(profile_id or "").strip()
+        if not clean_profile_id:
+            return "", list(start_actions or []), list(end_actions or [])
+        cycle = self.cycles.get(cycle_id)
+        if cycle is None:
+            raise ValueError(f"生產週期 {cycle_id!r} 不存在。")
+        profile = self.sensor_profiles.get(clean_profile_id)
+        if profile is None:
+            raise ValueError(f"Operation Profile {clean_profile_id!r} 不存在。")
+        if profile.plot_id != cycle.plot_id:
+            raise ValueError("Operation Profile 不屬於此生產週期的場區。")
+        return (
+            clean_profile_id,
+            list(start_actions or profile.start_actions),
+            list(end_actions or profile.end_actions),
+        )
+
     def ensure_unique_farm(self, candidate: Farm) -> None:
         def signature(item: Farm) -> tuple[str, ...]:
             return tuple(

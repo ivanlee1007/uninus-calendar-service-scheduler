@@ -108,6 +108,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   _defaultAgriForm() {
     return {
       cycleId: "",
+      profileId: "",
+      startActions: [],
+      endActions: [],
       operationType: "灌溉",
       actualStart: this._localInputValue(new Date()),
       operator: "",
@@ -203,6 +206,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       operationPage: 0,
       operationPageSize: "50",
       cycleId: "",
+      profileId: "",
+      startActions: [],
+      endActions: [],
       operationType: "灌溉",
       actualStart: "",
       operator: "",
@@ -1386,6 +1392,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const cycles = Object.values(records.cycles || {});
     const cycleOptions = [`<option value="">全部生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === f.operationCycleFilter ? "selected" : ""}>${this._escape(cycle.product || "週期")} ${this._escape(cycle.lot_number || cycle.trace_code || cycle.cycle_id)}</option>`)).join("");
     const editCycleOptions = [`<option value="">選擇生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === f.cycleId ? "selected" : ""}>${this._escape(cycle.product || "週期")} ${this._escape(cycle.lot_number || cycle.trace_code || cycle.cycle_id)}</option>`)).join("");
+    const editProfileOptions = this._operationProfileOptions(f.profileId, f.cycleId);
     const typeOptions = this._agriOperationTypeOptions(f.operationType);
     return `
       <section class="workbench-section trace-operations-inline" aria-label="農務作業管理">
@@ -1414,6 +1421,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <div class="detail-heading"><div><span class="context-eyebrow">OPERATION DETAIL</span><h3>${f.selectedOperationId ? "作業詳細資料" : "選擇一筆農務作業"}</h3></div>${f.selectedOperationId ? this._traceStatusChip(f.status || "planned", ["completed", "verified", "exported"].includes(f.status) ? "success" : "active") : ""}</div>
           <div class="fields">
             <label>生產週期<select id="trace_operation_cycle">${editCycleOptions}</select></label>
+            <label>Operation Profile<select id="trace_operation_profile">${editProfileOptions}</select></label>
+            <div class="system-note fullrow"><b>預設開始 Action：</b>${this._escape(this._operationProfileActionSummary(f.startActions))}<br/><b>預設結束 Action：</b>${this._escape(this._operationProfileActionSummary(f.endActions))}</div>
             <label>作業類型<select id="trace_operation_type">${typeOptions}</select></label>
             <label>實際時間<input id="trace_operation_actual_start" value="${this._escape(f.actualStart)}" /></label>
             <label>操作者<input id="trace_operation_operator" value="${this._escape(f.operator)}" /></label>
@@ -1440,6 +1449,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       operationDateRange: get("trace-operation-date-range") || "recent30",
       operationPageSize: get("trace-operation-page-size") || "50",
       cycleId: get("trace_operation_cycle"),
+      profileId: get("trace_operation_profile"),
       operationType: get("trace_operation_type") || "灌溉",
       actualStart: get("trace_operation_actual_start"),
       operator: get("trace_operation_operator"),
@@ -1467,6 +1477,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       ...(this._operationForm || this._defaultOperationForm()),
       selectedOperationId: operation.operation_id,
       cycleId: operation.cycle_id || "",
+      profileId: operation.profile_id || "",
+      startActions: structuredClone(operation.start_actions || []),
+      endActions: structuredClone(operation.end_actions || []),
       operationType: operation.operation_type || "灌溉",
       actualStart: operation.actual_start || operation.scheduled_start || "",
       operator: operation.operator || "",
@@ -1483,6 +1496,19 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._render();
   }
 
+  _applyWorkbenchOperationProfile(profileId) {
+    this._captureOperationForm();
+    const profile = this._traceabilityRecords().sensor_profiles?.[profileId];
+    this._operationForm = {
+      ...this._operationForm,
+      profileId: profileId || "",
+      startActions: structuredClone(profile?.start_actions || []),
+      endActions: structuredClone(profile?.end_actions || []),
+      sensorEntities: profile ? (profile.entity_ids || []).join(", ") : this._operationForm.sensorEntities,
+    };
+    this._render();
+  }
+
   async _updateTraceOperation(statusOverride = "") {
     this._captureOperationForm();
     const f = this._operationForm || this._defaultOperationForm();
@@ -1490,7 +1516,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     if (!f.cycleId) { this._message = "儲存農務作業失敗：請選擇生產週期。"; this._render(); return; }
     const status = statusOverride || f.status || "planned";
     try {
-      await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "update_agri_operation", service_data: { operation_id: f.selectedOperationId, cycle_id: f.cycleId, operation_type: f.operationType || "灌溉", actual_start: f.actualStart, operator: f.operator, material_name: f.materialName, quantity: f.quantity, unit: f.unit, sensor_entities: String(f.sensorEntities || "").split(",").map((item) => item.trim()).filter(Boolean), notes: f.notes, calendar_entity: f.calendarEntity, calendar_event_uid: f.calendarEventUid, status }, return_response: true });
+      await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "update_agri_operation", service_data: { operation_id: f.selectedOperationId, cycle_id: f.cycleId, operation_type: f.operationType || "灌溉", actual_start: f.actualStart, operator: f.operator, material_name: f.materialName, quantity: f.quantity, unit: f.unit, sensor_entities: String(f.sensorEntities || "").split(",").map((item) => item.trim()).filter(Boolean), notes: f.notes, calendar_entity: f.calendarEntity, calendar_event_uid: f.calendarEventUid, profile_id: f.profileId || "", start_actions: f.startActions || [], end_actions: f.endActions || [], status }, return_response: true });
       this._operationForm.status = status;
       this._message = status === "skipped" ? "已封存/略過農務作業。" : "已儲存農務作業。";
       this._render();
@@ -2233,6 +2259,18 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     } catch (err) { this._message = `建立生產週期失敗: ${err?.message || err}`; this._render(); }
   }
 
+  _operationProfileOptions(selectedProfileId = "", cycleId = "", emptyLabel = "不使用 Operation Profile") {
+    const records = this._traceabilityRecords();
+    const cycle = records.cycles?.[cycleId];
+    const profiles = Object.values(records.sensor_profiles || {}).filter((profile) => !cycle?.plot_id || profile.plot_id === cycle.plot_id);
+    return [`<option value="">${this._escape(emptyLabel)}</option>`].concat(profiles.map((profile) => `<option value="${this._escape(profile.profile_id)}" ${profile.profile_id === selectedProfileId ? "selected" : ""}>${this._escape(profile.name || profile.profile_id)} · ${(profile.entity_ids || []).length} observed · ${(profile.start_actions || []).length + (profile.end_actions || []).length} actions</option>`)).join("");
+  }
+
+  _operationProfileActionSummary(actions = [], emptyLabel = "未設定") {
+    if (!actions.length) return emptyLabel;
+    return actions.map((action) => `${action.service || "未指定 service"}${action.target?.entity_id ? ` → ${action.target.entity_id}` : ""}`).join("；");
+  }
+
   _agriDialogTemplate() {
     const records = this._traceabilityRecords();
     const cycles = Object.values(records.cycles || {});
@@ -2245,6 +2283,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         <div class="content">
           <label>顯示日曆<select id="agri_calendar">${this._calendarIds().map((id) => `<option value="${this._escape(id)}" ${id === (f.calendar || this._selectedCalendar) ? "selected" : ""}>${this._escape(this._stateName(id))}</option>`).join("")}</select></label>
           <label>生產週期<select id="agri_cycle">${cycleOptions}</select></label>
+          <label>Operation Profile<select id="agri_quick_profile">${this._operationProfileOptions(f.profileId, f.cycleId)}</select></label>
+          <div class="system-note fullrow"><b>預設開始 Action：</b>${this._escape(this._operationProfileActionSummary(f.startActions))}<br/><b>預設結束 Action：</b>${this._escape(this._operationProfileActionSummary(f.endActions))}</div>
           <label>作業類型<select id="agri_operation_type">${typeOptions}</select></label>
           <label>實際時間<input id="agri_actual_start" type="datetime-local" value="${this._escape(f.actualStart)}" /></label>
           <label>操作者<input id="agri_operator" value="${this._escape(f.operator)}" /></label>
@@ -2276,7 +2316,20 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
 
   _captureAgriForm() {
     const get = (id) => this.shadowRoot.getElementById(id)?.value || "";
-    this._agriForm = { ...this._agriForm, calendar: get("agri_calendar") || this._selectedCalendar, cycleId: get("agri_cycle"), operationType: get("agri_operation_type") || "灌溉", actualStart: get("agri_actual_start"), operator: get("agri_operator"), materialName: get("agri_material"), quantity: get("agri_quantity"), unit: get("agri_unit"), sensorEntities: get("agri_sensor_entities"), notes: get("agri_notes") };
+    this._agriForm = { ...this._agriForm, calendar: get("agri_calendar") || this._selectedCalendar, cycleId: get("agri_cycle"), profileId: get("agri_quick_profile"), operationType: get("agri_operation_type") || "灌溉", actualStart: get("agri_actual_start"), operator: get("agri_operator"), materialName: get("agri_material"), quantity: get("agri_quantity"), unit: get("agri_unit"), sensorEntities: get("agri_sensor_entities"), notes: get("agri_notes") };
+  }
+
+  _applyQuickAgriOperationProfile(profileId) {
+    this._captureAgriForm();
+    const profile = this._traceabilityRecords().sensor_profiles?.[profileId];
+    this._agriForm = {
+      ...this._agriForm,
+      profileId: profileId || "",
+      startActions: structuredClone(profile?.start_actions || []),
+      endActions: structuredClone(profile?.end_actions || []),
+      sensorEntities: profile ? (profile.entity_ids || []).join(", ") : this._agriForm.sensorEntities,
+    };
+    this._render();
   }
 
   _agriOperationIdFromDescription(description = "") {
@@ -2401,6 +2454,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       notes: this._agriForm.notes,
       calendar_entity: this._agriForm.calendar || this._selectedCalendar,
       calendar_event_uid: this._agriForm.calendarEventUid || "",
+      profile_id: this._agriForm.profileId || "",
+      start_actions: this._agriForm.startActions || [],
+      end_actions: this._agriForm.endActions || [],
     };
   }
 
@@ -3093,11 +3149,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   _agriFieldsTemplate() {
     const records = this._traceabilityRecords();
     const cycles = Object.values(records.cycles || {});
-    const profiles = Object.values(records.sensor_profiles || {});
-    const plots = records.plots || {};
     const agri = this._form.agri || this._defaultAgriFields();
     const cycleOptions = [`<option value="">選擇生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === agri.cycleId ? "selected" : ""}>${this._escape(cycle.product || cycle.cycle_id)} ${this._escape(cycle.lot_number || "")}</option>`)).join("");
-    const profileOptions = [`<option value="">不自動擷取佐證</option>`].concat(profiles.map((profile) => `<option value="${this._escape(profile.profile_id)}" ${profile.profile_id === agri.profileId ? "selected" : ""}>${this._escape(profile.name || profile.profile_id)} · ${this._escape(plots[profile.plot_id]?.name || "未指定場區")} · ${(profile.entity_ids || []).length} entities</option>`)).join("");
+    const profileOptions = this._operationProfileOptions(agri.profileId, agri.cycleId, "不自動擷取佐證");
     const typeOptions = this._agriOperationTypeOptions(agri.operationType);
     return `<fieldset class="agri-fields fullrow">
       <legend>農務作業欄位</legend>
@@ -3290,6 +3344,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("trace-sensor-profile-save")?.addEventListener("click", () => this._saveSensorProfile(false));
     this.shadowRoot.getElementById("trace-sensor-profile-delete")?.addEventListener("click", () => this._deleteSensorProfile());
     this.shadowRoot.getElementById("agri-cancel")?.addEventListener("click", () => this._closeAgriDialog());
+    this.shadowRoot.getElementById("agri_quick_profile")?.addEventListener("change", (ev) => this._applyQuickAgriOperationProfile(ev.target.value));
     this.shadowRoot.getElementById("agri-create-operation")?.addEventListener("click", () => this._createAgriOperation());
     this.shadowRoot.getElementById("agri-export")?.addEventListener("click", () => this._exportTraceabilityRecords());
     this.shadowRoot.getElementById("agri-download-json")?.addEventListener("click", () => this._downloadTraceabilityJson());
@@ -3333,6 +3388,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("trace-operation-prev-page")?.addEventListener("click", () => { this._captureOperationForm(); this._operationForm.operationPage = Math.max((Number(this._operationForm.operationPage) || 0) - 1, 0); this._render(); });
     this.shadowRoot.getElementById("trace-operation-next-page")?.addEventListener("click", () => { this._captureOperationForm(); this._operationForm.operationPage = (Number(this._operationForm.operationPage) || 0) + 1; this._render(); });
     this.shadowRoot.querySelectorAll(".trace-select-operation").forEach((button) => button.addEventListener("click", () => this._selectTraceOperation(button.dataset.id)));
+    this.shadowRoot.getElementById("trace_operation_profile")?.addEventListener("change", (ev) => this._applyWorkbenchOperationProfile(ev.target.value));
     ["trace_operation_cycle", "trace_operation_type", "trace_operation_actual_start", "trace_operation_operator", "trace_operation_material", "trace_operation_quantity", "trace_operation_unit", "trace_operation_status", "trace_operation_calendar_entity", "trace_operation_calendar_uid", "trace_operation_sensor_entities", "trace_operation_notes"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureOperationForm());
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureOperationForm());

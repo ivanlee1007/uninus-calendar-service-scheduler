@@ -817,6 +817,15 @@ def _register_services_once(hass: HomeAssistant) -> None:
         cycle_id = call.data["cycle_id"]
         if cycle_id not in agri_store.records.cycles:
             raise vol.Invalid(f"Unknown cycle_id {cycle_id!r}")
+        try:
+            profile_id, start_actions, end_actions = agri_store.records.prepare_operation_profile_binding(
+                cycle_id=cycle_id,
+                profile_id=call.data.get("profile_id") or "",
+                start_actions=list(call.data.get("start_actions") or []),
+                end_actions=list(call.data.get("end_actions") or []),
+            )
+        except ValueError as err:
+            raise vol.Invalid(str(err)) from err
         operation = AgriOperation.create(
             cycle_id=cycle_id,
             operation_type=call.data["operation_type"],
@@ -830,9 +839,9 @@ def _register_services_once(hass: HomeAssistant) -> None:
             notes=call.data.get("notes") or "",
             calendar_entity=call.data.get("calendar_entity") or "",
             calendar_event_uid=call.data.get("calendar_event_uid") or "",
-            profile_id=call.data.get("profile_id") or "",
-            start_actions=list(call.data.get("start_actions") or []),
-            end_actions=list(call.data.get("end_actions") or []),
+            profile_id=profile_id,
+            start_actions=start_actions,
+            end_actions=end_actions,
             status=call.data.get("status"),
         )
         await _persist_unique(agri_store.async_add_operation(operation))
@@ -849,6 +858,23 @@ def _register_services_once(hass: HomeAssistant) -> None:
         cycle_id = call.data["cycle_id"]
         if cycle_id not in agri_store.records.cycles:
             raise vol.Invalid(f"Unknown cycle_id {cycle_id!r}")
+        requested_profile_id = (
+            call.data.get("profile_id") if "profile_id" in call.data else existing.profile_id
+        )
+        requested_start_actions = list(call.data.get("start_actions") or [])
+        requested_end_actions = list(call.data.get("end_actions") or [])
+        if requested_profile_id == existing.profile_id:
+            requested_start_actions = requested_start_actions or existing.start_actions
+            requested_end_actions = requested_end_actions or existing.end_actions
+        try:
+            profile_id, start_actions, end_actions = agri_store.records.prepare_operation_profile_binding(
+                cycle_id=cycle_id,
+                profile_id=requested_profile_id,
+                start_actions=requested_start_actions,
+                end_actions=requested_end_actions,
+            )
+        except ValueError as err:
+            raise vol.Invalid(str(err)) from err
         operation = AgriOperation(
             operation_id=operation_id,
             cycle_id=cycle_id,
@@ -863,9 +889,9 @@ def _register_services_once(hass: HomeAssistant) -> None:
             notes=call.data.get("notes") or "",
             calendar_entity=call.data.get("calendar_entity") or existing.calendar_entity,
             calendar_event_uid=call.data.get("calendar_event_uid") or existing.calendar_event_uid,
-            profile_id=call.data.get("profile_id") or existing.profile_id,
-            start_actions=list(call.data.get("start_actions") or existing.start_actions),
-            end_actions=list(call.data.get("end_actions") or existing.end_actions),
+            profile_id=profile_id,
+            start_actions=start_actions,
+            end_actions=end_actions,
             status=call.data.get("status") or existing.status,
             created_at=existing.created_at,
         )

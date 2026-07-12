@@ -61,7 +61,7 @@ p=doc.add_paragraph(); p.alignment=WD_ALIGN_PARAGRAPH.CENTER; p.add_run("UNINUS 
 p=doc.add_paragraph(); p.alignment=WD_ALIGN_PARAGRAPH.CENTER; r=p.add_run("Uninus Calendar\n產銷履歷輔助系統\n使用操作說明"); r.bold=True; r.font.size=Pt(28); r.font.color.rgb=RGBColor.from_string(NAVY)
 p=doc.add_paragraph(); p.alignment=WD_ALIGN_PARAGRAPH.CENTER; p.add_run("農場主資料 × 生產週期 × 農務作業 × 自動佐證 × AI 審閱 × 可稽核匯出").font.size=Pt(12)
 doc.add_paragraph("\n")
-add_table(doc,["文件資訊","內容"],[("適用版本","Uninus Calendar Service Scheduler v0.5.6"),("文件日期",str(date.today())),("適用對象","農場經營者、現場作業人員、產銷履歷管理者、內部稽核與系統管理者"),("文件性質","操作手冊與 E2E 作業規範")])
+add_table(doc,["文件資訊","內容"],[("適用版本","Uninus Calendar Service Scheduler v0.5.8"),("文件日期",str(date.today())),("適用對象","農場經營者、現場作業人員、產銷履歷管理者、內部稽核與系統管理者"),("文件性質","操作手冊與 E2E 作業規範")])
 callout(doc,"重要聲明","本系統是產銷履歷資料的蒐集、關聯、完整性檢查與匯出輔助工具，不取代農業部產銷履歷（TAFT）、TGAP 驗證、第三方稽核或主管機關正式申請程序。正式送審前仍應依當期法規與驗證機構要求檢核。","warning")
 doc.add_page_break()
 
@@ -107,7 +107,7 @@ h(doc,"6. Operation Profiles：觀察、控制與佐證策略",1)
 doc.add_paragraph("Operation Profile 是場區層級的可重用設定，用來宣告某類農務作業要觀察哪些 Home Assistant entity、允許控制哪些 entity、開始與結束時採用哪些 Service Action，以及 Evidence Session 的取樣上限。舊版 Sensor Profile 會向下相容載入。")
 add_table(doc,["欄位","作用","填寫方法","示範"],[
 ("Profile 名稱","辨識可重用作業範本","以場區＋用途命名","North Orchard Irrigation Sensors"),("場區","限制 Profile 適用範圍","選擇實際 Plot","北區果園"),("Observed entities","只讀觀察與佐證來源","加入溫度、濕度、流量、土壤水分等 sensor","sensor.anping_temperature"),("Control entities","允許 Action 指向的控制範圍","只加入本作業確實需要控制的 switch/valve/script","switch.irrigation_zone_1"),("預設開始 Service Action","作業開始時的允許動作","建議呼叫 script/scene，不要放複雜邏輯","script.turn_on → script.start_irrigation"),("預設結束 Service Action","作業結束時收尾或停止動作","使用明確停止 script/scene","script.turn_on → script.stop_irrigation"),("取樣間隔（秒）","Evidence Session 連續取樣頻率","不可過短；依設備變化速度設定","60"),("最大樣本數","限制單次 Session 資料量","取樣間隔×樣本數應涵蓋作業時間","120"),("最長 Session（秒）","防止 Session 無限持續","應高於正常作業時間並留緩衝","14400（4 小時）")])
-callout(doc,"目前 v0.5.6 UI 狀態","Operation Profile 管理頁已可建立／編輯 Profile、entities、Actions 與 evidence policy；後端 AgriOperation 已具備 profile_id、start_actions、end_actions 欄位。但目前農務作業編輯頁尚未呈現 Operation Profile 綁定欄位。建立正式 SOP 時請將此項列為上線前檢查，避免把後端能力誤認為現場 UI 已完整開放。","warning")
+callout(doc,"目前 v0.5.8 UI 狀態","Operation Profile 管理頁可建立／編輯 Profile、entities、Actions 與 evidence policy；農務作業快速表單、Calendar 農務行程表單及工作台作業詳細資料均可選擇 Operation Profile。選取後會帶入 Observed entities 與預設 Start／End Actions，儲存及重開仍保留綁定；後端另會驗證 Profile 必須屬於該生產週期的場區。","success")
 
 h(doc,"7. 農務作業紀錄",1)
 doc.add_paragraph("農務作業是履歷的主時間軸。每一筆紀錄應回答：對哪個週期、何時、由誰、做什麼、使用什麼、多少、結果如何，以及是否連結 Calendar 與佐證。")
@@ -185,7 +185,7 @@ bullets(doc,[
 
 h(doc,"14. 常見問題",1)
 add_table(doc,["問題","可能原因","處理方式"],[
-("Calendar 看不到新作業","未勾選目標 Calendar 或尚未重新整理","勾選 calendar.chan_xiao_lu_li，按重新整理"),("作業或佐證數量不符","目前週期／日期／狀態篩選限制","切換全部週期、最近 30 天或清除搜尋"),("CSV 沒有佐證 JSON","CSV 只輸出扁平 rows","改用 JSON Package 或 JSON 預覽"),("匯出前出現警告","缺主資料、作業、佐證、關聯或 hash 問題","依逐項 check 回到對應頁補齊"),("AI 草稿不能產生","Evidence Session 尚未 ready_for_ai 或沒有 raw hash","先完成 Session 並封存 Raw Evidence Bundle"),("Raw Evidence Bundle 無法刪除","系統刻意設為不可變原始證據","新增更正佐證或建立新 Session"),("不能刪除農場／場區／週期","仍有下游引用","先封存或處理週期、作業與佐證；不要硬刪"),("Operation Profile 看得到但作業頁無法綁定","v0.5.6 live UI 尚未呈現 profile binding 欄位","依發行版本確認；此功能完成前以後端資料與 Profile 管理頁為準")])
+("Calendar 看不到新作業","未勾選目標 Calendar 或尚未重新整理","勾選 calendar.chan_xiao_lu_li，按重新整理"),("作業或佐證數量不符","目前週期／日期／狀態篩選限制","切換全部週期、最近 30 天或清除搜尋"),("CSV 沒有佐證 JSON","CSV 只輸出扁平 rows","改用 JSON Package 或 JSON 預覽"),("匯出前出現警告","缺主資料、作業、佐證、關聯或 hash 問題","依逐項 check 回到對應頁補齊"),("AI 草稿不能產生","Evidence Session 尚未 ready_for_ai 或沒有 raw hash","先完成 Session 並封存 Raw Evidence Bundle"),("Raw Evidence Bundle 無法刪除","系統刻意設為不可變原始證據","新增更正佐證或建立新 Session"),("不能刪除農場／場區／週期","仍有下游引用","先封存或處理週期、作業與佐證；不要硬刪"),("Operation Profile 未出現在作業選單","Profile 所屬場區與生產週期場區不同","確認 Profile 與週期使用相同場區；系統不允許跨場區綁定")])
 
 h(doc,"15. E2E 驗收清單",1)
 checks=[
@@ -197,18 +197,18 @@ add_table(doc,["類別","值","意義"],[
 ("主資料狀態","active / inactive / archived","啟用／停用／封存"),("作業狀態","planned / completed / skipped","計畫／完成／封存或略過"),("Session 狀態","capturing / ready_for_ai","擷取中／原始證據已封存可供 AI"),("AI review","pending_farmer_review / accepted / rejected","待人工審閱／接受／退回"),("常用佐證類型","sensor_snapshot / raw_evidence_bundle / ai_summary_draft / photo / document / note / external_uri","感測快照／原始包／AI 草稿／照片／文件／備註／外部連結")])
 
 h(doc,"附錄 B：文件維護資訊",1)
-doc.add_paragraph("本版依專案 v0.5.6、manifest、agri.py 資料模型、v0.5.6 live Home Assistant UI 與 E2E 驗證結果重寫。畫面或欄位若在後續版本變更，應同步更新本文件的適用版本、欄位表、E2E 清單與截圖。")
+doc.add_paragraph("本版依專案 v0.5.8、manifest、agri.py 資料模型、v0.5.8 live Home Assistant UI 與 E2E 驗證結果重寫。畫面或欄位若在後續版本變更，應同步更新本文件的適用版本、欄位表、E2E 清單與截圖。")
 
 # header/footer
 for section in doc.sections:
-    hp=section.header.paragraphs[0]; hp.text="Uninus Calendar 產銷履歷輔助系統｜v0.5.6"; hp.alignment=WD_ALIGN_PARAGRAPH.RIGHT; hp.runs[0].font.size=Pt(8); hp.runs[0].font.color.rgb=RGBColor(100,110,120)
+    hp=section.header.paragraphs[0]; hp.text="Uninus Calendar 產銷履歷輔助系統｜v0.5.8"; hp.alignment=WD_ALIGN_PARAGRAPH.RIGHT; hp.runs[0].font.size=Pt(8); hp.runs[0].font.color.rgb=RGBColor(100,110,120)
     fp=section.footer.paragraphs[0]; fp.alignment=WD_ALIGN_PARAGRAPH.CENTER
     fp.add_run("Uninus Calendar 產銷履歷輔助系統使用操作說明　｜　第 ")
     fld=OxmlElement('w:fldSimple'); fld.set(qn('w:instr'),'PAGE'); fp._p.append(fld); fp.add_run(" 頁")
     for r in fp.runs: r.font.size=Pt(8); r.font.color.rgb=RGBColor(100,110,120)
 
 doc.core_properties.title="Uninus Calendar 產銷履歷輔助系統使用操作說明"
-doc.core_properties.subject="v0.5.6 產銷履歷資料、Operation Profiles、Evidence Session、AI review 與完整 E2E 操作手冊"
+doc.core_properties.subject="v0.5.8 產銷履歷資料、Operation Profiles、Evidence Session、AI review 與完整 E2E 操作手冊"
 doc.core_properties.author="Uninus / Hermes"
 doc.save(OUT)
 print(OUT)

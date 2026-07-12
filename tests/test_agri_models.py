@@ -311,6 +311,43 @@ def test_agri_operation_binds_operation_profile_and_start_end_actions():
     assert loaded.record_hash == operation.record_hash
 
 
+def test_operation_profile_binding_validates_plot_and_inherits_default_actions():
+    plot = Plot.create(farm_id="farm_1", name="A 區")
+    other_plot = Plot.create(farm_id="farm_1", name="B 區")
+    cycle = CropCycle.create(plot_id=plot.plot_id, product="小番茄")
+    profile = SensorProfile.create(
+        plot_id=plot.plot_id,
+        name="A 區灌溉",
+        entity_ids=["sensor.soil"],
+        start_actions=[{"service": "script.turn_on", "target": {"entity_id": "script.irrigate"}, "data": {}}],
+        end_actions=[{"service": "switch.turn_off", "target": {"entity_id": "switch.valve"}, "data": {}}],
+    )
+    wrong_profile = SensorProfile.create(
+        plot_id=other_plot.plot_id, name="B 區灌溉", entity_ids=["sensor.soil_b"]
+    )
+    records = TraceabilityRecordSet(
+        plots={plot.plot_id: plot, other_plot.plot_id: other_plot},
+        cycles={cycle.cycle_id: cycle},
+        sensor_profiles={profile.profile_id: profile, wrong_profile.profile_id: wrong_profile},
+    )
+
+    profile_id, start_actions, end_actions = records.prepare_operation_profile_binding(
+        cycle_id=cycle.cycle_id, profile_id=profile.profile_id
+    )
+
+    assert profile_id == profile.profile_id
+    assert start_actions == profile.start_actions
+    assert end_actions == profile.end_actions
+    with pytest.raises(ValueError, match="不屬於此生產週期的場區"):
+        records.prepare_operation_profile_binding(
+            cycle_id=cycle.cycle_id, profile_id=wrong_profile.profile_id
+        )
+    with pytest.raises(ValueError, match="不存在"):
+        records.prepare_operation_profile_binding(
+            cycle_id=cycle.cycle_id, profile_id="sensor_profile_missing"
+        )
+
+
 def test_agri_records_roundtrip_with_sensor_snapshot():
     farm = Farm.create(name="綠竹農場", operator="王小農", address="台南", phone="06-1234567")
     plot = Plot.create(
