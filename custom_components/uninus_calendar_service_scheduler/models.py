@@ -31,6 +31,8 @@ class ScheduledAction:
     all_day: bool = False
     enabled: bool = True
     calendar_event_uid: str | None = None
+    operation_id: str = ""
+    profile_id: str = ""
     last_run: str | None = None
     last_result: str | None = None
     created_at: str | None = None
@@ -53,6 +55,8 @@ class ScheduledAction:
         location: str | None = None,
         rrule: str | None = None,
         all_day: bool = False,
+        operation_id: str = "",
+        profile_id: str = "",
     ) -> ScheduledAction:
         """Create a new action with a generated id."""
         return cls(
@@ -71,6 +75,8 @@ class ScheduledAction:
             location=location,
             rrule=rrule,
             all_day=all_day,
+            operation_id=str(operation_id or "").strip(),
+            profile_id=str(profile_id or "").strip(),
             created_at=datetime.now().astimezone().isoformat(),
         )
 
@@ -95,6 +101,8 @@ class ScheduledAction:
             all_day=bool(raw.get("all_day", False)),
             enabled=bool(raw.get("enabled", True)),
             calendar_event_uid=raw.get("calendar_event_uid"),
+            operation_id=str(raw.get("operation_id") or ""),
+            profile_id=str(raw.get("profile_id") or ""),
             last_run=raw.get("last_run"),
             last_result=raw.get("last_result"),
             created_at=raw.get("created_at"),
@@ -120,6 +128,8 @@ class ScheduledAction:
             "all_day": self.all_day,
             "enabled": self.enabled,
             "calendar_event_uid": self.calendar_event_uid,
+            "operation_id": self.operation_id,
+            "profile_id": self.profile_id,
             "last_run": self.last_run,
             "last_result": self.last_result,
             "created_at": self.created_at,

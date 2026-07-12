@@ -4,7 +4,7 @@ from __future__ import annotations
 
 DOMAIN = "uninus_calendar_service_scheduler"
 NAME = "Uninus Calendar Service Scheduler"
-VERSION = "0.4.96"
+VERSION = "0.5.0"
 
 CARD_FILENAME = "uninus-calendar-service-scheduler-card.js"
 CARD_RESOURCE_URL = f"/{DOMAIN}/{CARD_FILENAME}?v={VERSION}"
@@ -66,6 +66,9 @@ SERVICE_DELETE_EVIDENCE = "delete_evidence"
 SERVICE_CREATE_SENSOR_PROFILE = "create_sensor_profile"
 SERVICE_UPDATE_SENSOR_PROFILE = "update_sensor_profile"
 SERVICE_DELETE_SENSOR_PROFILE = "delete_sensor_profile"
+SERVICE_LIST_EVIDENCE_SESSIONS = "list_evidence_sessions"
+SERVICE_SUBMIT_AI_EVIDENCE_DRAFT = "submit_ai_evidence_draft"
+SERVICE_REVIEW_AI_EVIDENCE_DRAFT = "review_ai_evidence_draft"
 SERVICE_EXPORT_TRACEABILITY_PACKAGE = "export_traceability_package"
 SERVICE_EXPORT_TRACEABILITY_RECORDS = "export_traceability_records"
 SERVICE_CLEAR_TRACEABILITY_DATA = "clear_traceability_data"

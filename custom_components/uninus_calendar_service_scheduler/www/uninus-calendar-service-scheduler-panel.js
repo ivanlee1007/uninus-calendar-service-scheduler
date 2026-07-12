@@ -94,6 +94,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   _defaultAgriFields() {
     return {
       cycleId: "",
+      profileId: "",
       operationType: "灌溉",
       actualStart: this._localInputValue(new Date()),
       operator: "",
@@ -164,6 +165,12 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       plotId: "",
       name: "",
       entityIds: [""],
+      controlEntityIds: [""],
+      startService: "",
+      endService: "",
+      sampleIntervalSeconds: "60",
+      maxSamples: "120",
+      maxSessionDurationSeconds: "14400",
     };
   }
 
@@ -1087,13 +1094,22 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         : `<label>Home Assistant entity ${index + 1}<input data-sensor-profile-entity-index="${index}" value="${this._escape(entityId)}" placeholder="sensor.example" /></label>`}</div>
       <button type="button" data-sensor-profile-remove-entity="${index}" ${form.entityIds.length <= 1 ? "disabled" : ""}>移除</button>
     </div>`).join("");
+    const controlRows = (form.controlEntityIds?.length ? form.controlEntityIds : [""]).map((entityId, index) => `<div class="sensor-profile-entity-row">
+      <div class="native-control">${this._haEntityPickerReady
+        ? `<ha-entity-picker data-sensor-profile-control-index="${index}" label="Control entity ${index + 1}" show-entity-id></ha-entity-picker>`
+        : `<label>Control entity ${index + 1}<input data-sensor-profile-control-index="${index}" value="${this._escape(entityId)}" placeholder="switch.example" /></label>`}</div>
+      <button type="button" data-sensor-profile-remove-control="${index}" ${form.controlEntityIds.length <= 1 ? "disabled" : ""}>移除</button>
+    </div>`).join("");
     return `<section class="workbench-section sensor-profile-workbench">
-      <div class="workbench-page-heading"><div><span class="context-eyebrow">SENSOR PROFILES</span><h3>Sensor Profile</h3><p>為場區建立可重複使用的 Home Assistant entity 集合。</p></div><button id="trace-sensor-profile-new">＋ 新增 Profile</button></div>
+      <div class="workbench-page-heading"><div><span class="context-eyebrow">OPERATION PROFILES</span><h3>Operation Profile</h3><p>宣告農務作業的觀察範圍、控制實體、預設 Actions 與 bounded evidence policy。</p></div><button id="trace-sensor-profile-new">＋ 新增 Profile</button></div>
       <div class="trace-master-data-master-detail">
         <section class="trace-master-list-panel"><b>Profiles</b><div class="trace-data-table">${profiles.map((profile) => `<button class="trace-select-sensor-profile ${profile.profile_id === form.selectedProfileId ? "active" : ""}" data-sensor-profile-id="${this._escape(profile.profile_id)}"><b>${this._escape(profile.name)}</b><span>${this._escape(plots[profile.plot_id]?.name || "未指定場區")} · ${profile.entity_ids?.length || 0} entities</span></button>`).join("") || `<p class="message">尚無 Sensor Profile</p>`}</div></section>
         <section class="trace-detail-panel"><span class="context-eyebrow">PROFILE DETAIL</span><h3>${form.selectedProfileId ? "編輯 Sensor Profile" : "新增 Sensor Profile"}</h3>
           <div class="fields"><label>Profile 名稱<input id="trace-sensor-profile-name" value="${this._escape(form.name)}" /></label><label>場區<select id="trace-sensor-profile-plot">${plotOptions}</select></label></div>
-          <div class="sensor-profile-entities"><div class="section-heading"><b>Home Assistant entities</b><button type="button" id="trace-sensor-profile-add-entity">＋ 新增 entity</button></div>${entityRows}</div>
+          <div class="sensor-profile-entities"><div class="section-heading"><b>Observed entities</b><button type="button" id="trace-sensor-profile-add-entity">＋ 新增 entity</button></div>${entityRows}</div>
+          <div class="sensor-profile-entities"><div class="section-heading"><b>Control entities</b><button type="button" id="trace-sensor-profile-control-add">＋ 新增 control</button></div>${controlRows}</div>
+          <div class="fields"><div class="native-control"><div class="native-label">預設開始 Service Action</div><ha-service-picker id="trace-sensor-profile-start-service" show-service-id></ha-service-picker></div><div class="native-control"><div class="native-label">預設結束 Service Action</div><ha-service-picker id="trace-sensor-profile-end-service" show-service-id></ha-service-picker></div></div>
+          <div class="fields"><label>取樣間隔（秒）<input id="trace-sensor-profile-sample-interval" type="number" min="10" value="${this._escape(form.sampleIntervalSeconds)}" /></label><label>最大樣本數<input id="trace-sensor-profile-max-samples" type="number" min="1" value="${this._escape(form.maxSamples)}" /></label><label>最長 Session（秒）<input id="trace-sensor-profile-max-duration" type="number" min="60" value="${this._escape(form.maxSessionDurationSeconds)}" /></label></div>
           <div class="message ${this._message.includes("Sensor Profile") && this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
           <div class="trace-sticky-actions">${form.selectedProfileId ? `<button id="trace-sensor-profile-delete">${this._sensorProfileDeletePending ? "再次確認刪除" : "刪除 Profile"}</button><button class="primary" id="trace-sensor-profile-save">儲存 Profile</button>` : `<button class="primary" id="trace-sensor-profile-create">建立 Sensor Profile</button>`}</div>
         </section>
@@ -1109,6 +1125,15 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .filter((control) => control.tagName?.toLowerCase() === "ha-entity-picker" || control.tagName?.toLowerCase() === "input")
       .sort((a, b) => Number(a.dataset.sensorProfileEntityIndex) - Number(b.dataset.sensorProfileEntityIndex))
       .map((control) => String(control.value || "").trim());
+    form.controlEntityIds = Array.from(this.shadowRoot.querySelectorAll("[data-sensor-profile-control-index]"))
+      .filter((control) => control.tagName?.toLowerCase() === "ha-entity-picker" || control.tagName?.toLowerCase() === "input")
+      .sort((a, b) => Number(a.dataset.sensorProfileControlIndex) - Number(b.dataset.sensorProfileControlIndex))
+      .map((control) => String(control.value || "").trim());
+    form.startService = this.shadowRoot.getElementById("trace-sensor-profile-start-service")?.value || form.startService || "";
+    form.endService = this.shadowRoot.getElementById("trace-sensor-profile-end-service")?.value || form.endService || "";
+    form.sampleIntervalSeconds = this.shadowRoot.getElementById("trace-sensor-profile-sample-interval")?.value || form.sampleIntervalSeconds;
+    form.maxSamples = this.shadowRoot.getElementById("trace-sensor-profile-max-samples")?.value || form.maxSamples;
+    form.maxSessionDurationSeconds = this.shadowRoot.getElementById("trace-sensor-profile-max-duration")?.value || form.maxSessionDurationSeconds;
     this._sensorProfileForm = form;
   }
 
@@ -1122,7 +1147,18 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   _selectSensorProfile(profileId) {
     const profile = this._traceabilityRecords().sensor_profiles?.[profileId];
     if (!profile) return;
-    this._sensorProfileForm = { selectedProfileId: profile.profile_id, plotId: profile.plot_id || "", name: profile.name || "", entityIds: [...(profile.entity_ids || [])] };
+    this._sensorProfileForm = {
+      selectedProfileId: profile.profile_id,
+      plotId: profile.plot_id || "",
+      name: profile.name || "",
+      entityIds: [...(profile.entity_ids || [])],
+      controlEntityIds: [...(profile.control_entity_ids || [])],
+      startService: profile.start_actions?.[0]?.service || "",
+      endService: profile.end_actions?.[0]?.service || "",
+      sampleIntervalSeconds: String(profile.evidence_policy?.sample_interval_seconds ?? 60),
+      maxSamples: String(profile.evidence_policy?.max_samples ?? 120),
+      maxSessionDurationSeconds: String(profile.evidence_policy?.max_session_duration_seconds ?? 14400),
+    };
     this._sensorProfileDeletePending = false;
     this._message = "";
     this._render();
@@ -1141,15 +1177,45 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._render();
   }
 
+  _addSensorProfileControl() {
+    this._captureSensorProfileForm();
+    this._sensorProfileForm.controlEntityIds.push("");
+    this._render();
+  }
+
+  _removeSensorProfileControl(index) {
+    this._captureSensorProfileForm();
+    if (this._sensorProfileForm.controlEntityIds.length <= 1) return;
+    this._sensorProfileForm.controlEntityIds.splice(index, 1);
+    this._render();
+  }
+
   async _saveSensorProfile(create = false) {
     this._captureSensorProfileForm();
     const form = this._sensorProfileForm;
     const entityIds = [...new Set(form.entityIds.map((value) => String(value || "").trim()).filter(Boolean))];
+    const controlEntityIds = [...new Set((form.controlEntityIds || []).map((value) => String(value || "").trim()).filter(Boolean))];
     if (!form.name.trim()) { this._message = "Sensor Profile 建立失敗：請輸入名稱。"; this._render(); return; }
     if (!form.plotId) { this._message = "Sensor Profile 建立失敗：請選擇場區。"; this._render(); return; }
     if (!entityIds.length) { this._message = "Sensor Profile 建立失敗：至少選擇一個 entity。"; this._render(); return; }
     const service = create ? "create_sensor_profile" : "update_sensor_profile";
-    const service_data = { plot_id: form.plotId, name: form.name.trim(), entity_ids: entityIds };
+    const service_data = {
+      plot_id: form.plotId,
+      name: form.name.trim(),
+      entity_ids: entityIds,
+      action_entity_ids: [],
+      control_entity_ids: controlEntityIds,
+      observation_entities: entityIds.map((entity_id) => ({ entity_id, role: "observed", required: true })),
+      start_actions: form.startService ? [{ service: form.startService, target: {}, data: {} }] : [],
+      end_actions: form.endService ? [{ service: form.endService, target: {}, data: {} }] : [],
+      evidence_policy: {
+        sample_interval_seconds: Math.max(10, Number(form.sampleIntervalSeconds) || 60),
+        max_samples: Math.max(1, Number(form.maxSamples) || 120),
+        max_session_duration_seconds: Math.max(60, Number(form.maxSessionDurationSeconds) || 14400),
+        capture_start_snapshot: true,
+        capture_end_snapshot: true,
+      },
+    };
     if (!create) service_data.profile_id = form.selectedProfileId;
     try {
       const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service, service_data, return_response: true });
@@ -1159,7 +1225,18 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       const records = structuredClone(this._traceabilityRecords());
       records.sensor_profiles = { ...(records.sensor_profiles || {}), [profile.profile_id]: profile };
       this._traceabilityRecordsOverride = records;
-      this._sensorProfileForm = { selectedProfileId: profile.profile_id, plotId: profile.plot_id, name: profile.name, entityIds: [...profile.entity_ids] };
+      this._sensorProfileForm = {
+        selectedProfileId: profile.profile_id,
+        plotId: profile.plot_id,
+        name: profile.name,
+        entityIds: [...profile.entity_ids],
+        controlEntityIds: [...(profile.control_entity_ids || [])],
+        startService: profile.start_actions?.[0]?.service || "",
+        endService: profile.end_actions?.[0]?.service || "",
+        sampleIntervalSeconds: String(profile.evidence_policy?.sample_interval_seconds ?? 60),
+        maxSamples: String(profile.evidence_policy?.max_samples ?? 120),
+        maxSessionDurationSeconds: String(profile.evidence_policy?.max_session_duration_seconds ?? 14400),
+      };
       this._message = create ? "已建立 Sensor Profile。" : "已儲存 Sensor Profile。";
     } catch (err) { this._message = `Sensor Profile 儲存失敗：${err?.message || err}`; }
     this._render();
@@ -1480,6 +1557,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const operationFilterOptions = [`<option value="">全部農務作業</option>`].concat(operations.map((operation) => `<option value="${this._escape(operation.operation_id)}" ${operation.operation_id === f.evidenceOperationFilter ? "selected" : ""}>${this._escape(operation.operation_type || "農務作業")} ${this._escape(operation.actual_start || operation.operation_id)}</option>`)).join("");
     const typeOptions = ["sensor_snapshot", "photo", "document", "note", "external_uri"].map((item) => `<option value="${item}" ${item === f.evidenceType ? "selected" : ""}>${this._escape(item)}</option>`).join("");
     const preview = f.content ? this._escape(String(f.content).slice(0, 2000)) : "";
+    const selectedEvidence = records.evidence?.[f.selectedEvidenceId] || null;
+    const aiDraft = selectedEvidence?.evidence_type === "ai_summary_draft" ? selectedEvidence : null;
+    const aiReviewCard = aiDraft ? `<div class="evidence-preview"><b>AI-generated 佐證草稿</b><p>${this._escape(aiDraft.content?.narrative || "")}</p><p class="system-note">Model：${this._escape(aiDraft.content?.model_identity || "未記錄")} · Policy：${this._escape(aiDraft.content?.policy_version || "未記錄")}</p><p class="system-note">source_raw_evidence_hash：<code>${this._escape(aiDraft.content?.source_raw_evidence_hash || "缺少")}</code></p><p>${this._traceStatusChip(aiDraft.content?.review_status || "pending_farmer_review", aiDraft.content?.review_status === "accepted" ? "success" : (aiDraft.content?.review_status === "rejected" ? "danger" : "warning"))}</p></div>` : "";
     return `
       <section class="workbench-section trace-evidence-inline" aria-label="佐證資料">
         <div class="workbench-page-heading"><div><span class="context-eyebrow">EVIDENCE</span><h3>佐證中心</h3><p>管理照片、感測器快照、文件與外部佐證。</p></div><div class="page-heading-actions"><div class="view-toggle"><button id="trace-evidence-view-list" class="${f.evidenceView !== "gallery" ? "active" : ""}">列表</button><button id="trace-evidence-view-gallery" class="${f.evidenceView === "gallery" ? "active" : ""}">圖庫</button></div><button class="primary" id="trace-evidence-new">＋ 新增佐證</button></div></div>
@@ -1496,6 +1576,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           </section>
           <section class="management-section trace-evidence-detail trace-detail-panel">
             <div class="detail-heading"><div><span class="context-eyebrow">EVIDENCE DETAIL</span><h3>${f.selectedEvidenceId ? "佐證詳細資料" : "新增佐證資料"}</h3></div>${f.selectedEvidenceId ? this._traceStatusChip(f.contentHash ? "Hash ✓" : "已載入", "success") : ""}</div>
+            ${aiReviewCard}
             <div class="evidence-preview"><b>佐證預覽</b>${f.evidenceType === "photo" && f.uri ? `<img src="${this._escape(f.uri)}" alt="${this._escape(f.title || "佐證照片")}" />` : `<pre>${preview || "選擇佐證後顯示內容，或填寫資料建立新佐證。"}</pre>`}</div>
             <div class="fields">
               <label>綁定農務作業<select id="trace_evidence_operation">${operationOptions}</select></label>
@@ -1504,7 +1585,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
               <details class="trace-tech-details trace-evidence-tech-details fullrow"><summary>技術資訊</summary><div class="fields"><label>來源 entity_id<input id="trace_evidence_source_entity" value="${this._escape(f.sourceEntity)}" placeholder="sensor.soil_moisture" /></label><label>URI / 檔案參照<input id="trace_evidence_uri" value="${this._escape(f.uri)}" placeholder="/local/... 或外部連結" /></label><label class="fullrow">佐證 JSON 內容<textarea id="trace_evidence_content" rows="8">${this._escape(f.content)}</textarea></label><p class="system-note fullrow">Evidence ID：<code>${this._escape(f.selectedEvidenceId || "尚未建立")}</code></p></div></details>
               <div class="message fullrow ${this._message.includes("佐證") && this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
             </div>
-            <div class="trace-sticky-actions"><button class="archive" id="trace-evidence-delete" ${f.selectedEvidenceId ? "" : "disabled"}>刪除佐證</button>${f.selectedEvidenceId ? `<button class="primary" id="trace-evidence-save">儲存佐證</button>` : `<button class="primary" id="trace-evidence-create">建立佐證資料</button>`}</div>
+            <div class="trace-sticky-actions">${aiDraft ? (aiDraft.content?.review_status === "pending_farmer_review" ? `<button id="trace-ai-draft-reject">退回草稿</button><button class="primary" id="trace-ai-draft-accept">接受為正式佐證</button>` : `<span class="system-note">此 AI 草稿已完成 review。</span>`) : (selectedEvidence?.evidence_type === "raw_evidence_bundle" ? `<span class="system-note">Raw Evidence Bundle 為唯讀，不能覆寫或刪除。</span>` : `<button class="archive" id="trace-evidence-delete" ${f.selectedEvidenceId ? "" : "disabled"}>刪除佐證</button>${f.selectedEvidenceId ? `<button class="primary" id="trace-evidence-save">儲存佐證</button>` : `<button class="primary" id="trace-evidence-create">建立佐證資料</button>`}`)}</div>
           </section>
         </div>
       </section>
@@ -1525,6 +1606,30 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       uri: get("trace_evidence_uri"),
       content: get("trace_evidence_content") || "{}",
     };
+  }
+
+  async _reviewAiEvidenceDraft(reviewStatus) {
+    const evidenceId = this._evidenceForm?.selectedEvidenceId || "";
+    if (!evidenceId) return;
+    try {
+      const response = await this._hass.callWS({
+        type: "call_service",
+        domain: "uninus_calendar_service_scheduler",
+        service: "review_ai_evidence_draft",
+        service_data: { evidence_id: evidenceId, review_status: reviewStatus, review_note: "" },
+        return_response: true,
+      });
+      const evidence = response?.response?.evidence || response?.evidence;
+      if (!evidence?.evidence_id) throw new Error("服務未回傳已 review 的 evidence");
+      const records = structuredClone(this._traceabilityRecords());
+      records.evidence[evidence.evidence_id] = evidence;
+      this._traceabilityRecordsOverride = records;
+      this._selectEvidenceRecord(evidence.evidence_id);
+      this._message = reviewStatus === "accepted" ? "已接受 AI 佐證草稿。" : "已退回 AI 佐證草稿。";
+    } catch (err) {
+      this._message = `AI 佐證 review 失敗: ${err?.message || err}`;
+      this._render();
+    }
   }
 
   async _createEvidenceRecord() {
@@ -2935,12 +3040,16 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   _agriFieldsTemplate() {
     const records = this._traceabilityRecords();
     const cycles = Object.values(records.cycles || {});
+    const profiles = Object.values(records.sensor_profiles || {});
+    const plots = records.plots || {};
     const agri = this._form.agri || this._defaultAgriFields();
     const cycleOptions = [`<option value="">選擇生產週期</option>`].concat(cycles.map((cycle) => `<option value="${this._escape(cycle.cycle_id)}" ${cycle.cycle_id === agri.cycleId ? "selected" : ""}>${this._escape(cycle.product || cycle.cycle_id)} ${this._escape(cycle.lot_number || "")}</option>`)).join("");
+    const profileOptions = [`<option value="">不自動擷取佐證</option>`].concat(profiles.map((profile) => `<option value="${this._escape(profile.profile_id)}" ${profile.profile_id === agri.profileId ? "selected" : ""}>${this._escape(profile.name || profile.profile_id)} · ${this._escape(plots[profile.plot_id]?.name || "未指定場區")} · ${(profile.entity_ids || []).length} entities</option>`)).join("");
     const typeOptions = this._agriOperationTypeOptions(agri.operationType);
     return `<fieldset class="agri-fields fullrow">
       <legend>農務作業欄位</legend>
       <label>生產週期<select id="agri_cycle">${cycleOptions}</select></label>
+      <label>Operation Profile<select id="agri_profile">${profileOptions}</select></label>
       <label>作業類型<select id="agri_operation_type">${typeOptions}</select></label>
       <label>操作者<input id="agri_operator" value="${this._escape(agri.operator)}" /></label>
       <label>資材/水源<input id="agri_material" value="${this._escape(agri.materialName)}" /></label>
@@ -2949,6 +3058,26 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       <div class="system-note fullrow">UNINUS_AGRI_OPERATION_JSON 會由系統寫入 description，不會直接顯示或讓使用者手動編輯。</div>
       ${this._form.agriHashChecked && !this._form.agriHashValid ? `<div class="warning fullrow">⚠️ 農務 JSON record_hash 驗證失敗，這筆事件可能曾被外部修改。</div>` : ""}
     </fieldset>`;
+  }
+
+  _applyAgriOperationProfile(profileId) {
+    this._captureForm();
+    const profile = this._traceabilityRecords().sensor_profiles?.[profileId];
+    this._form.agri = { ...(this._form.agri || {}), profileId: profileId || "" };
+    if (!profile) { this._render(); return; }
+    const startAction = profile.start_actions?.[0] || {};
+    const endAction = profile.end_actions?.[0] || {};
+    if (!this._form.service && startAction.service) {
+      this._form.service = startAction.service;
+      this._form.target = startAction.target || {};
+      this._form.data = JSON.stringify(startAction.data || {}, null, 2);
+    }
+    if (!this._form.endService && endAction.service) {
+      this._form.endService = endAction.service;
+      this._form.endTarget = endAction.target || {};
+      this._form.endData = JSON.stringify(endAction.data || {}, null, 2);
+    }
+    this._render();
   }
 
   _dialogTemplate() {
@@ -2982,8 +3111,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           </label>
           ${this._recurrenceTemplate()}
           ${isAgri ? this._agriFieldsTemplate() : ""}
-          ${isService ? this._actionSection("start", "行程開始 Service Action", f.service, f.target, f.data, "行程開始時間觸發；留空表示開始時不執行 service action。") : ""}
-          ${isService ? this._actionSection("end", "行程結束 Service Action", f.endService, f.endTarget, f.endData, "行程結束時間觸發；留空表示結束時不執行 service action。") : ""}
+          ${(isService || isAgri) ? this._actionSection("start", "行程開始 Service Action", f.service, f.target, f.data, "行程開始時間觸發；留空表示開始時不執行 service action。") : ""}
+          ${(isService || isAgri) ? this._actionSection("end", "行程結束 Service Action", f.endService, f.endTarget, f.endData, "行程結束時間觸發；留空表示結束時不執行 service action。") : ""}
           <label class="fullrow">${isAgri ? "人類備註（可編輯）" : "Description"}
             <textarea id="description" placeholder="${isAgri ? "這裡只顯示人類備註；系統 JSON 會隱藏產生" : "會顯示在 Local Calendar 事件描述中"}">${this._escape(f.description)}</textarea>
           </label>
@@ -3077,16 +3206,33 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("workbench-tab-evidence")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("evidence"));
     this.shadowRoot.getElementById("workbench-tab-consistency")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("consistency"));
     this.shadowRoot.getElementById("workbench-tab-export")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("export"));
-    this.shadowRoot.querySelectorAll("ha-entity-picker[data-sensor-profile-entity-index]").forEach((picker) => {
+    this.shadowRoot.querySelectorAll("[data-sensor-profile-entity-index]").forEach((picker) => {
+      if (picker.tagName?.toLowerCase() !== "ha-entity-picker") return;
       picker.hass = this._hass;
       const index = Number(picker.dataset.sensorProfileEntityIndex);
       picker.value = this._sensorProfileForm.entityIds[index] || "";
       picker.addEventListener("value-changed", (ev) => { this._sensorProfileForm.entityIds[index] = ev.detail?.value || ""; });
     });
+    this.shadowRoot.querySelectorAll("[data-sensor-profile-control-index]").forEach((picker) => {
+      if (picker.tagName?.toLowerCase() !== "ha-entity-picker") return;
+      picker.hass = this._hass;
+      const index = Number(picker.dataset.sensorProfileControlIndex);
+      picker.value = this._sensorProfileForm.controlEntityIds[index] || "";
+      picker.addEventListener("value-changed", (ev) => { this._sensorProfileForm.controlEntityIds[index] = ev.detail?.value || ""; });
+    });
+    [["trace-sensor-profile-start-service", "startService"], ["trace-sensor-profile-end-service", "endService"]].forEach(([id, key]) => {
+      const picker = this.shadowRoot.getElementById(id);
+      if (!picker) return;
+      picker.hass = this._hass;
+      picker.value = this._sensorProfileForm[key] || "";
+      picker.addEventListener("value-changed", (ev) => { this._sensorProfileForm[key] = ev.detail?.value || ""; });
+    });
     this.shadowRoot.querySelectorAll(".trace-select-sensor-profile").forEach((button) => button.addEventListener("click", () => this._selectSensorProfile(button.dataset.sensorProfileId)));
     this.shadowRoot.querySelectorAll("[data-sensor-profile-remove-entity]").forEach((button) => button.addEventListener("click", () => this._removeSensorProfileEntity(Number(button.dataset.sensorProfileRemoveEntity))));
+    this.shadowRoot.querySelectorAll("[data-sensor-profile-remove-control]").forEach((button) => button.addEventListener("click", () => this._removeSensorProfileControl(Number(button.dataset.sensorProfileRemoveControl))));
     this.shadowRoot.getElementById("trace-sensor-profile-new")?.addEventListener("click", () => this._newSensorProfile());
     this.shadowRoot.getElementById("trace-sensor-profile-add-entity")?.addEventListener("click", () => this._addSensorProfileEntity());
+    this.shadowRoot.getElementById("trace-sensor-profile-control-add")?.addEventListener("click", () => this._addSensorProfileControl());
     this.shadowRoot.getElementById("trace-sensor-profile-create")?.addEventListener("click", () => this._saveSensorProfile(true));
     this.shadowRoot.getElementById("trace-sensor-profile-save")?.addEventListener("click", () => this._saveSensorProfile(false));
     this.shadowRoot.getElementById("trace-sensor-profile-delete")?.addEventListener("click", () => this._deleteSensorProfile());
@@ -3122,6 +3268,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     });
     this.shadowRoot.getElementById("trace-evidence-save")?.addEventListener("click", () => this._updateEvidenceRecord());
     this.shadowRoot.getElementById("trace-evidence-delete")?.addEventListener("click", () => this._deleteEvidenceRecord());
+    this.shadowRoot.getElementById("trace-ai-draft-accept")?.addEventListener("click", () => this._reviewAiEvidenceDraft("accepted"));
+    this.shadowRoot.getElementById("trace-ai-draft-reject")?.addEventListener("click", () => this._reviewAiEvidenceDraft("rejected"));
     const operationSearch = this.shadowRoot.getElementById("trace-operation-search");
     operationSearch?.addEventListener("input", () => this._captureOperationForm());
     operationSearch?.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); this._applyOperationSearch(); } });
@@ -3172,14 +3320,15 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureEvidenceForm());
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureEvidenceForm());
     });
-    ["agri_calendar", "agri_cycle", "agri_operation_type", "agri_actual_start", "agri_operator", "agri_material", "agri_quantity", "agri_unit", "agri_sensor_entities", "agri_notes"].forEach((id) => {
+    ["agri_calendar", "agri_cycle", "agri_profile", "agri_operation_type", "agri_actual_start", "agri_operator", "agri_material", "agri_quantity", "agri_unit", "agri_sensor_entities", "agri_notes"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureAgriForm());
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureAgriForm());
     });
-    ["calendar", "event_type", "summary", "location", "start", "end", "recurrence", "recurrence_interval", "recurrence_monthly_mode", "recurrence_end", "recurrence_until", "recurrence_count", "rrule_custom", "start_service", "start_entity", "start_data", "end_service", "end_entity", "end_data", "description", "agri_cycle", "agri_operation_type", "agri_operator", "agri_material", "agri_quantity", "agri_unit", "agri_sensor_entities"].forEach((id) => {
+    ["calendar", "event_type", "summary", "location", "start", "end", "recurrence", "recurrence_interval", "recurrence_monthly_mode", "recurrence_end", "recurrence_until", "recurrence_count", "rrule_custom", "start_service", "start_entity", "start_data", "end_service", "end_entity", "end_data", "description", "agri_cycle", "agri_profile", "agri_operation_type", "agri_operator", "agri_material", "agri_quantity", "agri_unit", "agri_sensor_entities"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("input", () => this._captureForm());
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => this._captureForm());
     });
+    this.shadowRoot.getElementById("agri_profile")?.addEventListener("change", (ev) => this._applyAgriOperationProfile(ev.target.value || ""));
     ["event_type", "recurrence", "recurrence_end", "start"].forEach((id) => {
       this.shadowRoot.getElementById(id)?.addEventListener("change", () => {
         this._captureForm();
@@ -3273,6 +3422,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     }
     const agri = {
       cycleId: get("agri_cycle") || this._form.agri?.cycleId || "",
+      profileId: get("agri_profile") || this._form.agri?.profileId || "",
       operationType: get("agri_operation_type") || this._form.agri?.operationType || "灌溉",
       actualStart: startValue,
       operator: get("agri_operator") || this._form.agri?.operator || "",
@@ -3362,6 +3512,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const end = this._eventEnd(event) || start;
     const isAllDay = Boolean(event.start?.date);
     const agriPayload = agriInfo.payload || {};
+    const operationId = agriInfo.operationId || agriPayload.operation_id || this._agriOperationIdFromDescription(event.description || "");
+    const operation = this._agriOperationById(operationId);
     this._form = {
       ...this._defaultForm(),
       calendar: event.__calendarEntity || storedAction?.calendar_entity || this._selectedCalendar,
@@ -3385,9 +3537,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       endData: JSON.stringify(storedAction?.end_data || {}, null, 2),
       endServiceAction: { action: storedAction?.end_service || "", target: storedAction?.end_target || {}, data: storedAction?.end_data || {} },
       agri: agriInfo.hasAgri ? {
-        operationId: agriInfo.operationId || agriPayload.operation_id || this._agriOperationIdFromDescription(event.description || ""),
-        cycleId: agriPayload.cycle_id || "",
-        operationType: agriPayload.operation_type || "灌溉",
+        operationId,
+        profileId: operation?.profile_id || storedAction?.profile_id || agriPayload.profile_id || "",
+        cycleId: agriPayload.cycle_id || operation?.cycle_id || "",
+        operationType: agriPayload.operation_type || operation?.operation_type || "灌溉",
         actualStart: (agriPayload.actual_start || start).slice(0, 16),
         operator: agriPayload.operator || "",
         materialName: agriPayload.material_name || "",
@@ -3780,6 +3933,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       notes: this._form?.description || "",
       calendar_entity: payload.calendar_entity || this._form?.calendar || this._selectedCalendar || "",
       calendar_event_uid: this._currentEventUid() || "",
+      profile_id: agri.profileId || "",
+      start_actions: payload.service ? [{ service: payload.service, target: payload.target || {}, data: payload.data || {} }] : [],
+      end_actions: payload.end_service ? [{ service: payload.end_service, target: payload.end_target || {}, data: payload.end_data || {} }] : [],
     };
   }
 
@@ -3797,7 +3953,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     if (!operationId) throw new Error("建立農務作業失敗：服務未回傳 operation_id");
     this._form.agri = { ...(this._form.agri || {}), operationId, calendarEventUid: "" };
     payload.description = await this._composeAgriDescription(this._form, { operation_id: operationId });
-    await this._createCalendarOnlyEvent(payload);
+    payload.operation_id = operationId;
+    payload.profile_id = this._form.agri?.profileId || "";
+    if (payload.service || payload.end_service) await this._createServiceEventViaCalendarApi(payload);
+    else await this._createCalendarOnlyEvent(payload);
     return operationId;
   }
 
@@ -3830,6 +3989,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       return;
     }
     let actionId = this._form.actionId;
+    if (this._form.eventType === "agri") {
+      payload.operation_id = this._form.agri?.operationId || this._currentAgriOperationId() || "";
+      payload.profile_id = this._form.agri?.profileId || "";
+    }
     const hasAnyService = Boolean(payload.service || payload.end_service);
     if (hasAnyService && !actionId) {
       actionId = this._newActionId();
@@ -3948,8 +4111,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       const f = this._form;
       const isService = f.eventType === "service";
       const isAgri = f.eventType === "agri";
-      const serviceData = isService && f.service && f.data ? JSON.parse(f.data) : {};
-      const endServiceData = isService && f.endService && f.endData ? JSON.parse(f.endData) : {};
+      const hasActionEditor = isService || isAgri;
+      const serviceData = hasActionEditor && f.service && f.data ? JSON.parse(f.data) : {};
+      const endServiceData = hasActionEditor && f.endService && f.endData ? JSON.parse(f.endData) : {};
       const existingAgri = isAgri && this._editingEvent ? (await this._extractAgriDescription(this._editingEvent.description || "")).payload : {};
       const payload = {
         calendar_entity: f.calendar,
@@ -3959,11 +4123,11 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         all_day: f.allDay,
         location: f.location,
         rrule: f.rrule,
-        service: isService ? f.service : "",
-        target: isService ? (f.target || {}) : {},
+        service: hasActionEditor ? f.service : "",
+        target: hasActionEditor ? (f.target || {}) : {},
         data: serviceData,
-        end_service: isService ? f.endService : "",
-        end_target: isService ? (f.endTarget || {}) : {},
+        end_service: hasActionEditor ? f.endService : "",
+        end_target: hasActionEditor ? (f.endTarget || {}) : {},
         end_data: endServiceData,
         description: isAgri ? await this._composeAgriDescription(f, existingAgri) : f.description,
       };

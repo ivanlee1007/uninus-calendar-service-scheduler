@@ -103,6 +103,32 @@ def test_start_and_end_service_actions_roundtrip():
 
 
 
+def test_scheduled_action_roundtrip_links_agri_operation_and_profile():
+    action = ScheduledAction.create(
+        calendar_entity="calendar.farm",
+        summary="Irrigation",
+        start="2026-07-12T08:00:00+08:00",
+        end="2026-07-12T08:30:00+08:00",
+        service="script.turn_on",
+        operation_id="op_1",
+        profile_id="sensor_profile_1",
+    )
+
+    loaded = ScheduledAction.from_dict(action.as_dict())
+    legacy = ScheduledAction.from_dict(
+        {
+            "action_id": "legacy",
+            "calendar_entity": "calendar.farm",
+            "start": "2026-07-12T08:00:00+08:00",
+        }
+    )
+
+    assert loaded.operation_id == "op_1"
+    assert loaded.profile_id == "sensor_profile_1"
+    assert legacy.operation_id == ""
+    assert legacy.profile_id == ""
+
+
 def test_next_occurrence_daily_rrule():
     action = ScheduledAction.create(
         calendar_entity="calendar.local",

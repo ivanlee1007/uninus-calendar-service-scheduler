@@ -5,6 +5,76 @@ PANEL_JS = Path(
     "uninus-calendar-service-scheduler-panel.js"
 )
 INIT_PY = Path("custom_components/uninus_calendar_service_scheduler/__init__.py")
+SCHEDULER_PY = Path("custom_components/uninus_calendar_service_scheduler/scheduler.py")
+
+
+def test_raw_and_reviewed_ai_evidence_are_backend_immutable():
+    init_source = INIT_PY.read_text(encoding="utf-8")
+
+    assert "Raw Evidence Bundle 為不可變原始事實" in init_source
+    assert "已完成 review 的 AI 佐證不能覆寫或刪除" in init_source
+    assert "_ensure_evidence_mutable(existing)" in init_source
+
+
+def test_ai_evidence_services_are_read_submit_review_only_and_ui_marks_ai_content():
+    init_source = INIT_PY.read_text(encoding="utf-8")
+    services_source = Path("custom_components/uninus_calendar_service_scheduler/services.yaml").read_text(encoding="utf-8")
+    panel_source = PANEL_JS.read_text(encoding="utf-8")
+
+    for service in ("list_evidence_sessions", "submit_ai_evidence_draft", "review_ai_evidence_draft"):
+        assert service in init_source
+        assert f"{service}:" in services_source
+    assert "create_ai_evidence_draft" in init_source
+    assert "pending_farmer_review" in panel_source
+    assert "AI-generated" in panel_source
+    assert "source_raw_evidence_hash" in panel_source
+    assert 'service: "review_ai_evidence_draft"' in panel_source
+
+
+def test_agri_calendar_dialog_exposes_operation_profile_and_start_end_action_editors():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert 'id="agri_profile"' in source
+    assert "Operation Profile" in source
+    assert 'isService || isAgri' in source
+    assert '_actionSection("start", "行程開始 Service Action"' in source
+    assert '_actionSection("end", "行程結束 Service Action"' in source
+    assert 'profileId: get("agri_profile")' in source
+    assert "北區果園 · 2 entities" not in source  # no test-data coupling
+
+
+def test_agri_operation_and_scheduled_action_service_contracts_carry_profile_links():
+    init_source = INIT_PY.read_text(encoding="utf-8")
+    panel_source = PANEL_JS.read_text(encoding="utf-8")
+
+    for field in ("operation_id", "profile_id"):
+        assert f'vol.Optional("{field}"' in init_source
+    assert 'profile_id=call.data.get("profile_id")' in init_source
+    assert 'operation_id=call.data.get("operation_id")' in init_source
+    assert "profile_id=call.data.get(\"profile_id\")" in init_source
+    assert "profile_id: agri.profileId" in panel_source
+    assert "operation_id: operationId" in panel_source
+    assert "profileId: operation?.profile_id || storedAction?.profile_id" in panel_source
+    assert "payload.operation_id = this._form.agri?.operationId" in panel_source
+    assert "_applyAgriOperationProfile" in panel_source
+    assert "profile.start_actions?.[0]" in panel_source
+    assert "profile.end_actions?.[0]" in panel_source
+
+
+def test_scheduler_wraps_linked_agri_actions_in_deterministic_evidence_capture():
+    source = SCHEDULER_PY.read_text(encoding="utf-8")
+
+    assert "AgriStore" in source
+    assert "EvidenceCaptureCoordinator" in source
+    assert "action.operation_id" in source
+    assert 'phase == "start"' in source
+    assert "coordinator.start" in source
+    assert "coordinator.record_service_call" in source
+    assert "coordinator.finish" in source
+    assert "await self.agri_store.async_save()" in source
+    assert "if not service and not action.operation_id" in source
+    assert "if service:" in source
+    assert "phase=phase" in source
 
 
 def test_sensor_profile_mvp_uses_dynamic_native_ha_entity_pickers_and_crud_services():
@@ -28,6 +98,19 @@ def test_sensor_profile_mvp_uses_dynamic_native_ha_entity_pickers_and_crud_servi
     for service in ("create_sensor_profile", "update_sensor_profile", "delete_sensor_profile"):
         assert f"{service}:" in services_source
         assert service in init_source
+    for field in (
+        "action_entity_ids",
+        "control_entity_ids",
+        "observation_entities",
+        "start_actions",
+        "end_actions",
+        "evidence_policy",
+    ):
+        assert f'vol.Optional("{field}"' in init_source
+        assert field in services_source
+    assert 'id="trace-sensor-profile-start-service"' in source
+    assert 'id="trace-sensor-profile-end-service"' in source
+    assert 'id="trace-sensor-profile-control-add"' in source
 
 
 def test_cycle_create_update_apply_identity_generation_and_duplicate_guard():

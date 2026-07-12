@@ -35,6 +35,10 @@ calendar_events_to_traceability_rows = agri.calendar_events_to_traceability_rows
 operation_to_calendar_event_payload = agri.operation_to_calendar_event_payload
 EvidenceRecord = agri.EvidenceRecord
 SensorProfile = agri.SensorProfile
+EvidenceSession = agri.EvidenceSession
+EvidenceCaptureCoordinator = agri.EvidenceCaptureCoordinator
+create_ai_evidence_draft = agri.create_ai_evidence_draft
+capture_entity_snapshot = agri.capture_entity_snapshot
 traceability_export_package = agri.traceability_export_package
 
 
@@ -62,6 +66,51 @@ def test_sensor_profile_roundtrip_normalizes_a_dynamic_entity_list():
     ]
 
 
+def test_operation_profile_roundtrip_adds_actions_entity_roles_and_evidence_policy():
+    profile = SensorProfile.create(
+        plot_id="plot_1",
+        name="北區果園灌溉佐證設定",
+        entity_ids=["sensor.soil_moisture"],
+        action_entity_ids=[" script.start_irrigation ", "script.stop_irrigation"],
+        control_entity_ids=["switch.irrigation_valve"],
+        observation_entities=[
+            {
+                "entity_id": " sensor.soil_moisture ",
+                "role": "soil_moisture",
+                "required": True,
+                "max_age_seconds": 300,
+                "capture": ["before", "during", "after"],
+            }
+        ],
+        start_actions=[
+            {
+                "service": "script.turn_on",
+                "target": {"entity_id": "script.start_irrigation"},
+                "data": {},
+            }
+        ],
+        end_actions=[
+            {
+                "service": "script.turn_on",
+                "target": {"entity_id": "script.stop_irrigation"},
+                "data": {},
+            }
+        ],
+        evidence_policy={"sample_interval_seconds": 60, "max_samples": 120},
+    )
+
+    loaded = SensorProfile.from_dict(profile.as_dict())
+
+    assert loaded.action_entity_ids == ["script.start_irrigation", "script.stop_irrigation"]
+    assert loaded.control_entity_ids == ["switch.irrigation_valve"]
+    assert loaded.observation_entities[0]["entity_id"] == "sensor.soil_moisture"
+    assert loaded.observation_entities[0]["required"] is True
+    assert loaded.start_actions[0]["service"] == "script.turn_on"
+    assert loaded.end_actions[0]["target"]["entity_id"] == "script.stop_irrigation"
+    assert loaded.evidence_policy == {"sample_interval_seconds": 60, "max_samples": 120}
+    assert loaded.entity_ids == ["sensor.soil_moisture"]
+
+
 def test_sensor_profile_requires_name_and_at_least_one_entity():
     for name, entity_ids in [("", ["sensor.temperature"]), ("環境", [])]:
         try:
@@ -69,6 +118,195 @@ def test_sensor_profile_requires_name_and_at_least_one_entity():
         except ValueError:
             continue
         raise AssertionError("invalid sensor profile was accepted")
+
+
+def test_traceability_package_separates_raw_sessions_from_ai_narratives():
+    session = EvidenceSession.start(operation_id="op_1", start_snapshot={})
+    session.finish(end_snapshot={}, ended_at="2026-07-12T08:30:00+08:00")
+    ai_draft = create_ai_evidence_draft(
+        session,
+        title="AI draft",
+        narrative="summary",
+        model_identity="model",
+        policy_version="v1",
+    )
+    records = TraceabilityRecordSet(
+        evidence_sessions={session.session_id: session},
+        evidence={ai_draft.evidence_id: ai_draft},
+    )
+
+    package = traceability_export_package(records)
+
+    assert package["raw_evidence_sessions"][0]["raw_evidence_hash"] == session.raw_evidence_hash
+    assert package["ai_evidence_drafts"][0]["content"]["source_session_id"] == session.session_id
+    assert package["counts"]["evidence_sessions"] == 1
+    assert package["counts"]["ai_evidence_drafts"] == 1
+
+
+def test_ai_evidence_draft_is_sourced_versioned_and_does_not_mutate_raw_session():
+    session = EvidenceSession.start(operation_id="op_1", start_snapshot={"sensor.soil": {"state": "18"}})
+    session.finish(end_snapshot={"sensor.soil": {"state": "31"}}, ended_at="2026-07-12T08:30:00+08:00")
+    raw_before = session.as_dict()
+
+    draft = create_ai_evidence_draft(
+        session,
+        title="北區果園灌溉佐證草稿",
+        narrative="土壤濕度由 18 上升至 31。",
+        model_identity="hermes-agent/gpt-5.6",
+        policy_version="irrigation-v1",
+        generated_at="2026-07-12T08:31:00+08:00",
+    )
+
+    assert draft.operation_id == "op_1"
+    assert draft.evidence_type == "ai_summary_draft"
+    assert draft.content["review_status"] == "pending_farmer_review"
+    assert draft.content["source_raw_evidence_hash"] == session.raw_evidence_hash
+    assert draft.content["model_identity"] == "hermes-agent/gpt-5.6"
+    assert draft.content["policy_version"] == "irrigation-v1"
+    assert session.as_dict() == raw_before
+
+
+def test_capture_entity_snapshot_preserves_raw_state_metadata_and_missing_entities():
+    states = {
+        "sensor.soil": types.SimpleNamespace(
+            state="18.2",
+            attributes={"unit_of_measurement": "%", "friendly_name": "Soil moisture"},
+            last_changed=types.SimpleNamespace(isoformat=lambda: "2026-07-12T07:59:00+08:00"),
+            last_updated=types.SimpleNamespace(isoformat=lambda: "2026-07-12T07:59:30+08:00"),
+        )
+    }
+
+    snapshot = capture_entity_snapshot(
+        ["sensor.soil", "sensor.missing"],
+        states.get,
+        captured_at="2026-07-12T08:00:00+08:00",
+    )
+
+    assert snapshot["sensor.soil"] == {
+        "state": "18.2",
+        "unit": "%",
+        "friendly_name": "Soil moisture",
+        "available": True,
+        "last_changed": "2026-07-12T07:59:00+08:00",
+        "last_updated": "2026-07-12T07:59:30+08:00",
+        "captured_at": "2026-07-12T08:00:00+08:00",
+    }
+    assert snapshot["sensor.missing"]["available"] is False
+    assert snapshot["sensor.missing"]["captured_at"] == "2026-07-12T08:00:00+08:00"
+
+
+def test_evidence_session_captures_start_and_finish_as_a_hashed_raw_bundle():
+    session = EvidenceSession.start(
+        operation_id="op_1",
+        profile_id="sensor_profile_1",
+        start_snapshot={
+            "sensor.soil_moisture": {"state": "18.2", "unit": "%", "captured_at": "2026-07-12T08:00:00+08:00"}
+        },
+        started_at="2026-07-12T08:00:00+08:00",
+    )
+
+    session.finish(
+        end_snapshot={
+            "sensor.soil_moisture": {"state": "31.7", "unit": "%", "captured_at": "2026-07-12T08:30:00+08:00"}
+        },
+        service_calls=[
+            {"phase": "start", "service": "script.turn_on", "entity_id": "script.irrigate", "success": True},
+            {"phase": "end", "service": "switch.turn_off", "entity_id": "switch.valve", "success": True},
+        ],
+        ended_at="2026-07-12T08:30:00+08:00",
+    )
+    loaded = EvidenceSession.from_dict(session.as_dict())
+
+    assert loaded.session_id.startswith("evidence_session_")
+    assert loaded.status == "ready_for_ai"
+    assert loaded.start_snapshot["sensor.soil_moisture"]["state"] == "18.2"
+    assert loaded.end_snapshot["sensor.soil_moisture"]["state"] == "31.7"
+    assert loaded.service_calls[1]["phase"] == "end"
+    assert len(loaded.raw_evidence_hash) == 64
+    assert loaded.raw_evidence_hash == session.raw_evidence_hash
+
+
+def test_traceability_records_persist_evidence_sessions_backward_compatibly():
+    session = EvidenceSession.start(operation_id="op_1", start_snapshot={})
+    records = TraceabilityRecordSet(evidence_sessions={session.session_id: session})
+
+    loaded = TraceabilityRecordSet.from_dict(records.as_dict())
+    legacy = TraceabilityRecordSet.from_dict({})
+
+    assert loaded.evidence_sessions[session.session_id].status == "capturing"
+    assert legacy.evidence_sessions == {}
+
+
+def test_capture_coordinator_opens_idempotent_session_and_finishes_raw_bundle():
+    profile = SensorProfile.create(
+        plot_id="plot_1",
+        name="Irrigation evidence",
+        entity_ids=["sensor.soil"],
+        control_entity_ids=["switch.valve"],
+        action_entity_ids=["script.irrigate"],
+    )
+    operation = AgriOperation.create(
+        cycle_id="cycle_1",
+        operation_type="irrigation",
+        profile_id=profile.profile_id,
+    )
+    records = TraceabilityRecordSet(
+        operations={operation.operation_id: operation},
+        sensor_profiles={profile.profile_id: profile},
+    )
+    states = {
+        "sensor.soil": types.SimpleNamespace(state="18", attributes={}, last_changed=None, last_updated=None),
+        "switch.valve": types.SimpleNamespace(state="off", attributes={}, last_changed=None, last_updated=None),
+        "script.irrigate": types.SimpleNamespace(state="off", attributes={}, last_changed=None, last_updated=None),
+    }
+    coordinator = EvidenceCaptureCoordinator(records, states.get)
+
+    first = coordinator.start(operation.operation_id, captured_at="2026-07-12T08:00:00+08:00")
+    duplicate = coordinator.start(operation.operation_id, captured_at="2026-07-12T08:00:01+08:00")
+    coordinator.record_service_call(
+        first.session_id,
+        phase="start",
+        service="script.turn_on",
+        target={"entity_id": "script.irrigate"},
+        success=True,
+    )
+    states["sensor.soil"].state = "31"
+    finished = coordinator.finish(first.session_id, captured_at="2026-07-12T08:30:00+08:00")
+    duplicate_finish = coordinator.finish(first.session_id, captured_at="2026-07-12T08:30:01+08:00")
+
+    assert duplicate.session_id == first.session_id
+    assert set(first.start_snapshot) == {"sensor.soil", "switch.valve", "script.irrigate"}
+    assert finished.end_snapshot["sensor.soil"]["state"] == "31"
+    assert finished.service_calls[0]["success"] is True
+    assert finished.status == "ready_for_ai"
+    assert duplicate_finish.session_id == finished.session_id
+    assert len(records.evidence) == 1
+    evidence = next(iter(records.evidence.values()))
+    assert evidence.operation_id == operation.operation_id
+    assert evidence.evidence_type == "raw_evidence_bundle"
+    assert evidence.content["session_id"] == finished.session_id
+    assert evidence.content["raw_evidence_hash"] == finished.raw_evidence_hash
+
+
+def test_agri_operation_binds_operation_profile_and_start_end_actions():
+    operation = AgriOperation.create(
+        cycle_id="cycle_1",
+        operation_type="灌溉",
+        profile_id="sensor_profile_1",
+        start_actions=[
+            {"service": "script.turn_on", "target": {"entity_id": "script.irrigate"}, "data": {}}
+        ],
+        end_actions=[
+            {"service": "switch.turn_off", "target": {"entity_id": "switch.valve"}, "data": {}}
+        ],
+    )
+
+    loaded = AgriOperation.from_dict(operation.as_dict())
+
+    assert loaded.profile_id == "sensor_profile_1"
+    assert loaded.start_actions[0]["target"]["entity_id"] == "script.irrigate"
+    assert loaded.end_actions[0]["service"] == "switch.turn_off"
+    assert loaded.record_hash == operation.record_hash
 
 
 def test_agri_records_roundtrip_with_sensor_snapshot():
@@ -317,6 +555,7 @@ def test_traceability_record_set_state_summary_counts_missing_required_links():
         "missing_link_count": 1,
         "evidence_count": 0,
         "sensor_profile_count": 0,
+        "evidence_session_count": 0,
         "recent_operations": [operation.as_dict()],
     }
 
@@ -608,8 +847,9 @@ def test_traceability_records_clear_returns_to_empty_new_install_state():
         "operation_count": 1,
         "evidence_count": 1,
         "sensor_profile_count": 0,
+        "evidence_session_count": 0,
     }
     assert records.as_dict() == {
         "farms": {}, "plots": {}, "cycles": {}, "operations": {}, "evidence": {},
-        "sensor_profiles": {}
+        "sensor_profiles": {}, "evidence_sessions": {}
     }

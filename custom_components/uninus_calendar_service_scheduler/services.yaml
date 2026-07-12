@@ -681,8 +681,8 @@ clear_traceability_data:
         boolean:
 
 create_sensor_profile:
-  name: Create Sensor Profile
-  description: Create a plot-scoped profile containing one or more Home Assistant entities.
+  name: Create Operation Profile
+  description: Create a plot-scoped Operation Profile with observed/control entities, start/end actions, and evidence policy.
   fields:
     plot_id:
       required: true
@@ -697,10 +697,30 @@ create_sensor_profile:
       selector:
         entity:
           multiple: true
+    action_entity_ids:
+      selector:
+        entity:
+          multiple: true
+    control_entity_ids:
+      selector:
+        entity:
+          multiple: true
+    observation_entities:
+      selector:
+        object:
+    start_actions:
+      selector:
+        object:
+    end_actions:
+      selector:
+        object:
+    evidence_policy:
+      selector:
+        object:
 
 update_sensor_profile:
-  name: Update Sensor Profile
-  description: Replace the plot, name, and entity list of an existing Sensor Profile.
+  name: Update Operation Profile
+  description: Replace an existing Operation Profile and its deterministic evidence settings.
   fields:
     profile_id:
       required: true
@@ -719,6 +739,26 @@ update_sensor_profile:
       selector:
         entity:
           multiple: true
+    action_entity_ids:
+      selector:
+        entity:
+          multiple: true
+    control_entity_ids:
+      selector:
+        entity:
+          multiple: true
+    observation_entities:
+      selector:
+        object:
+    start_actions:
+      selector:
+        object:
+    end_actions:
+      selector:
+        object:
+    evidence_policy:
+      selector:
+        object:
 
 delete_sensor_profile:
   name: Delete Sensor Profile
@@ -728,3 +768,59 @@ delete_sensor_profile:
       required: true
       selector:
         text:
+
+list_evidence_sessions:
+  name: List Evidence Sessions
+  description: Read-only list of deterministic raw evidence sessions for AI analysis.
+  fields:
+    status:
+      selector:
+        select:
+          options:
+            - ready_for_ai
+            - capturing
+
+submit_ai_evidence_draft:
+  name: Submit AI Evidence Draft
+  description: Add a versioned AI-generated narrative linked to an immutable raw evidence session.
+  fields:
+    session_id:
+      required: true
+      selector:
+        text:
+    title:
+      required: true
+      selector:
+        text:
+    narrative:
+      required: true
+      selector:
+        text:
+          multiline: true
+    model_identity:
+      required: true
+      selector:
+        text:
+    policy_version:
+      selector:
+        text:
+
+review_ai_evidence_draft:
+  name: Review AI Evidence Draft
+  description: Farmer accepts or rejects an AI-generated evidence draft without changing raw evidence.
+  fields:
+    evidence_id:
+      required: true
+      selector:
+        text:
+    review_status:
+      required: true
+      selector:
+        select:
+          options:
+            - accepted
+            - rejected
+    review_note:
+      selector:
+        text:
+          multiline: true

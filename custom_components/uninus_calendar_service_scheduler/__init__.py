@@ -28,6 +28,7 @@ from .agri import (
     Plot,
     SensorProfile,
     _stable_hash,
+    create_ai_evidence_draft,
     traceability_export_package,
 )
 from .agri_storage import AgriStore
@@ -57,7 +58,10 @@ from .const import (
     SERVICE_DELETE_SENSOR_PROFILE,
     SERVICE_EXPORT_TRACEABILITY_PACKAGE,
     SERVICE_EXPORT_TRACEABILITY_RECORDS,
+    SERVICE_LIST_EVIDENCE_SESSIONS,
     SERVICE_RELOAD_ACTIONS,
+    SERVICE_REVIEW_AI_EVIDENCE_DRAFT,
+    SERVICE_SUBMIT_AI_EVIDENCE_DRAFT,
     SERVICE_TEST_ACTION,
     SERVICE_UPDATE_AGRI_OPERATION,
     SERVICE_UPDATE_CROP_CYCLE,
@@ -96,6 +100,8 @@ CREATE_SCHEMA = vol.Schema(
         vol.Optional("end_target", default={}): dict,
         vol.Optional("end_data", default={}): dict,
         vol.Optional(CONF_DESCRIPTION): cv.string,
+        vol.Optional("operation_id", default=""): cv.string,
+        vol.Optional("profile_id", default=""): cv.string,
     }
 )
 
@@ -178,6 +184,9 @@ CREATE_AGRI_OPERATION_SCHEMA = vol.Schema(
         vol.Optional("notes", default=""): cv.string,
         vol.Optional("calendar_entity", default=""): cv.string,
         vol.Optional("calendar_event_uid", default=""): cv.string,
+        vol.Optional("profile_id", default=""): cv.string,
+        vol.Optional("start_actions", default=[]): list,
+        vol.Optional("end_actions", default=[]): list,
         vol.Optional("status"): cv.string,
     }
 )
@@ -210,12 +219,37 @@ CREATE_SENSOR_PROFILE_SCHEMA = vol.Schema(
         vol.Required("plot_id"): cv.string,
         vol.Required("name"): cv.string,
         vol.Required("entity_ids"): [cv.entity_id],
+        vol.Optional("action_entity_ids", default=[]): [cv.entity_id],
+        vol.Optional("control_entity_ids", default=[]): [cv.entity_id],
+        vol.Optional("observation_entities", default=[]): list,
+        vol.Optional("start_actions", default=[]): list,
+        vol.Optional("end_actions", default=[]): list,
+        vol.Optional("evidence_policy", default={}): dict,
     }
 )
 UPDATE_SENSOR_PROFILE_SCHEMA = CREATE_SENSOR_PROFILE_SCHEMA.extend(
     {vol.Required("profile_id"): cv.string}
 )
 DELETE_SENSOR_PROFILE_SCHEMA = vol.Schema({vol.Required("profile_id"): cv.string})
+LIST_EVIDENCE_SESSIONS_SCHEMA = vol.Schema(
+    {vol.Optional("status", default="ready_for_ai"): cv.string}
+)
+SUBMIT_AI_EVIDENCE_DRAFT_SCHEMA = vol.Schema(
+    {
+        vol.Required("session_id"): cv.string,
+        vol.Required("title"): cv.string,
+        vol.Required("narrative"): cv.string,
+        vol.Required("model_identity"): cv.string,
+        vol.Optional("policy_version", default=""): cv.string,
+    }
+)
+REVIEW_AI_EVIDENCE_DRAFT_SCHEMA = vol.Schema(
+    {
+        vol.Required("evidence_id"): cv.string,
+        vol.Required("review_status"): vol.In(["accepted", "rejected"]),
+        vol.Optional("review_note", default=""): cv.string,
+    }
+)
 
 EXPORT_TRACEABILITY_PACKAGE_SCHEMA = vol.Schema(
     {
@@ -257,7 +291,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await store.async_load()
     agri_store = AgriStore(hass)
     await agri_store.async_load()
-    scheduler = CalendarServiceScheduler(hass, store)
+    scheduler = CalendarServiceScheduler(hass, store, agri_store)
     data = _entry_data(hass)
     data["entry"] = entry
     data["store"] = store
@@ -412,6 +446,8 @@ def _register_services_once(hass: HomeAssistant) -> None:
             location=call.data.get("location"),
             rrule=call.data.get("rrule"),
             all_day=bool(call.data.get("all_day")),
+            operation_id=call.data.get("operation_id") or "",
+            profile_id=call.data.get("profile_id") or "",
         )
         event_data = {
             "summary": action.summary,
@@ -473,6 +509,8 @@ def _register_services_once(hass: HomeAssistant) -> None:
                 location=call.data.get("location"),
                 rrule=call.data.get("rrule"),
                 all_day=bool(call.data.get("all_day")),
+                operation_id=call.data.get("operation_id") or "",
+                profile_id=call.data.get("profile_id") or "",
             )
             action.action_id = action_id
         action.calendar_entity = call.data["calendar_entity"]
@@ -490,6 +528,8 @@ def _register_services_once(hass: HomeAssistant) -> None:
         action.rrule = call.data.get("rrule")
         action.all_day = bool(call.data.get("all_day"))
         action.calendar_event_uid = call.data.get("calendar_event_uid")
+        action.operation_id = call.data.get("operation_id") or ""
+        action.profile_id = call.data.get("profile_id") or ""
         action.last_run = None
         action.last_result = None
         await store.async_add(action)
@@ -702,6 +742,12 @@ def _register_services_once(hass: HomeAssistant) -> None:
                 plot_id=plot_id,
                 name=call.data["name"],
                 entity_ids=list(call.data["entity_ids"]),
+                action_entity_ids=list(call.data.get("action_entity_ids") or []),
+                control_entity_ids=list(call.data.get("control_entity_ids") or []),
+                observation_entities=list(call.data.get("observation_entities") or []),
+                start_actions=list(call.data.get("start_actions") or []),
+                end_actions=list(call.data.get("end_actions") or []),
+                evidence_policy=dict(call.data.get("evidence_policy") or {}),
             )
         except ValueError as err:
             raise vol.Invalid(str(err)) from err
@@ -723,6 +769,12 @@ def _register_services_once(hass: HomeAssistant) -> None:
                 plot_id=plot_id,
                 name=call.data["name"],
                 entity_ids=list(call.data["entity_ids"]),
+                action_entity_ids=list(call.data.get("action_entity_ids") or []),
+                control_entity_ids=list(call.data.get("control_entity_ids") or []),
+                observation_entities=list(call.data.get("observation_entities") or []),
+                start_actions=list(call.data.get("start_actions") or []),
+                end_actions=list(call.data.get("end_actions") or []),
+                evidence_policy=dict(call.data.get("evidence_policy") or {}),
             )
         except ValueError as err:
             raise vol.Invalid(str(err)) from err
@@ -731,6 +783,12 @@ def _register_services_once(hass: HomeAssistant) -> None:
             plot_id=candidate.plot_id,
             name=candidate.name,
             entity_ids=candidate.entity_ids,
+            action_entity_ids=candidate.action_entity_ids,
+            control_entity_ids=candidate.control_entity_ids,
+            observation_entities=candidate.observation_entities,
+            start_actions=candidate.start_actions,
+            end_actions=candidate.end_actions,
+            evidence_policy=candidate.evidence_policy,
             created_at=existing.created_at,
         )
         await agri_store.async_update_sensor_profile(profile)
@@ -763,6 +821,9 @@ def _register_services_once(hass: HomeAssistant) -> None:
             notes=call.data.get("notes") or "",
             calendar_entity=call.data.get("calendar_entity") or "",
             calendar_event_uid=call.data.get("calendar_event_uid") or "",
+            profile_id=call.data.get("profile_id") or "",
+            start_actions=list(call.data.get("start_actions") or []),
+            end_actions=list(call.data.get("end_actions") or []),
             status=call.data.get("status"),
         )
         await agri_store.async_add_operation(operation)
@@ -793,6 +854,9 @@ def _register_services_once(hass: HomeAssistant) -> None:
             notes=call.data.get("notes") or "",
             calendar_entity=call.data.get("calendar_entity") or existing.calendar_entity,
             calendar_event_uid=call.data.get("calendar_event_uid") or existing.calendar_event_uid,
+            profile_id=call.data.get("profile_id") or existing.profile_id,
+            start_actions=list(call.data.get("start_actions") or existing.start_actions),
+            end_actions=list(call.data.get("end_actions") or existing.end_actions),
             status=call.data.get("status") or existing.status,
             created_at=existing.created_at,
         )
@@ -823,12 +887,22 @@ def _register_services_once(hass: HomeAssistant) -> None:
         _notify_agri_changed()
         return {"evidence_id": evidence.evidence_id, "evidence": evidence.as_dict()}
 
+    def _ensure_evidence_mutable(existing: EvidenceRecord) -> None:
+        if existing.evidence_type == "raw_evidence_bundle":
+            raise vol.Invalid("Raw Evidence Bundle 為不可變原始事實，不能覆寫或刪除。")
+        if (
+            existing.evidence_type == "ai_summary_draft"
+            and existing.content.get("review_status") != "pending_farmer_review"
+        ):
+            raise vol.Invalid("已完成 review 的 AI 佐證不能覆寫或刪除。")
+
     async def _update_evidence(call: ServiceCall) -> dict[str, Any]:
         agri_store: AgriStore = _entry_data(hass)["agri_store"]
         evidence_id = call.data["evidence_id"]
         existing = agri_store.records.evidence.get(evidence_id)
         if existing is None:
             raise vol.Invalid(f"Unknown evidence_id {evidence_id!r}")
+        _ensure_evidence_mutable(existing)
         operation_id = str(call.data.get("operation_id") or "").strip()
         title = str(call.data.get("title") or "").strip()
         if not operation_id:
@@ -855,6 +929,10 @@ def _register_services_once(hass: HomeAssistant) -> None:
     async def _delete_evidence(call: ServiceCall) -> dict[str, Any]:
         agri_store: AgriStore = _entry_data(hass)["agri_store"]
         evidence_id = call.data["evidence_id"]
+        existing = agri_store.records.evidence.get(evidence_id)
+        if existing is None:
+            raise vol.Invalid(f"Unknown evidence_id {evidence_id!r}")
+        _ensure_evidence_mutable(existing)
         removed = await agri_store.async_delete_evidence(evidence_id)
         if not removed:
             raise vol.Invalid(f"Unknown evidence_id {evidence_id!r}")
@@ -960,6 +1038,55 @@ def _register_services_once(hass: HomeAssistant) -> None:
             "summary": agri_store.records.state_attributes(),
             "evidence": [item.as_dict() for item in agri_store.records.evidence.values()],
         }
+
+    async def _list_evidence_sessions(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        status = str(call.data.get("status") or "ready_for_ai")
+        sessions = [
+            item.as_dict()
+            for item in agri_store.records.evidence_sessions.values()
+            if not status or item.status == status
+        ]
+        return {"sessions": sessions, "count": len(sessions)}
+
+    async def _submit_ai_evidence_draft(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        session_id = str(call.data["session_id"]).strip()
+        session = agri_store.records.evidence_sessions.get(session_id)
+        if session is None:
+            raise vol.Invalid(f"Unknown session_id {session_id!r}")
+        try:
+            evidence = create_ai_evidence_draft(
+                session,
+                title=call.data["title"],
+                narrative=call.data["narrative"],
+                model_identity=call.data["model_identity"],
+                policy_version=call.data.get("policy_version") or "",
+            )
+        except ValueError as err:
+            raise vol.Invalid(str(err)) from err
+        await agri_store.async_add_evidence(evidence)
+        _notify_agri_changed()
+        return {"evidence_id": evidence.evidence_id, "evidence": evidence.as_dict()}
+
+    async def _review_ai_evidence_draft(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        evidence_id = str(call.data["evidence_id"]).strip()
+        evidence = agri_store.records.evidence.get(evidence_id)
+        if evidence is None or evidence.evidence_type != "ai_summary_draft":
+            raise vol.Invalid(f"Unknown AI draft evidence_id {evidence_id!r}")
+        if evidence.content.get("review_status") != "pending_farmer_review":
+            raise vol.Invalid("AI 佐證草稿已完成 review，不能原地重複審核。")
+        evidence.content = {
+            **evidence.content,
+            "review_status": call.data["review_status"],
+            "review_note": call.data.get("review_note") or "",
+            "reviewed_at": datetime.datetime.now(datetime.UTC).isoformat(),
+        }
+        evidence.content_hash = _stable_hash(evidence.as_dict())
+        await agri_store.async_save()
+        _notify_agri_changed()
+        return {"evidence_id": evidence.evidence_id, "evidence": evidence.as_dict()}
 
     async def _export_traceability_package(call: ServiceCall) -> dict[str, Any]:
         agri_store: AgriStore = _entry_data(hass)["agri_store"]
@@ -1120,6 +1247,27 @@ def _register_services_once(hass: HomeAssistant) -> None:
         SERVICE_DELETE_EVIDENCE,
         _delete_evidence,
         schema=DELETE_EVIDENCE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_LIST_EVIDENCE_SESSIONS,
+        _list_evidence_sessions,
+        schema=LIST_EVIDENCE_SESSIONS_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SUBMIT_AI_EVIDENCE_DRAFT,
+        _submit_ai_evidence_draft,
+        schema=SUBMIT_AI_EVIDENCE_DRAFT_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_REVIEW_AI_EVIDENCE_DRAFT,
+        _review_ai_evidence_draft,
+        schema=REVIEW_AI_EVIDENCE_DRAFT_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(

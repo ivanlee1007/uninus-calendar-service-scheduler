@@ -234,6 +234,12 @@ class SensorProfile:
     plot_id: str
     name: str
     entity_ids: list[str] = field(default_factory=list)
+    action_entity_ids: list[str] = field(default_factory=list)
+    control_entity_ids: list[str] = field(default_factory=list)
+    observation_entities: list[dict[str, Any]] = field(default_factory=list)
+    start_actions: list[dict[str, Any]] = field(default_factory=list)
+    end_actions: list[dict[str, Any]] = field(default_factory=list)
+    evidence_policy: dict[str, Any] = field(default_factory=dict)
     created_at: str | None = None
 
     @staticmethod
@@ -242,7 +248,35 @@ class SensorProfile:
         return list(dict.fromkeys(entity_id for entity_id in values if entity_id))
 
     @classmethod
-    def create(cls, *, plot_id: str, name: str, entity_ids: list[str]) -> SensorProfile:
+    def normalize_observation_entities(
+        cls, items: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        normalized: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for raw in items:
+            item = dict(raw or {})
+            entity_id = str(item.get("entity_id") or "").strip()
+            if not entity_id or entity_id in seen:
+                continue
+            item["entity_id"] = entity_id
+            normalized.append(item)
+            seen.add(entity_id)
+        return normalized
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        plot_id: str,
+        name: str,
+        entity_ids: list[str],
+        action_entity_ids: list[str] | None = None,
+        control_entity_ids: list[str] | None = None,
+        observation_entities: list[dict[str, Any]] | None = None,
+        start_actions: list[dict[str, Any]] | None = None,
+        end_actions: list[dict[str, Any]] | None = None,
+        evidence_policy: dict[str, Any] | None = None,
+    ) -> SensorProfile:
         name = str(name or "").strip()
         normalized = cls.normalize_entity_ids(entity_ids)
         if not name:
@@ -254,6 +288,14 @@ class SensorProfile:
             plot_id=str(plot_id or "").strip(),
             name=name,
             entity_ids=normalized,
+            action_entity_ids=cls.normalize_entity_ids(action_entity_ids or []),
+            control_entity_ids=cls.normalize_entity_ids(control_entity_ids or []),
+            observation_entities=cls.normalize_observation_entities(
+                observation_entities or []
+            ),
+            start_actions=[dict(item) for item in (start_actions or [])],
+            end_actions=[dict(item) for item in (end_actions or [])],
+            evidence_policy=dict(evidence_policy or {}),
             created_at=_now(),
         )
 
@@ -264,6 +306,18 @@ class SensorProfile:
             plot_id=str(raw.get("plot_id") or ""),
             name=str(raw.get("name") or ""),
             entity_ids=cls.normalize_entity_ids(list(raw.get("entity_ids") or [])),
+            action_entity_ids=cls.normalize_entity_ids(
+                list(raw.get("action_entity_ids") or [])
+            ),
+            control_entity_ids=cls.normalize_entity_ids(
+                list(raw.get("control_entity_ids") or [])
+            ),
+            observation_entities=cls.normalize_observation_entities(
+                list(raw.get("observation_entities") or [])
+            ),
+            start_actions=[dict(item) for item in raw.get("start_actions") or []],
+            end_actions=[dict(item) for item in raw.get("end_actions") or []],
+            evidence_policy=dict(raw.get("evidence_policy") or {}),
             created_at=raw.get("created_at"),
         )
 
@@ -273,8 +327,48 @@ class SensorProfile:
             "plot_id": self.plot_id,
             "name": self.name,
             "entity_ids": list(self.entity_ids),
+            "action_entity_ids": list(self.action_entity_ids),
+            "control_entity_ids": list(self.control_entity_ids),
+            "observation_entities": [dict(item) for item in self.observation_entities],
+            "start_actions": [dict(item) for item in self.start_actions],
+            "end_actions": [dict(item) for item in self.end_actions],
+            "evidence_policy": dict(self.evidence_policy),
             "created_at": self.created_at,
         }
+
+
+def capture_entity_snapshot(
+    entity_ids: list[str], state_getter: Any, *, captured_at: str = ""
+) -> dict[str, dict[str, Any]]:
+    """Capture deterministic raw state metadata for an evidence phase."""
+    timestamp = captured_at or _now()
+    snapshot: dict[str, dict[str, Any]] = {}
+    for entity_id in SensorProfile.normalize_entity_ids(entity_ids):
+        state = state_getter(entity_id)
+        if state is None:
+            snapshot[entity_id] = {
+                "state": None,
+                "unit": None,
+                "friendly_name": None,
+                "available": False,
+                "last_changed": None,
+                "last_updated": None,
+                "captured_at": timestamp,
+            }
+            continue
+        attributes = dict(getattr(state, "attributes", {}) or {})
+        last_changed = getattr(state, "last_changed", None)
+        last_updated = getattr(state, "last_updated", None)
+        snapshot[entity_id] = {
+            "state": str(getattr(state, "state", "")),
+            "unit": attributes.get("unit_of_measurement"),
+            "friendly_name": attributes.get("friendly_name"),
+            "available": str(getattr(state, "state", "")) not in {"unknown", "unavailable"},
+            "last_changed": last_changed.isoformat() if last_changed else None,
+            "last_updated": last_updated.isoformat() if last_updated else None,
+            "captured_at": timestamp,
+        }
+    return snapshot
 
 
 @dataclass(slots=True)
@@ -438,6 +532,9 @@ class AgriOperation:
     notes: str = ""
     calendar_entity: str = ""
     calendar_event_uid: str = ""
+    profile_id: str = ""
+    start_actions: list[dict[str, Any]] = field(default_factory=list)
+    end_actions: list[dict[str, Any]] = field(default_factory=list)
     status: str = "planned"
     created_at: str | None = None
     record_hash: str = ""
@@ -458,6 +555,9 @@ class AgriOperation:
         notes: str = "",
         calendar_entity: str = "",
         calendar_event_uid: str = "",
+        profile_id: str = "",
+        start_actions: list[dict[str, Any]] | None = None,
+        end_actions: list[dict[str, Any]] | None = None,
         status: str | None = None,
     ) -> AgriOperation:
         operation = cls(
@@ -474,6 +574,9 @@ class AgriOperation:
             notes=notes,
             calendar_entity=calendar_entity,
             calendar_event_uid=calendar_event_uid,
+            profile_id=str(profile_id or "").strip(),
+            start_actions=[dict(item) for item in (start_actions or [])],
+            end_actions=[dict(item) for item in (end_actions or [])],
             status=status or ("completed" if actual_start or sensor_snapshot else "planned"),
             created_at=_now(),
         )
@@ -496,6 +599,9 @@ class AgriOperation:
             notes=str(raw.get("notes") or ""),
             calendar_entity=str(raw.get("calendar_entity") or ""),
             calendar_event_uid=str(raw.get("calendar_event_uid") or ""),
+            profile_id=str(raw.get("profile_id") or ""),
+            start_actions=[dict(item) for item in raw.get("start_actions") or []],
+            end_actions=[dict(item) for item in raw.get("end_actions") or []],
             status=str(raw.get("status") or "planned"),
             created_at=raw.get("created_at"),
             record_hash=str(raw.get("record_hash") or ""),
@@ -519,9 +625,106 @@ class AgriOperation:
             "notes": self.notes,
             "calendar_entity": self.calendar_entity,
             "calendar_event_uid": self.calendar_event_uid,
+            "profile_id": self.profile_id,
+            "start_actions": [dict(item) for item in self.start_actions],
+            "end_actions": [dict(item) for item in self.end_actions],
             "status": self.status,
             "created_at": self.created_at,
             "record_hash": self.record_hash,
+        }
+
+
+@dataclass(slots=True)
+class EvidenceSession:
+    """Immutable-source capture window for one agricultural operation run."""
+
+    session_id: str
+    operation_id: str
+    profile_id: str = ""
+    status: str = "capturing"
+    started_at: str = ""
+    ended_at: str = ""
+    start_snapshot: dict[str, Any] = field(default_factory=dict)
+    end_snapshot: dict[str, Any] = field(default_factory=dict)
+    service_calls: list[dict[str, Any]] = field(default_factory=list)
+    state_changes: list[dict[str, Any]] = field(default_factory=list)
+    quality: str = "pending"
+    raw_evidence_hash: str = ""
+
+    @classmethod
+    def start(
+        cls,
+        *,
+        operation_id: str,
+        profile_id: str = "",
+        start_snapshot: dict[str, Any] | None = None,
+        started_at: str = "",
+    ) -> EvidenceSession:
+        operation_id = str(operation_id or "").strip()
+        if not operation_id:
+            raise ValueError("Evidence Session 必須關聯農務作業。")
+        return cls(
+            session_id=_new_id("evidence_session"),
+            operation_id=operation_id,
+            profile_id=str(profile_id or "").strip(),
+            status="capturing",
+            started_at=started_at or _now(),
+            start_snapshot=dict(start_snapshot or {}),
+        )
+
+    def finish(
+        self,
+        *,
+        end_snapshot: dict[str, Any] | None = None,
+        service_calls: list[dict[str, Any]] | None = None,
+        state_changes: list[dict[str, Any]] | None = None,
+        ended_at: str = "",
+        quality: str = "complete",
+    ) -> None:
+        self.end_snapshot = dict(end_snapshot or {})
+        self.service_calls = [dict(item) for item in (service_calls or [])]
+        self.state_changes = [dict(item) for item in (state_changes or [])]
+        self.ended_at = ended_at or _now()
+        self.quality = str(quality or "complete")
+        self.status = "ready_for_ai"
+        self.raw_evidence_hash = _stable_hash(self._hash_payload())
+
+    def _hash_payload(self) -> dict[str, Any]:
+        payload = self.as_dict()
+        payload.pop("raw_evidence_hash", None)
+        return payload
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any]) -> EvidenceSession:
+        return cls(
+            session_id=str(raw["session_id"]),
+            operation_id=str(raw.get("operation_id") or ""),
+            profile_id=str(raw.get("profile_id") or ""),
+            status=str(raw.get("status") or "capturing"),
+            started_at=str(raw.get("started_at") or ""),
+            ended_at=str(raw.get("ended_at") or ""),
+            start_snapshot=dict(raw.get("start_snapshot") or {}),
+            end_snapshot=dict(raw.get("end_snapshot") or {}),
+            service_calls=[dict(item) for item in raw.get("service_calls") or []],
+            state_changes=[dict(item) for item in raw.get("state_changes") or []],
+            quality=str(raw.get("quality") or "pending"),
+            raw_evidence_hash=str(raw.get("raw_evidence_hash") or ""),
+        )
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "session_id": self.session_id,
+            "operation_id": self.operation_id,
+            "profile_id": self.profile_id,
+            "status": self.status,
+            "started_at": self.started_at,
+            "ended_at": self.ended_at,
+            "start_snapshot": self.start_snapshot,
+            "end_snapshot": self.end_snapshot,
+            "service_calls": [dict(item) for item in self.service_calls],
+            "state_changes": [dict(item) for item in self.state_changes],
+            "quality": self.quality,
+            "raw_evidence_hash": self.raw_evidence_hash,
         }
 
 
@@ -594,6 +797,41 @@ class EvidenceRecord:
         }
 
 
+def create_ai_evidence_draft(
+    session: EvidenceSession,
+    *,
+    title: str,
+    narrative: str,
+    model_identity: str,
+    policy_version: str,
+    generated_at: str = "",
+) -> EvidenceRecord:
+    """Create a reviewable AI narrative that references immutable raw evidence."""
+    if session.status != "ready_for_ai" or not session.raw_evidence_hash:
+        raise ValueError("Evidence Session 尚未封存，不能產生 AI 佐證草稿。")
+    clean_title = str(title or "").strip()
+    clean_narrative = str(narrative or "").strip()
+    clean_model = str(model_identity or "").strip()
+    if not clean_title or not clean_narrative or not clean_model:
+        raise ValueError("AI 佐證草稿需要 title、narrative 與 model_identity。")
+    return EvidenceRecord.create(
+        operation_id=session.operation_id,
+        evidence_type="ai_summary_draft",
+        title=clean_title,
+        content={
+            "narrative": clean_narrative,
+            "model_identity": clean_model,
+            "policy_version": str(policy_version or "").strip(),
+            "generated_at": generated_at or _now(),
+            "source_session_id": session.session_id,
+            "source_raw_evidence_hash": session.raw_evidence_hash,
+            "review_status": "pending_farmer_review",
+            "ai_generated": True,
+        },
+        source_entity=f"evidence_session:{session.session_id}",
+    )
+
+
 @dataclass(slots=True)
 class TraceabilityRecordSet:
     """In-memory view of agricultural traceability records."""
@@ -604,6 +842,7 @@ class TraceabilityRecordSet:
     operations: dict[str, AgriOperation] = field(default_factory=dict)
     evidence: dict[str, EvidenceRecord] = field(default_factory=dict)
     sensor_profiles: dict[str, SensorProfile] = field(default_factory=dict)
+    evidence_sessions: dict[str, EvidenceSession] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> TraceabilityRecordSet:
@@ -623,6 +862,10 @@ class TraceabilityRecordSet:
                 key: SensorProfile.from_dict(value)
                 for key, value in raw.get("sensor_profiles", {}).items()
             },
+            evidence_sessions={
+                key: EvidenceSession.from_dict(value)
+                for key, value in raw.get("evidence_sessions", {}).items()
+            },
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -634,6 +877,9 @@ class TraceabilityRecordSet:
             "evidence": {key: item.as_dict() for key, item in self.evidence.items()},
             "sensor_profiles": {
                 key: item.as_dict() for key, item in self.sensor_profiles.items()
+            },
+            "evidence_sessions": {
+                key: item.as_dict() for key, item in self.evidence_sessions.items()
             },
         }
 
@@ -685,6 +931,7 @@ class TraceabilityRecordSet:
             "operation_count": len(self.operations),
             "evidence_count": len(self.evidence),
             "sensor_profile_count": len(self.sensor_profiles),
+            "evidence_session_count": len(self.evidence_sessions),
         }
         self.farms.clear()
         self.plots.clear()
@@ -692,6 +939,7 @@ class TraceabilityRecordSet:
         self.operations.clear()
         self.evidence.clear()
         self.sensor_profiles.clear()
+        self.evidence_sessions.clear()
         return summary
 
     def prepare_cycle_identity(
@@ -797,8 +1045,109 @@ class TraceabilityRecordSet:
             "missing_link_count": self.missing_link_count(),
             "evidence_count": len(self.evidence),
             "sensor_profile_count": len(self.sensor_profiles),
+            "evidence_session_count": len(self.evidence_sessions),
             "recent_operations": [item.as_dict() for item in recent],
         }
+
+
+class EvidenceCaptureCoordinator:
+    """Coordinate deterministic evidence capture around scheduled phases."""
+
+    def __init__(self, records: TraceabilityRecordSet, state_getter: Any) -> None:
+        self.records = records
+        self.state_getter = state_getter
+
+    def _profile_for_operation(self, operation_id: str) -> SensorProfile:
+        operation = self.records.operations.get(operation_id)
+        if operation is None:
+            raise ValueError("找不到農務作業，無法建立 Evidence Session。")
+        profile = self.records.sensor_profiles.get(operation.profile_id)
+        if profile is None:
+            raise ValueError("農務作業尚未綁定有效的 Operation Profile。")
+        return profile
+
+    @staticmethod
+    def _profile_entity_ids(profile: SensorProfile) -> list[str]:
+        observation_ids = [
+            str(item.get("entity_id") or "") for item in profile.observation_entities
+        ]
+        return SensorProfile.normalize_entity_ids(
+            profile.entity_ids
+            + observation_ids
+            + profile.control_entity_ids
+            + profile.action_entity_ids
+        )
+
+    def start(self, operation_id: str, *, captured_at: str = "") -> EvidenceSession:
+        for session in self.records.evidence_sessions.values():
+            if session.operation_id == operation_id and session.status == "capturing":
+                return session
+        profile = self._profile_for_operation(operation_id)
+        session = EvidenceSession.start(
+            operation_id=operation_id,
+            profile_id=profile.profile_id,
+            start_snapshot=capture_entity_snapshot(
+                self._profile_entity_ids(profile),
+                self.state_getter,
+                captured_at=captured_at,
+            ),
+            started_at=captured_at,
+        )
+        self.records.evidence_sessions[session.session_id] = session
+        return session
+
+    def record_service_call(
+        self,
+        session_id: str,
+        *,
+        phase: str,
+        service: str,
+        target: dict[str, Any] | None,
+        success: bool,
+        error: str = "",
+        called_at: str = "",
+    ) -> EvidenceSession:
+        session = self.records.evidence_sessions[session_id]
+        session.service_calls.append(
+            {
+                "phase": str(phase),
+                "service": str(service),
+                "target": dict(target or {}),
+                "success": bool(success),
+                "error": str(error or ""),
+                "called_at": called_at or _now(),
+            }
+        )
+        return session
+
+    def finish(self, session_id: str, *, captured_at: str = "") -> EvidenceSession:
+        session = self.records.evidence_sessions[session_id]
+        source_entity = f"evidence_session:{session.session_id}"
+        if session.status == "ready_for_ai":
+            return session
+        profile = self.records.sensor_profiles.get(session.profile_id)
+        if profile is None:
+            raise ValueError("Evidence Session 的 Operation Profile 已不存在。")
+        previous_calls = [dict(item) for item in session.service_calls]
+        session.finish(
+            end_snapshot=capture_entity_snapshot(
+                self._profile_entity_ids(profile),
+                self.state_getter,
+                captured_at=captured_at,
+            ),
+            service_calls=previous_calls,
+            ended_at=captured_at,
+            quality="complete",
+        )
+        evidence = EvidenceRecord.create(
+            operation_id=session.operation_id,
+            evidence_type="raw_evidence_bundle",
+            title="自動擷取農務作業原始佐證",
+            content=session.as_dict(),
+            source_entity=source_entity,
+        )
+        self.records.evidence[evidence.evidence_id] = evidence
+        return session
 
 
 def traceability_export_package(
@@ -824,6 +1173,11 @@ def traceability_export_package(
                 for key, item in records.evidence.items()
                 if item.operation_id in operation_ids
             },
+            evidence_sessions={
+                key: item
+                for key, item in records.evidence_sessions.items()
+                if item.operation_id in operation_ids
+            },
         )
     rows = source_records.export_operation_rows()
     fieldnames = [
@@ -847,6 +1201,14 @@ def traceability_export_package(
     writer.writeheader()
     writer.writerows(rows)
     evidence_rows = [item.as_dict() for item in source_records.evidence.values()]
+    raw_evidence_sessions = [
+        item.as_dict() for item in source_records.evidence_sessions.values()
+    ]
+    ai_evidence_drafts = [
+        item.as_dict()
+        for item in source_records.evidence.values()
+        if item.evidence_type == "ai_summary_draft"
+    ]
     cycle = records.cycles.get(cycle_id) if cycle_id else None
     plot = records.plots.get(cycle.plot_id) if cycle else None
     farm = records.farms.get(plot.farm_id) if plot else None
@@ -882,6 +1244,12 @@ def traceability_export_package(
         "csv_filename": f"traceability-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.csv",
         "json_filename": f"traceability-package-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json",
         "evidence": evidence_rows,
+        "raw_evidence_sessions": raw_evidence_sessions,
+        "ai_evidence_drafts": ai_evidence_drafts,
+        "counts": {
+            "evidence_sessions": len(raw_evidence_sessions),
+            "ai_evidence_drafts": len(ai_evidence_drafts),
+        },
         "integrity": {
             "ok": warning_count == 0,
             "warning_count": warning_count,
