@@ -805,6 +805,13 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .trace-data-table .trace-select-evidence { color: var(--primary-text-color); }
       .trace-data-table > button:hover { background: color-mix(in srgb, var(--trace-primary) 5%, var(--trace-surface)); }
       .trace-data-table > button small { display: block; margin-top: 3px; color: var(--secondary-text-color); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .trace-profile-table-head, .trace-select-sensor-profile { display: grid; grid-template-columns: minmax(180px, 1.25fr) minmax(120px, .8fr) minmax(170px, 1fr) minmax(170px, 1fr); gap: 10px; align-items: center; }
+      .trace-profile-table-head { padding: 8px 11px; background: var(--trace-subtle); color: var(--secondary-text-color); font-size: 11px; font-weight: 700; }
+      .profile-data-table > .trace-select-sensor-profile { color: var(--primary-text-color); }
+      .trace-select-sensor-profile.active { background: color-mix(in srgb, var(--trace-primary) 10%, var(--trace-surface)); box-shadow: inset 3px 0 0 var(--trace-primary); }
+      .trace-select-sensor-profile > span { min-width: 0; }
+      .profile-entity-signals, .profile-action-signals { flex-wrap: nowrap; }
+      .profile-data-table > .message { margin: 0; padding: 14px 11px; border-top: 1px solid var(--trace-border); }
       .evidence-preview { display: grid; gap: 8px; margin: 0 0 12px; padding: 10px; border-radius: 9px; background: var(--trace-subtle); }
       .evidence-preview pre { margin: 0; max-height: 180px; overflow: auto; white-space: pre-wrap; }
       .evidence-preview img { width: 100%; max-height: 260px; object-fit: contain; border-radius: 7px; background: var(--trace-surface); }
@@ -1040,7 +1047,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <nav class="workbench-sidebar" aria-label="工作台導覽">
             <div class="workbench-nav-group"><span>履歷總覽</span>${tabButton("overview", "總覽")}</div>
             <div class="workbench-nav-group"><span>生產紀錄</span>${tabButton("operations", "農務作業")}${tabButton("evidence", "佐證資料")}</div>
-            <div class="workbench-nav-group"><span>基礎資料</span>${tabButton("master-data", "農場、場區與週期")}${tabButton("sensor-profiles", "Sensor Profiles")}</div>
+            <div class="workbench-nav-group"><span>基礎資料</span>${tabButton("master-data", "農場、場區與週期")}${tabButton("sensor-profiles", "Operation Profiles")}</div>
             <div class="workbench-nav-group"><span>資料治理</span>${tabButton("consistency", "一致性檢查")}${tabButton("export", "匯出與封存")}</div>
           </nav>
           <main class="workbench-main"><div class="content">${this._traceabilityWorkbenchContent(tab)}</div></main>
@@ -1103,15 +1110,21 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     return `<section class="workbench-section sensor-profile-workbench">
       <div class="workbench-page-heading"><div><span class="context-eyebrow">OPERATION PROFILES</span><h3>Operation Profile</h3><p>宣告農務作業的觀察範圍、控制實體、預設 Actions 與 bounded evidence policy。</p></div><button id="trace-sensor-profile-new">＋ 新增 Profile</button></div>
       <div class="trace-master-data-master-detail">
-        <section class="trace-master-list-panel"><b>Profiles</b><div class="trace-data-table">${profiles.map((profile) => `<button class="trace-select-sensor-profile ${profile.profile_id === form.selectedProfileId ? "active" : ""}" data-sensor-profile-id="${this._escape(profile.profile_id)}"><b>${this._escape(profile.name)}</b><span>${this._escape(plots[profile.plot_id]?.name || "未指定場區")} · ${profile.entity_ids?.length || 0} entities</span></button>`).join("") || `<p class="message">尚無 Sensor Profile</p>`}</div></section>
-        <section class="trace-detail-panel"><span class="context-eyebrow">PROFILE DETAIL</span><h3>${form.selectedProfileId ? "編輯 Sensor Profile" : "新增 Sensor Profile"}</h3>
+        <section class="trace-master-list-panel"><b>Operation Profiles</b><div class="trace-data-table profile-data-table"><div class="trace-profile-table-head"><span>Profile</span><span>場區</span><span>實體範圍</span><span>Actions</span></div>${profiles.map((profile) => {
+          const observedCount = profile.observation_entities?.length || profile.entity_ids?.length || 0;
+          const controlCount = profile.control_entity_ids?.length || profile.action_entity_ids?.length || 0;
+          const startCount = profile.start_actions?.length || 0;
+          const endCount = profile.end_actions?.length || 0;
+          return `<button class="trace-select-sensor-profile ${profile.profile_id === form.selectedProfileId ? "active" : ""}" data-sensor-profile-id="${this._escape(profile.profile_id)}"><span><b>${this._escape(profile.name)}</b><small>${this._escape(profile.profile_id)}</small></span><span>${this._escape(plots[profile.plot_id]?.name || "未指定場區")}</span><span class="trace-row-signals profile-entity-signals">${this._traceStatusChip(`觀察 ${observedCount}`, observedCount ? "active" : "neutral")}${this._traceStatusChip(`控制 ${controlCount}`, controlCount ? "active" : "neutral")}</span><span class="trace-row-signals profile-action-signals">${this._traceStatusChip(`開始 ${startCount}`, startCount ? "success" : "neutral")}${this._traceStatusChip(`結束 ${endCount}`, endCount ? "success" : "neutral")}</span></button>`;
+        }).join("") || `<p class="message">尚無 Operation Profile</p>`}</div></section>
+        <section class="trace-detail-panel"><span class="context-eyebrow">PROFILE DETAIL</span><h3>${form.selectedProfileId ? "編輯 Operation Profile" : "新增 Operation Profile"}</h3>
           <div class="fields"><label>Profile 名稱<input id="trace-sensor-profile-name" value="${this._escape(form.name)}" /></label><label>場區<select id="trace-sensor-profile-plot">${plotOptions}</select></label></div>
           <div class="sensor-profile-entities"><div class="section-heading"><b>Observed entities</b><button type="button" id="trace-sensor-profile-add-entity">＋ 新增 entity</button></div>${entityRows}</div>
           <div class="sensor-profile-entities"><div class="section-heading"><b>Control entities</b><button type="button" id="trace-sensor-profile-control-add">＋ 新增 control</button></div>${controlRows}</div>
           <div class="fields"><div class="native-control"><div class="native-label">預設開始 Service Action</div><ha-service-picker id="trace-sensor-profile-start-service" show-service-id></ha-service-picker></div><div class="native-control"><div class="native-label">預設結束 Service Action</div><ha-service-picker id="trace-sensor-profile-end-service" show-service-id></ha-service-picker></div></div>
           <div class="fields"><label>取樣間隔（秒）<input id="trace-sensor-profile-sample-interval" type="number" min="10" value="${this._escape(form.sampleIntervalSeconds)}" /></label><label>最大樣本數<input id="trace-sensor-profile-max-samples" type="number" min="1" value="${this._escape(form.maxSamples)}" /></label><label>最長 Session（秒）<input id="trace-sensor-profile-max-duration" type="number" min="60" value="${this._escape(form.maxSessionDurationSeconds)}" /></label></div>
-          <div class="message ${this._message.includes("Sensor Profile") && this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
-          <div class="trace-sticky-actions">${form.selectedProfileId ? `<button id="trace-sensor-profile-delete">${this._sensorProfileDeletePending ? "再次確認刪除" : "刪除 Profile"}</button><button class="primary" id="trace-sensor-profile-save">儲存 Profile</button>` : `<button class="primary" id="trace-sensor-profile-create">建立 Sensor Profile</button>`}</div>
+          <div class="message ${this._message.includes("Operation Profile") && this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
+          <div class="trace-sticky-actions">${form.selectedProfileId ? `<button id="trace-sensor-profile-delete">${this._sensorProfileDeletePending ? "再次確認刪除" : "刪除 Profile"}</button><button class="primary" id="trace-sensor-profile-save">儲存 Profile</button>` : `<button class="primary" id="trace-sensor-profile-create">建立 Operation Profile</button>`}</div>
         </section>
       </div>
     </section>`;
@@ -1195,9 +1208,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const form = this._sensorProfileForm;
     const entityIds = [...new Set(form.entityIds.map((value) => String(value || "").trim()).filter(Boolean))];
     const controlEntityIds = [...new Set((form.controlEntityIds || []).map((value) => String(value || "").trim()).filter(Boolean))];
-    if (!form.name.trim()) { this._message = "Sensor Profile 建立失敗：請輸入名稱。"; this._render(); return; }
-    if (!form.plotId) { this._message = "Sensor Profile 建立失敗：請選擇場區。"; this._render(); return; }
-    if (!entityIds.length) { this._message = "Sensor Profile 建立失敗：至少選擇一個 entity。"; this._render(); return; }
+    if (!form.name.trim()) { this._message = "Operation Profile 建立失敗：請輸入名稱。"; this._render(); return; }
+    if (!form.plotId) { this._message = "Operation Profile 建立失敗：請選擇場區。"; this._render(); return; }
+    if (!entityIds.length) { this._message = "Operation Profile 建立失敗：至少選擇一個 entity。"; this._render(); return; }
     const service = create ? "create_sensor_profile" : "update_sensor_profile";
     const service_data = {
       plot_id: form.plotId,
@@ -1237,13 +1250,13 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         maxSamples: String(profile.evidence_policy?.max_samples ?? 120),
         maxSessionDurationSeconds: String(profile.evidence_policy?.max_session_duration_seconds ?? 14400),
       };
-      this._message = create ? "已建立 Sensor Profile。" : "已儲存 Sensor Profile。";
-    } catch (err) { this._message = `Sensor Profile 儲存失敗：${err?.message || err}`; }
+      this._message = create ? "已建立 Operation Profile。" : "已儲存 Operation Profile。";
+    } catch (err) { this._message = `Operation Profile 儲存失敗：${err?.message || err}`; }
     this._render();
   }
 
   async _deleteSensorProfile() {
-    if (!this._sensorProfileDeletePending) { this._sensorProfileDeletePending = true; this._message = "再次按下刪除以永久移除此 Sensor Profile。"; this._render(); return; }
+    if (!this._sensorProfileDeletePending) { this._sensorProfileDeletePending = true; this._message = "再次按下刪除以永久移除此 Operation Profile。"; this._render(); return; }
     const profileId = this._sensorProfileForm.selectedProfileId;
     try {
       await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "delete_sensor_profile", service_data: { profile_id: profileId }, return_response: true });
@@ -1252,8 +1265,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       this._traceabilityRecordsOverride = records;
       this._sensorProfileForm = this._defaultSensorProfileForm();
       this._sensorProfileDeletePending = false;
-      this._message = "已刪除 Sensor Profile。";
-    } catch (err) { this._message = `Sensor Profile 刪除失敗：${err?.message || err}`; }
+      this._message = "已刪除 Operation Profile。";
+    } catch (err) { this._message = `Operation Profile 刪除失敗：${err?.message || err}`; }
     this._render();
   }
 

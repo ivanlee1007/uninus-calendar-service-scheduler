@@ -111,7 +111,8 @@ def test_sensor_profile_mvp_uses_dynamic_native_ha_entity_pickers_and_crud_servi
     init_source = INIT_PY.read_text(encoding="utf-8")
     services_source = Path("custom_components/uninus_calendar_service_scheduler/services.yaml").read_text(encoding="utf-8")
 
-    assert "Sensor Profile" in source
+    assert "Operation Profile" in source
+    assert "Sensor Profile" not in source
     assert 'id="trace-sensor-profile-name"' in source
     assert 'id="trace-sensor-profile-plot"' in source
     assert "ha-entity-picker" in source
@@ -499,6 +500,18 @@ def test_evidence_requires_operation_and_title_at_ui_and_service_boundaries():
     assert "請輸入佐證標題" in source
     assert 'raise vol.Invalid("operation_id is required")' in init_source
     assert 'raise vol.Invalid("title is required")' in init_source
+
+
+def test_operation_profile_list_uses_the_shared_compact_table_language():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert 'class="trace-profile-table-head"' in source
+    assert '<span>Profile</span><span>場區</span><span>實體範圍</span><span>Actions</span>' in source
+    assert 'class="trace-select-sensor-profile' in source
+    assert 'class="trace-row-signals profile-entity-signals"' in source
+    assert 'class="trace-row-signals profile-action-signals"' in source
+    assert ".trace-profile-table-head, .trace-select-sensor-profile { display: grid;" in source
+    assert ".trace-select-sensor-profile.active" in source
 
 
 def test_evidence_table_rows_have_explicit_readable_text_color():
