@@ -10,6 +10,13 @@ INIT_PY = Path("custom_components/uninus_calendar_service_scheduler/__init__.py"
 SCHEDULER_PY = Path("custom_components/uninus_calendar_service_scheduler/scheduler.py")
 
 
+def test_linked_agri_action_may_capture_evidence_without_control_services():
+    init_source = INIT_PY.read_text(encoding="utf-8")
+
+    assert 'if not service and not end_service and not operation_id:' in init_source
+    assert 'operation_id = str(call.data.get("operation_id") or "").strip()' in init_source
+
+
 def test_service_metadata_exposes_operation_profile_and_action_linkage_fields():
     services = yaml.safe_load(
         Path("custom_components/uninus_calendar_service_scheduler/services.yaml").read_text(encoding="utf-8")

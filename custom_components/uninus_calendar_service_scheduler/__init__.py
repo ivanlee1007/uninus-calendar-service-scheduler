@@ -427,8 +427,9 @@ def _register_services_once(hass: HomeAssistant) -> None:
         store: ActionStore = _entry_data(hass)["store"]
         service = call.data.get("service") or ""
         end_service = call.data.get("end_service") or ""
-        if not service and not end_service:
-            raise vol.Invalid("Configure at least one start or end service action.")
+        operation_id = str(call.data.get("operation_id") or "").strip()
+        if not service and not end_service and not operation_id:
+            raise vol.Invalid("Configure at least one start or end service action, or link an agricultural operation for evidence capture.")
         _validate_service_pair(hass, service)
         _validate_service_pair(hass, end_service)
         action = ScheduledAction.create(
@@ -489,8 +490,9 @@ def _register_services_once(hass: HomeAssistant) -> None:
         action = store.actions.get(action_id)
         service = call.data.get("service") or ""
         end_service = call.data.get("end_service") or ""
-        if not service and not end_service:
-            raise vol.Invalid("Configure at least one start or end service action.")
+        operation_id = str(call.data.get("operation_id") or "").strip()
+        if not service and not end_service and not operation_id:
+            raise vol.Invalid("Configure at least one start or end service action, or link an agricultural operation for evidence capture.")
         _validate_service_pair(hass, service)
         _validate_service_pair(hass, end_service)
         if action is None:
