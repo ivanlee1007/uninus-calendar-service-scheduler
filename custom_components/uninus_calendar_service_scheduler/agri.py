@@ -227,6 +227,57 @@ class Farm:
 
 
 @dataclass(slots=True)
+class SensorProfile:
+    """A reusable, plot-scoped set of Home Assistant entities."""
+
+    profile_id: str
+    plot_id: str
+    name: str
+    entity_ids: list[str] = field(default_factory=list)
+    created_at: str | None = None
+
+    @staticmethod
+    def normalize_entity_ids(entity_ids: list[str]) -> list[str]:
+        values = (str(entity_id or "").strip() for entity_id in entity_ids)
+        return list(dict.fromkeys(entity_id for entity_id in values if entity_id))
+
+    @classmethod
+    def create(cls, *, plot_id: str, name: str, entity_ids: list[str]) -> SensorProfile:
+        name = str(name or "").strip()
+        normalized = cls.normalize_entity_ids(entity_ids)
+        if not name:
+            raise ValueError("Sensor Profile 名稱不可空白。")
+        if not normalized:
+            raise ValueError("Sensor Profile 至少需要一個 entity。")
+        return cls(
+            profile_id=_new_id("sensor_profile"),
+            plot_id=str(plot_id or "").strip(),
+            name=name,
+            entity_ids=normalized,
+            created_at=_now(),
+        )
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any]) -> SensorProfile:
+        return cls(
+            profile_id=str(raw["profile_id"]),
+            plot_id=str(raw.get("plot_id") or ""),
+            name=str(raw.get("name") or ""),
+            entity_ids=cls.normalize_entity_ids(list(raw.get("entity_ids") or [])),
+            created_at=raw.get("created_at"),
+        )
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "profile_id": self.profile_id,
+            "plot_id": self.plot_id,
+            "name": self.name,
+            "entity_ids": list(self.entity_ids),
+            "created_at": self.created_at,
+        }
+
+
+@dataclass(slots=True)
 class Plot:
     """A field/plot/facility belonging to a farm."""
 
@@ -552,6 +603,7 @@ class TraceabilityRecordSet:
     cycles: dict[str, CropCycle] = field(default_factory=dict)
     operations: dict[str, AgriOperation] = field(default_factory=dict)
     evidence: dict[str, EvidenceRecord] = field(default_factory=dict)
+    sensor_profiles: dict[str, SensorProfile] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> TraceabilityRecordSet:
@@ -567,6 +619,10 @@ class TraceabilityRecordSet:
                 key: EvidenceRecord.from_dict(value)
                 for key, value in raw.get("evidence", {}).items()
             },
+            sensor_profiles={
+                key: SensorProfile.from_dict(value)
+                for key, value in raw.get("sensor_profiles", {}).items()
+            },
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -576,6 +632,9 @@ class TraceabilityRecordSet:
             "cycles": {key: item.as_dict() for key, item in self.cycles.items()},
             "operations": {key: item.as_dict() for key, item in self.operations.items()},
             "evidence": {key: item.as_dict() for key, item in self.evidence.items()},
+            "sensor_profiles": {
+                key: item.as_dict() for key, item in self.sensor_profiles.items()
+            },
         }
 
     def export_operation_rows(self) -> list[dict[str, Any]]:
@@ -625,12 +684,14 @@ class TraceabilityRecordSet:
             "cycle_count": len(self.cycles),
             "operation_count": len(self.operations),
             "evidence_count": len(self.evidence),
+            "sensor_profile_count": len(self.sensor_profiles),
         }
         self.farms.clear()
         self.plots.clear()
         self.cycles.clear()
         self.operations.clear()
         self.evidence.clear()
+        self.sensor_profiles.clear()
         return summary
 
     def prepare_cycle_identity(
@@ -689,7 +750,11 @@ class TraceabilityRecordSet:
             return [f"場區 {count} 筆"] if count else []
         if kind == "plot":
             count = sum(1 for item in self.cycles.values() if item.plot_id == record_id)
-            return [f"生產週期 {count} 筆"] if count else []
+            blockers = [f"生產週期 {count} 筆"] if count else []
+            profile_count = sum(1 for item in self.sensor_profiles.values() if item.plot_id == record_id)
+            if profile_count:
+                blockers.append(f"Sensor Profile {profile_count} 筆")
+            return blockers
         if kind == "cycle":
             operation_ids = {
                 item.operation_id
@@ -731,6 +796,7 @@ class TraceabilityRecordSet:
             "operation_count": len(self.operations),
             "missing_link_count": self.missing_link_count(),
             "evidence_count": len(self.evidence),
+            "sensor_profile_count": len(self.sensor_profiles),
             "recent_operations": [item.as_dict() for item in recent],
         }
 

@@ -13,6 +13,7 @@ from .agri import (
     EvidenceRecord,
     Farm,
     Plot,
+    SensorProfile,
     TraceabilityRecordSet,
 )
 from .const import AGRI_STORAGE_KEY, AGRI_STORAGE_VERSION
@@ -55,6 +56,20 @@ class AgriStore:
     async def async_add_evidence(self, evidence: EvidenceRecord) -> None:
         self.records.evidence[evidence.evidence_id] = evidence
         await self.async_save()
+
+    async def async_add_sensor_profile(self, profile: SensorProfile) -> None:
+        self.records.sensor_profiles[profile.profile_id] = profile
+        await self.async_save()
+
+    async def async_update_sensor_profile(self, profile: SensorProfile) -> None:
+        self.records.sensor_profiles[profile.profile_id] = profile
+        await self.async_save()
+
+    async def async_delete_sensor_profile(self, profile_id: str) -> bool:
+        deleted = self.records.sensor_profiles.pop(profile_id, None) is not None
+        if deleted:
+            await self.async_save()
+        return deleted
 
     async def async_update_evidence(self, evidence: EvidenceRecord) -> None:
         self.records.evidence[evidence.evidence_id] = evidence

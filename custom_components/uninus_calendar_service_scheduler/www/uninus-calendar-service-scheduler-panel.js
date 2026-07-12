@@ -34,6 +34,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._managementForm = this._defaultManagementForm();
     this._operationForm = this._defaultOperationForm();
     this._evidenceForm = this._defaultEvidenceForm();
+    this._sensorProfileForm = this._defaultSensorProfileForm();
     this._traceabilityRecordsOverride = undefined;
   }
 
@@ -156,6 +157,15 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     };
   }
 
+
+  _defaultSensorProfileForm() {
+    return {
+      selectedProfileId: "",
+      plotId: "",
+      name: "",
+      entityIds: [""],
+    };
+  }
 
   _defaultEvidenceForm() {
     return {
@@ -811,6 +821,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .export-step > span { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: color-mix(in srgb, var(--trace-primary) 14%, var(--trace-surface)); color: var(--trace-primary); font: 700 11px var(--code-font-family, monospace); }
       .export-step > div { border: 1px solid var(--trace-border); border-radius: 10px; padding: 14px; }
       .export-step label { margin-top: 10px; }
+      .sensor-profile-entities { display: grid; gap: 10px; margin-top: 16px; }
+      .sensor-profile-entities .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .sensor-profile-entity-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end; }
+      .sensor-profile-entity-row .native-control { min-width: 0; }
       @media (max-width: 1040px) { .trace-operations-master-detail, .trace-evidence-master-detail, .trace-master-data-master-detail { grid-template-columns: 1fr; } .trace-detail-panel { position: static; } .workbench-context-bar { grid-template-columns: minmax(0, 1fr) auto; } .context-cycle-picker { grid-column: 1 / -1; } }
       @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .side { border-inline-end: 0; border-block-end: 1px solid var(--divider-color); } .day { min-height: 88px; } .agri-dialog .content { grid-template-columns: repeat(2, minmax(0, 1fr)); } .management-section .fields { grid-template-columns: 1fr; } .workbench-shell { grid-template-columns: 150px minmax(0, 1fr); } .trace-table-head { display: none; } .trace-select-operation { grid-template-columns: 1fr 1fr; } }
       @media (max-width: 640px) { .traceability-workbench { inset: 0; left: 0; top: 0; border-radius: 0; } .workbench-header { padding: 12px 14px; } .workbench-context-bar { padding: 10px 14px; grid-template-columns: 1fr; } .workbench-context-status { grid-row: 2; } .context-cycle-picker { grid-column: auto; } .workbench-shell { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); } .workbench-sidebar { display: flex; gap: 4px; overflow-x: auto; border-inline-end: 0; border-bottom: 1px solid var(--trace-border); padding: 6px; } .workbench-nav-group { display: contents; } .workbench-nav-group > span { display: none; } .workbench-nav-group button { width: auto; white-space: nowrap; } .workbench-main > .content { padding: 14px; } .dialog .content, .agri-dialog .content, .workbench-grid, .workbench-overview-grid { grid-template-columns: 1fr; } .weekday { font-size: 11px; padding: 8px 4px; text-align: center; } .day { min-height: 74px; padding: 4px; } .pill { font-size: 10px; padding: 2px 4px; } .trace-select-operation { grid-template-columns: 1fr; } .workbench-footer { display: none; } }
@@ -822,7 +836,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   }
 
   _hassTraceabilityRecords() {
-    return this._hass?.states?.["sensor.uninus_calendar_service_scheduler_status"]?.attributes?.traceability_records || { farms: {}, plots: {}, cycles: {}, operations: {}, evidence: {} };
+    return this._hass?.states?.["sensor.uninus_calendar_service_scheduler_status"]?.attributes?.traceability_records || { farms: {}, plots: {}, cycles: {}, operations: {}, evidence: {}, sensor_profiles: {} };
   }
 
   _upsertTraceabilityRecord(kind, id, record) {
@@ -837,8 +851,14 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   _reconcileTraceabilityRecordsOverride() {
     if (!this._traceabilityRecordsOverride) return;
     const hassRecords = this._hassTraceabilityRecords();
-    const caughtUp = ["farms", "plots", "cycles", "operations", "evidence"].every(
-      (kind) => Object.keys(hassRecords[kind] || {}).length >= Object.keys(this._traceabilityRecordsOverride[kind] || {}).length,
+    const caughtUp = ["farms", "plots", "cycles", "operations", "evidence", "sensor_profiles"].every(
+      (kind) => {
+        const hassItems = hassRecords[kind] || {};
+        const overrideItems = this._traceabilityRecordsOverride[kind] || {};
+        const ids = Object.keys(overrideItems);
+        return Object.keys(hassItems).length === ids.length
+          && ids.every((id) => JSON.stringify(hassItems[id]) === JSON.stringify(overrideItems[id]));
+      },
     );
     if (caughtUp) this._traceabilityRecordsOverride = undefined;
   }
@@ -1013,7 +1033,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <nav class="workbench-sidebar" aria-label="工作台導覽">
             <div class="workbench-nav-group"><span>履歷總覽</span>${tabButton("overview", "總覽")}</div>
             <div class="workbench-nav-group"><span>生產紀錄</span>${tabButton("operations", "農務作業")}${tabButton("evidence", "佐證資料")}</div>
-            <div class="workbench-nav-group"><span>基礎資料</span>${tabButton("master-data", "農場、場區與週期")}</div>
+            <div class="workbench-nav-group"><span>基礎資料</span>${tabButton("master-data", "農場、場區與週期")}${tabButton("sensor-profiles", "Sensor Profiles")}</div>
             <div class="workbench-nav-group"><span>資料治理</span>${tabButton("consistency", "一致性檢查")}${tabButton("export", "匯出與封存")}</div>
           </nav>
           <main class="workbench-main"><div class="content">${this._traceabilityWorkbenchContent(tab)}</div></main>
@@ -1024,6 +1044,9 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   }
 
   _traceabilityWorkbenchContent(tab) {
+    if (tab === "sensor-profiles") {
+      return this._sensorProfilesContentTemplate();
+    }
     if (tab === "master-data") {
       return this._managementContentTemplate();
     }
@@ -1050,6 +1073,111 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const integrity = this._traceabilityIntegrity(selectedCycleId);
     const migrationCount = this._legacyOperationsNeedingMigration().length;
     return `<section class="workbench-section"><label class="fullrow">目前檢視範圍<select id="trace_overview_cycle">${cycleOptions}</select></label><div class="overview-summary fullrow" aria-label="履歷摘要"><div class="stat"><b>${summary.farm_count || 0}</b>農場</div><div class="stat"><b>${summary.plot_count || 0}</b>場區</div><div class="stat"><b>${summary.cycle_count || 0}</b>週期</div><div class="stat"><b>${summary.operation_count || 0}</b>作業</div><div class="stat"><b>${summary.evidence_count || this._evidenceRows(selectedCycleId).length || 0}</b>佐證</div></div><div class="workbench-overview-grid fullrow"><div class="workbench-overview-left" aria-label="匯出前檢查">${this._integrityTemplate(integrity)}</div><div class="workbench-overview-middle traceability-recent"><b>最近作業</b>${operations.slice(0, 5).map((op) => `<p><code>${this._escape(op.operation_type)} ${this._escape(op.actual_start || op.scheduled_start || "")}</code></p>`).join("") || `<p class="message">尚無農務作業</p>`}</div><div class="workbench-overview-right">${this._evidenceListTemplate(selectedCycleId)}</div></div>${migrationCount ? `<div class="mini-actions"><button id="agri-migrate-legacy">移轉舊作業 ${migrationCount}</button></div>` : ""}</section>`;
+  }
+
+  _sensorProfilesContentTemplate() {
+    const records = this._traceabilityRecords();
+    const profiles = Object.values(records.sensor_profiles || {});
+    const plots = records.plots || {};
+    const form = this._sensorProfileForm || this._defaultSensorProfileForm();
+    const plotOptions = [`<option value="">選擇場區</option>`].concat(Object.values(plots).map((plot) => `<option value="${this._escape(plot.plot_id)}" ${plot.plot_id === form.plotId ? "selected" : ""}>${this._escape(plot.name || plot.plot_id)}</option>`)).join("");
+    const entityRows = (form.entityIds?.length ? form.entityIds : [""]).map((entityId, index) => `<div class="sensor-profile-entity-row">
+      <div class="native-control">${this._haEntityPickerReady
+        ? `<ha-entity-picker data-sensor-profile-entity-index="${index}" label="Home Assistant entity ${index + 1}" show-entity-id></ha-entity-picker>`
+        : `<label>Home Assistant entity ${index + 1}<input data-sensor-profile-entity-index="${index}" value="${this._escape(entityId)}" placeholder="sensor.example" /></label>`}</div>
+      <button type="button" data-sensor-profile-remove-entity="${index}" ${form.entityIds.length <= 1 ? "disabled" : ""}>移除</button>
+    </div>`).join("");
+    return `<section class="workbench-section sensor-profile-workbench">
+      <div class="workbench-page-heading"><div><span class="context-eyebrow">SENSOR PROFILES</span><h3>Sensor Profile</h3><p>為場區建立可重複使用的 Home Assistant entity 集合。</p></div><button id="trace-sensor-profile-new">＋ 新增 Profile</button></div>
+      <div class="trace-master-data-master-detail">
+        <section class="trace-master-list-panel"><b>Profiles</b><div class="trace-data-table">${profiles.map((profile) => `<button class="trace-select-sensor-profile ${profile.profile_id === form.selectedProfileId ? "active" : ""}" data-sensor-profile-id="${this._escape(profile.profile_id)}"><b>${this._escape(profile.name)}</b><span>${this._escape(plots[profile.plot_id]?.name || "未指定場區")} · ${profile.entity_ids?.length || 0} entities</span></button>`).join("") || `<p class="message">尚無 Sensor Profile</p>`}</div></section>
+        <section class="trace-detail-panel"><span class="context-eyebrow">PROFILE DETAIL</span><h3>${form.selectedProfileId ? "編輯 Sensor Profile" : "新增 Sensor Profile"}</h3>
+          <div class="fields"><label>Profile 名稱<input id="trace-sensor-profile-name" value="${this._escape(form.name)}" /></label><label>場區<select id="trace-sensor-profile-plot">${plotOptions}</select></label></div>
+          <div class="sensor-profile-entities"><div class="section-heading"><b>Home Assistant entities</b><button type="button" id="trace-sensor-profile-add-entity">＋ 新增 entity</button></div>${entityRows}</div>
+          <div class="message ${this._message.includes("Sensor Profile") && this._message.includes("失敗") ? "error" : ""}">${this._escape(this._message)}</div>
+          <div class="trace-sticky-actions">${form.selectedProfileId ? `<button id="trace-sensor-profile-delete">${this._sensorProfileDeletePending ? "再次確認刪除" : "刪除 Profile"}</button><button class="primary" id="trace-sensor-profile-save">儲存 Profile</button>` : `<button class="primary" id="trace-sensor-profile-create">建立 Sensor Profile</button>`}</div>
+        </section>
+      </div>
+    </section>`;
+  }
+
+  _captureSensorProfileForm() {
+    const form = this._sensorProfileForm || this._defaultSensorProfileForm();
+    form.name = this.shadowRoot.getElementById("trace-sensor-profile-name")?.value ?? form.name;
+    form.plotId = this.shadowRoot.getElementById("trace-sensor-profile-plot")?.value ?? form.plotId;
+    form.entityIds = Array.from(this.shadowRoot.querySelectorAll("[data-sensor-profile-entity-index]"))
+      .filter((control) => control.tagName?.toLowerCase() === "ha-entity-picker" || control.tagName?.toLowerCase() === "input")
+      .sort((a, b) => Number(a.dataset.sensorProfileEntityIndex) - Number(b.dataset.sensorProfileEntityIndex))
+      .map((control) => String(control.value || "").trim());
+    this._sensorProfileForm = form;
+  }
+
+  _newSensorProfile() {
+    this._sensorProfileForm = this._defaultSensorProfileForm();
+    this._sensorProfileDeletePending = false;
+    this._message = "";
+    this._render();
+  }
+
+  _selectSensorProfile(profileId) {
+    const profile = this._traceabilityRecords().sensor_profiles?.[profileId];
+    if (!profile) return;
+    this._sensorProfileForm = { selectedProfileId: profile.profile_id, plotId: profile.plot_id || "", name: profile.name || "", entityIds: [...(profile.entity_ids || [])] };
+    this._sensorProfileDeletePending = false;
+    this._message = "";
+    this._render();
+  }
+
+  _addSensorProfileEntity() {
+    this._captureSensorProfileForm();
+    this._sensorProfileForm.entityIds.push("");
+    this._render();
+  }
+
+  _removeSensorProfileEntity(index) {
+    this._captureSensorProfileForm();
+    if (this._sensorProfileForm.entityIds.length <= 1) return;
+    this._sensorProfileForm.entityIds.splice(index, 1);
+    this._render();
+  }
+
+  async _saveSensorProfile(create = false) {
+    this._captureSensorProfileForm();
+    const form = this._sensorProfileForm;
+    const entityIds = [...new Set(form.entityIds.map((value) => String(value || "").trim()).filter(Boolean))];
+    if (!form.name.trim()) { this._message = "Sensor Profile 建立失敗：請輸入名稱。"; this._render(); return; }
+    if (!form.plotId) { this._message = "Sensor Profile 建立失敗：請選擇場區。"; this._render(); return; }
+    if (!entityIds.length) { this._message = "Sensor Profile 建立失敗：至少選擇一個 entity。"; this._render(); return; }
+    const service = create ? "create_sensor_profile" : "update_sensor_profile";
+    const service_data = { plot_id: form.plotId, name: form.name.trim(), entity_ids: entityIds };
+    if (!create) service_data.profile_id = form.selectedProfileId;
+    try {
+      const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service, service_data, return_response: true });
+      const payload = response?.response || response || {};
+      const profile = payload.sensor_profile;
+      if (!profile?.profile_id) throw new Error("服務未回傳 profile_id");
+      const records = structuredClone(this._traceabilityRecords());
+      records.sensor_profiles = { ...(records.sensor_profiles || {}), [profile.profile_id]: profile };
+      this._traceabilityRecordsOverride = records;
+      this._sensorProfileForm = { selectedProfileId: profile.profile_id, plotId: profile.plot_id, name: profile.name, entityIds: [...profile.entity_ids] };
+      this._message = create ? "已建立 Sensor Profile。" : "已儲存 Sensor Profile。";
+    } catch (err) { this._message = `Sensor Profile 儲存失敗：${err?.message || err}`; }
+    this._render();
+  }
+
+  async _deleteSensorProfile() {
+    if (!this._sensorProfileDeletePending) { this._sensorProfileDeletePending = true; this._message = "再次按下刪除以永久移除此 Sensor Profile。"; this._render(); return; }
+    const profileId = this._sensorProfileForm.selectedProfileId;
+    try {
+      await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "delete_sensor_profile", service_data: { profile_id: profileId }, return_response: true });
+      const records = structuredClone(this._traceabilityRecords());
+      delete records.sensor_profiles?.[profileId];
+      this._traceabilityRecordsOverride = records;
+      this._sensorProfileForm = this._defaultSensorProfileForm();
+      this._sensorProfileDeletePending = false;
+      this._message = "已刪除 Sensor Profile。";
+    } catch (err) { this._message = `Sensor Profile 刪除失敗：${err?.message || err}`; }
+    this._render();
   }
 
   _operationEvidenceCountMap() {
@@ -2944,10 +3072,24 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("trace-workbench-cycle-context")?.addEventListener("change", (ev) => { this._selectedExportCycleId = ev.target.value || ""; this._operationForm.operationCycleFilter = this._selectedExportCycleId; this._evidenceForm.evidenceOperationFilter = ""; this._lastCycleExportPayload = undefined; this._render(); });
     this.shadowRoot.getElementById("workbench-tab-overview")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("overview"));
     this.shadowRoot.getElementById("workbench-tab-master-data")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("master-data"));
+    this.shadowRoot.getElementById("workbench-tab-sensor-profiles")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("sensor-profiles"));
     this.shadowRoot.getElementById("workbench-tab-operations")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("operations"));
     this.shadowRoot.getElementById("workbench-tab-evidence")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("evidence"));
     this.shadowRoot.getElementById("workbench-tab-consistency")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("consistency"));
     this.shadowRoot.getElementById("workbench-tab-export")?.addEventListener("click", () => this._setTraceabilityWorkbenchTab("export"));
+    this.shadowRoot.querySelectorAll("ha-entity-picker[data-sensor-profile-entity-index]").forEach((picker) => {
+      picker.hass = this._hass;
+      const index = Number(picker.dataset.sensorProfileEntityIndex);
+      picker.value = this._sensorProfileForm.entityIds[index] || "";
+      picker.addEventListener("value-changed", (ev) => { this._sensorProfileForm.entityIds[index] = ev.detail?.value || ""; });
+    });
+    this.shadowRoot.querySelectorAll(".trace-select-sensor-profile").forEach((button) => button.addEventListener("click", () => this._selectSensorProfile(button.dataset.sensorProfileId)));
+    this.shadowRoot.querySelectorAll("[data-sensor-profile-remove-entity]").forEach((button) => button.addEventListener("click", () => this._removeSensorProfileEntity(Number(button.dataset.sensorProfileRemoveEntity))));
+    this.shadowRoot.getElementById("trace-sensor-profile-new")?.addEventListener("click", () => this._newSensorProfile());
+    this.shadowRoot.getElementById("trace-sensor-profile-add-entity")?.addEventListener("click", () => this._addSensorProfileEntity());
+    this.shadowRoot.getElementById("trace-sensor-profile-create")?.addEventListener("click", () => this._saveSensorProfile(true));
+    this.shadowRoot.getElementById("trace-sensor-profile-save")?.addEventListener("click", () => this._saveSensorProfile(false));
+    this.shadowRoot.getElementById("trace-sensor-profile-delete")?.addEventListener("click", () => this._deleteSensorProfile());
     this.shadowRoot.getElementById("agri-cancel")?.addEventListener("click", () => this._closeAgriDialog());
     this.shadowRoot.getElementById("agri-create-operation")?.addEventListener("click", () => this._createAgriOperation());
     this.shadowRoot.getElementById("agri-export")?.addEventListener("click", () => this._exportTraceabilityRecords());

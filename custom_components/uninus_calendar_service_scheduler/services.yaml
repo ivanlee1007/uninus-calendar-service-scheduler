@@ -679,3 +679,52 @@ clear_traceability_data:
       required: true
       selector:
         boolean:
+
+create_sensor_profile:
+  name: Create Sensor Profile
+  description: Create a plot-scoped profile containing one or more Home Assistant entities.
+  fields:
+    plot_id:
+      required: true
+      selector:
+        text:
+    name:
+      required: true
+      selector:
+        text:
+    entity_ids:
+      required: true
+      selector:
+        entity:
+          multiple: true
+
+update_sensor_profile:
+  name: Update Sensor Profile
+  description: Replace the plot, name, and entity list of an existing Sensor Profile.
+  fields:
+    profile_id:
+      required: true
+      selector:
+        text:
+    plot_id:
+      required: true
+      selector:
+        text:
+    name:
+      required: true
+      selector:
+        text:
+    entity_ids:
+      required: true
+      selector:
+        entity:
+          multiple: true
+
+delete_sensor_profile:
+  name: Delete Sensor Profile
+  description: Permanently delete a Sensor Profile. This does not delete Home Assistant entities.
+  fields:
+    profile_id:
+      required: true
+      selector:
+        text:

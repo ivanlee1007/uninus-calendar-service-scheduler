@@ -34,7 +34,41 @@ verify_agri_payload_hash = agri.verify_agri_payload_hash
 calendar_events_to_traceability_rows = agri.calendar_events_to_traceability_rows
 operation_to_calendar_event_payload = agri.operation_to_calendar_event_payload
 EvidenceRecord = agri.EvidenceRecord
+SensorProfile = agri.SensorProfile
 traceability_export_package = agri.traceability_export_package
+
+
+def test_sensor_profile_roundtrip_normalizes_a_dynamic_entity_list():
+    profile = SensorProfile.create(
+        plot_id="plot_1",
+        name="北區果園灌溉感測器",
+        entity_ids=[
+            " sensor.soil_moisture ",
+            "sensor.irrigation_flow",
+            "sensor.soil_moisture",
+            "",
+        ],
+    )
+
+    records = TraceabilityRecordSet(sensor_profiles={profile.profile_id: profile})
+    loaded = TraceabilityRecordSet.from_dict(records.as_dict())
+
+    assert profile.profile_id.startswith("sensor_profile_")
+    assert loaded.sensor_profiles[profile.profile_id].plot_id == "plot_1"
+    assert loaded.sensor_profiles[profile.profile_id].name == "北區果園灌溉感測器"
+    assert loaded.sensor_profiles[profile.profile_id].entity_ids == [
+        "sensor.soil_moisture",
+        "sensor.irrigation_flow",
+    ]
+
+
+def test_sensor_profile_requires_name_and_at_least_one_entity():
+    for name, entity_ids in [("", ["sensor.temperature"]), ("環境", [])]:
+        try:
+            SensorProfile.create(plot_id="plot_1", name=name, entity_ids=entity_ids)
+        except ValueError:
+            continue
+        raise AssertionError("invalid sensor profile was accepted")
 
 
 def test_agri_records_roundtrip_with_sensor_snapshot():
@@ -282,6 +316,7 @@ def test_traceability_record_set_state_summary_counts_missing_required_links():
         "operation_count": 1,
         "missing_link_count": 1,
         "evidence_count": 0,
+        "sensor_profile_count": 0,
         "recent_operations": [operation.as_dict()],
     }
 
@@ -572,7 +607,9 @@ def test_traceability_records_clear_returns_to_empty_new_install_state():
         "cycle_count": 1,
         "operation_count": 1,
         "evidence_count": 1,
+        "sensor_profile_count": 0,
     }
     assert records.as_dict() == {
-        "farms": {}, "plots": {}, "cycles": {}, "operations": {}, "evidence": {}
+        "farms": {}, "plots": {}, "cycles": {}, "operations": {}, "evidence": {},
+        "sensor_profiles": {}
     }

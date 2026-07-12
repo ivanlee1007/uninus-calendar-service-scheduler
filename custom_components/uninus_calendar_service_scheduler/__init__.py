@@ -26,6 +26,7 @@ from .agri import (
     EvidenceRecord,
     Farm,
     Plot,
+    SensorProfile,
     _stable_hash,
     traceability_export_package,
 )
@@ -47,11 +48,13 @@ from .const import (
     SERVICE_CREATE_EVIDENCE,
     SERVICE_CREATE_FARM,
     SERVICE_CREATE_PLOT,
+    SERVICE_CREATE_SENSOR_PROFILE,
     SERVICE_DELETE_CROP_CYCLE,
     SERVICE_DELETE_EVENT_ACTION,
     SERVICE_DELETE_EVIDENCE,
     SERVICE_DELETE_FARM,
     SERVICE_DELETE_PLOT,
+    SERVICE_DELETE_SENSOR_PROFILE,
     SERVICE_EXPORT_TRACEABILITY_PACKAGE,
     SERVICE_EXPORT_TRACEABILITY_RECORDS,
     SERVICE_RELOAD_ACTIONS,
@@ -62,6 +65,7 @@ from .const import (
     SERVICE_UPDATE_EVIDENCE,
     SERVICE_UPDATE_FARM,
     SERVICE_UPDATE_PLOT,
+    SERVICE_UPDATE_SENSOR_PROFILE,
 )
 from .models import (
     ScheduledAction,
@@ -201,6 +205,17 @@ UPDATE_EVIDENCE_SCHEMA = CREATE_EVIDENCE_SCHEMA.extend(
     }
 )
 DELETE_EVIDENCE_SCHEMA = vol.Schema({vol.Required("evidence_id"): cv.string})
+CREATE_SENSOR_PROFILE_SCHEMA = vol.Schema(
+    {
+        vol.Required("plot_id"): cv.string,
+        vol.Required("name"): cv.string,
+        vol.Required("entity_ids"): [cv.entity_id],
+    }
+)
+UPDATE_SENSOR_PROFILE_SCHEMA = CREATE_SENSOR_PROFILE_SCHEMA.extend(
+    {vol.Required("profile_id"): cv.string}
+)
+DELETE_SENSOR_PROFILE_SCHEMA = vol.Schema({vol.Required("profile_id"): cv.string})
 
 EXPORT_TRACEABILITY_PACKAGE_SCHEMA = vol.Schema(
     {
@@ -677,6 +692,59 @@ def _register_services_once(hass: HomeAssistant) -> None:
     async def _delete_crop_cycle(call: ServiceCall) -> dict[str, Any]:
         return await _delete_master_data("cycle", call.data["cycle_id"])
 
+    async def _create_sensor_profile(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        plot_id = str(call.data["plot_id"]).strip()
+        if plot_id not in agri_store.records.plots:
+            raise vol.Invalid(f"Unknown plot_id {plot_id!r}")
+        try:
+            profile = SensorProfile.create(
+                plot_id=plot_id,
+                name=call.data["name"],
+                entity_ids=list(call.data["entity_ids"]),
+            )
+        except ValueError as err:
+            raise vol.Invalid(str(err)) from err
+        await agri_store.async_add_sensor_profile(profile)
+        _notify_agri_changed()
+        return {"profile_id": profile.profile_id, "sensor_profile": profile.as_dict()}
+
+    async def _update_sensor_profile(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        profile_id = str(call.data["profile_id"]).strip()
+        existing = agri_store.records.sensor_profiles.get(profile_id)
+        if existing is None:
+            raise vol.Invalid(f"Unknown profile_id {profile_id!r}")
+        plot_id = str(call.data["plot_id"]).strip()
+        if plot_id not in agri_store.records.plots:
+            raise vol.Invalid(f"Unknown plot_id {plot_id!r}")
+        try:
+            candidate = SensorProfile.create(
+                plot_id=plot_id,
+                name=call.data["name"],
+                entity_ids=list(call.data["entity_ids"]),
+            )
+        except ValueError as err:
+            raise vol.Invalid(str(err)) from err
+        profile = SensorProfile(
+            profile_id=profile_id,
+            plot_id=candidate.plot_id,
+            name=candidate.name,
+            entity_ids=candidate.entity_ids,
+            created_at=existing.created_at,
+        )
+        await agri_store.async_update_sensor_profile(profile)
+        _notify_agri_changed()
+        return {"profile_id": profile.profile_id, "sensor_profile": profile.as_dict()}
+
+    async def _delete_sensor_profile(call: ServiceCall) -> dict[str, Any]:
+        agri_store: AgriStore = _entry_data(hass)["agri_store"]
+        profile_id = str(call.data["profile_id"]).strip()
+        if not await agri_store.async_delete_sensor_profile(profile_id):
+            raise vol.Invalid(f"Unknown profile_id {profile_id!r}")
+        _notify_agri_changed()
+        return {"profile_id": profile_id, "deleted": True}
+
     async def _create_agri_operation(call: ServiceCall) -> dict[str, Any]:
         agri_store: AgriStore = _entry_data(hass)["agri_store"]
         cycle_id = call.data["cycle_id"]
@@ -995,6 +1063,27 @@ def _register_services_once(hass: HomeAssistant) -> None:
         SERVICE_DELETE_CROP_CYCLE,
         _delete_crop_cycle,
         schema=DELETE_CROP_CYCLE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CREATE_SENSOR_PROFILE,
+        _create_sensor_profile,
+        schema=CREATE_SENSOR_PROFILE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_UPDATE_SENSOR_PROFILE,
+        _update_sensor_profile,
+        schema=UPDATE_SENSOR_PROFILE_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DELETE_SENSOR_PROFILE,
+        _delete_sensor_profile,
+        schema=DELETE_SENSOR_PROFILE_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
     hass.services.async_register(

@@ -7,6 +7,29 @@ PANEL_JS = Path(
 INIT_PY = Path("custom_components/uninus_calendar_service_scheduler/__init__.py")
 
 
+def test_sensor_profile_mvp_uses_dynamic_native_ha_entity_pickers_and_crud_services():
+    source = PANEL_JS.read_text(encoding="utf-8")
+    init_source = INIT_PY.read_text(encoding="utf-8")
+    services_source = Path("custom_components/uninus_calendar_service_scheduler/services.yaml").read_text(encoding="utf-8")
+
+    assert "Sensor Profile" in source
+    assert 'id="trace-sensor-profile-name"' in source
+    assert 'id="trace-sensor-profile-plot"' in source
+    assert "ha-entity-picker" in source
+    assert 'data-sensor-profile-entity-index' in source
+    assert 'id="trace-sensor-profile-add-entity"' in source
+    assert "data-sensor-profile-remove-entity" in source
+    assert '"create_sensor_profile"' in source
+    assert '"update_sensor_profile"' in source
+    assert 'service: "delete_sensor_profile"' in source
+    assert '["farms", "plots", "cycles", "operations", "evidence", "sensor_profiles"].every' in source
+    assert "JSON.stringify(hassItems[id]) === JSON.stringify(overrideItems[id])" in source
+    assert "sensor_profiles: {}" in source
+    for service in ("create_sensor_profile", "update_sensor_profile", "delete_sensor_profile"):
+        assert f"{service}:" in services_source
+        assert service in init_source
+
+
 def test_cycle_create_update_apply_identity_generation_and_duplicate_guard():
     source = PANEL_JS.read_text(encoding="utf-8")
 
