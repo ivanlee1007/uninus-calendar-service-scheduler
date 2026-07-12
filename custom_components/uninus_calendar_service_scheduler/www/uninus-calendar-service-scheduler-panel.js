@@ -815,6 +815,19 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .evidence-preview { display: grid; gap: 8px; margin: 0 0 12px; padding: 10px; border-radius: 9px; background: var(--trace-subtle); }
       .evidence-preview pre { margin: 0; max-height: 180px; overflow: auto; white-space: pre-wrap; }
       .evidence-preview img { width: 100%; max-height: 260px; object-fit: contain; border-radius: 7px; background: var(--trace-surface); }
+      .evidence-ai-summary { display: grid; gap: 12px; margin: 0 0 12px; padding: 12px; border: 1px solid var(--trace-border); border-radius: 10px; background: var(--trace-subtle); min-width: 0; }
+      .evidence-ai-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .evidence-ai-narrative { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; color: var(--primary-text-color); }
+      .evidence-meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin: 0; }
+      .evidence-meta-grid > div { min-width: 0; padding: 8px 9px; border-radius: 8px; background: var(--trace-surface); }
+      .evidence-meta-grid > .fullrow { grid-column: 1 / -1; }
+      .evidence-meta-grid dt { margin: 0 0 4px; color: var(--secondary-text-color); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+      .evidence-meta-grid dd { margin: 0; min-width: 0; color: var(--primary-text-color); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+      .evidence-meta-grid code { display: block; max-width: 100%; font-size: 11px; white-space: normal; }
+      .evidence-hash { overflow-wrap: anywhere; word-break: break-word; }
+      .evidence-raw-preview { display: block; }
+      .evidence-raw-preview summary { cursor: pointer; font-weight: 700; }
+      .evidence-raw-preview[open] summary { margin-bottom: 9px; }
       .trace-master-detail > .management-section { margin: 0; border: 0; padding: 0; box-shadow: none; }
       .trace-master-hierarchy { position: relative; margin-top: 12px; }
       .hierarchy-level { position: relative; padding: 10px 10px 10px 36px; border: 1px solid var(--trace-border); border-radius: 10px; background: var(--trace-subtle); }
@@ -1572,7 +1585,10 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const preview = f.content ? this._escape(String(f.content).slice(0, 2000)) : "";
     const selectedEvidence = records.evidence?.[f.selectedEvidenceId] || null;
     const aiDraft = selectedEvidence?.evidence_type === "ai_summary_draft" ? selectedEvidence : null;
-    const aiReviewCard = aiDraft ? `<div class="evidence-preview"><b>AI-generated 佐證草稿</b><p>${this._escape(aiDraft.content?.narrative || "")}</p><p class="system-note">Model：${this._escape(aiDraft.content?.model_identity || "未記錄")} · Policy：${this._escape(aiDraft.content?.policy_version || "未記錄")}</p><p class="system-note">source_raw_evidence_hash：<code>${this._escape(aiDraft.content?.source_raw_evidence_hash || "缺少")}</code></p><p>${this._traceStatusChip(aiDraft.content?.review_status || "pending_farmer_review", aiDraft.content?.review_status === "accepted" ? "success" : (aiDraft.content?.review_status === "rejected" ? "danger" : "warning"))}</p></div>` : "";
+    const aiReviewCard = aiDraft ? `<section class="evidence-ai-summary"><div class="evidence-ai-heading"><b>AI-generated 佐證草稿</b>${this._traceStatusChip(aiDraft.content?.review_status || "pending_farmer_review", aiDraft.content?.review_status === "accepted" ? "success" : (aiDraft.content?.review_status === "rejected" ? "danger" : "warning"))}</div><div class="evidence-ai-narrative">${this._escape(aiDraft.content?.narrative || "尚無摘要內容")}</div><dl class="evidence-meta-grid"><div><dt>模型</dt><dd>${this._escape(aiDraft.content?.model_identity || "未記錄")}</dd></div><div><dt>政策版本</dt><dd>${this._escape(aiDraft.content?.policy_version || "未記錄")}</dd></div><div><dt>來源 Session</dt><dd><code>${this._escape(aiDraft.content?.source_session_id || "未記錄")}</code></dd></div><div class="fullrow"><dt>來源 Raw Evidence Hash</dt><dd><code class="evidence-hash">${this._escape(aiDraft.content?.source_raw_evidence_hash || "缺少")}</code></dd></div></dl></section>` : "";
+    const evidencePreview = aiDraft
+      ? `<details class="evidence-preview evidence-raw-preview"><summary>查看原始 JSON</summary><pre>${preview || "無原始內容"}</pre></details>`
+      : `<div class="evidence-preview"><b>佐證預覽</b>${f.evidenceType === "photo" && f.uri ? `<img src="${this._escape(f.uri)}" alt="${this._escape(f.title || "佐證照片")}" />` : `<pre>${preview || "選擇佐證後顯示內容，或填寫資料建立新佐證。"}</pre>`}</div>`;
     return `
       <section class="workbench-section trace-evidence-inline" aria-label="佐證資料">
         <div class="workbench-page-heading"><div><span class="context-eyebrow">EVIDENCE</span><h3>佐證中心</h3><p>管理照片、感測器快照、文件與外部佐證。</p></div><div class="page-heading-actions"><div class="view-toggle"><button id="trace-evidence-view-list" class="${f.evidenceView !== "gallery" ? "active" : ""}">列表</button><button id="trace-evidence-view-gallery" class="${f.evidenceView === "gallery" ? "active" : ""}">圖庫</button></div><button class="primary" id="trace-evidence-new">＋ 新增佐證</button></div></div>
@@ -1590,7 +1606,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
           <section class="management-section trace-evidence-detail trace-detail-panel">
             <div class="detail-heading"><div><span class="context-eyebrow">EVIDENCE DETAIL</span><h3>${f.selectedEvidenceId ? "佐證詳細資料" : "新增佐證資料"}</h3></div>${f.selectedEvidenceId ? this._traceStatusChip(f.contentHash ? "Hash ✓" : "已載入", "success") : ""}</div>
             ${aiReviewCard}
-            <div class="evidence-preview"><b>佐證預覽</b>${f.evidenceType === "photo" && f.uri ? `<img src="${this._escape(f.uri)}" alt="${this._escape(f.title || "佐證照片")}" />` : `<pre>${preview || "選擇佐證後顯示內容，或填寫資料建立新佐證。"}</pre>`}</div>
+            ${evidencePreview}
             <div class="fields">
               <label>綁定農務作業<select id="trace_evidence_operation">${operationOptions}</select></label>
               <label>佐證類型<select id="trace_evidence_type">${typeOptions}</select></label>

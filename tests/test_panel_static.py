@@ -502,6 +502,20 @@ def test_evidence_requires_operation_and_title_at_ui_and_service_boundaries():
     assert 'raise vol.Invalid("title is required")' in init_source
 
 
+def test_ai_evidence_detail_uses_structured_readable_metadata_and_collapsed_raw_json():
+    source = PANEL_JS.read_text(encoding="utf-8")
+
+    assert 'class="evidence-ai-summary"' in source
+    assert 'class="evidence-ai-narrative"' in source
+    assert 'class="evidence-meta-grid"' in source
+    assert "來源 Session" in source
+    assert 'class="evidence-hash"' in source
+    assert 'class="evidence-preview evidence-raw-preview"' in source
+    assert "查看原始 JSON" in source
+    assert ".evidence-ai-narrative { white-space: pre-wrap; overflow-wrap: anywhere;" in source
+    assert ".evidence-hash { overflow-wrap: anywhere; word-break: break-word;" in source
+
+
 def test_operation_profile_list_uses_the_shared_compact_table_language():
     source = PANEL_JS.read_text(encoding="utf-8")
 
