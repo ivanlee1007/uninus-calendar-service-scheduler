@@ -3,6 +3,8 @@ import sys
 import types
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 PKG_NAME = "custom_components.uninus_calendar_service_scheduler"
 PKG_DIR = ROOT / "custom_components" / "uninus_calendar_service_scheduler"
@@ -853,3 +855,72 @@ def test_traceability_records_clear_returns_to_empty_new_install_state():
         "farms": {}, "plots": {}, "cycles": {}, "operations": {}, "evidence": {},
         "sensor_profiles": {}, "evidence_sessions": {}
     }
+
+
+def test_duplicate_farm_is_rejected_after_normalizing_text():
+    existing = Farm.create(
+        name="青禾農場", operator="林青禾", address="台中市新社區青禾路1號", phone="04-25810001"
+    )
+    records = TraceabilityRecordSet(farms={existing.farm_id: existing})
+    duplicate = Farm.create(
+        name="  青禾農場 ", operator="林青禾", address="台中市新社區青禾路1號", phone="04-25810001"
+    )
+
+    with pytest.raises(ValueError, match="相同農場資料已存在"):
+        records.ensure_unique_farm(duplicate)
+
+
+def test_duplicate_plot_is_rejected_within_the_same_farm():
+    existing = Plot.create(
+        farm_id="farm_1", name="A 區", product="小番茄", tgap_category="蔬菜", area="0.1 公頃", location="北側"
+    )
+    records = TraceabilityRecordSet(plots={existing.plot_id: existing})
+    duplicate = Plot.create(
+        farm_id="farm_1", name="a 區", product="小番茄", tgap_category="蔬菜", area="0.1 公頃", location="北側"
+    )
+
+    with pytest.raises(ValueError, match="相同場區資料已存在"):
+        records.ensure_unique_plot(duplicate)
+
+
+def test_duplicate_operation_profile_is_rejected_for_the_same_plot():
+    existing = SensorProfile.create(
+        plot_id="plot_1", name="A 區灌溉", entity_ids=["sensor.temperature", "sensor.humidity"]
+    )
+    records = TraceabilityRecordSet(sensor_profiles={existing.profile_id: existing})
+    duplicate = SensorProfile.create(
+        plot_id="plot_1", name="a 區灌溉", entity_ids=["sensor.humidity", "sensor.temperature"]
+    )
+
+    with pytest.raises(ValueError, match="相同 Operation Profile 已存在"):
+        records.ensure_unique_sensor_profile(duplicate)
+
+
+def test_duplicate_agri_operation_is_rejected_for_same_cycle_and_business_fields():
+    existing = AgriOperation.create(
+        cycle_id="cycle_1", operation_type="灌溉", actual_start="2026-07-12T14:30:00+08:00",
+        operator="林青禾", material_name="地下水", quantity=30, unit="分鐘", notes="A 區滴灌"
+    )
+    records = TraceabilityRecordSet(operations={existing.operation_id: existing})
+    duplicate = AgriOperation.create(
+        cycle_id="cycle_1", operation_type="灌溉", actual_start="2026-07-12T14:30:00+08:00",
+        operator="林青禾", material_name="地下水", quantity="30", unit="分鐘", notes="A 區滴灌"
+    )
+
+    with pytest.raises(ValueError, match="相同農務作業已存在"):
+        records.ensure_unique_operation(duplicate)
+
+
+def test_duplicate_evidence_is_rejected_for_same_operation_and_content():
+    existing = EvidenceRecord.create(
+        operation_id="op_1", evidence_type="sensor_snapshot", title="灌溉快照",
+        content={"humidity": 71, "temperature": 29}, source_entity="sensor.humidity", uri=""
+    )
+    records = TraceabilityRecordSet(evidence={existing.evidence_id: existing})
+    duplicate = EvidenceRecord.create(
+        operation_id="op_1", evidence_type="sensor_snapshot", title=" 灌溉快照 ",
+        content={"temperature": 29, "humidity": 71}, source_entity="sensor.humidity", uri=""
+    )
+
+    with pytest.raises(ValueError, match="相同佐證資料已存在"):
+        records.ensure_unique_evidence(duplicate)

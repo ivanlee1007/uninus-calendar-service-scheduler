@@ -465,6 +465,10 @@ def test_traceability_management_ui_exposes_farm_plot_cycle_creation():
     assert 'service: "create_farm"' in source
     assert 'service: "create_plot"' in source
     assert 'service: "create_crop_cycle"' in source
+    assert "_findDuplicateTraceFarm" in source
+    assert "_findDuplicateTracePlot" in source
+    assert "相同農場資料已存在" in source
+    assert "相同場區資料已存在" in source
 
 
 

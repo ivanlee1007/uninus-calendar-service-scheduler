@@ -883,6 +883,117 @@ class TraceabilityRecordSet:
             },
         }
 
+    @staticmethod
+    def _duplicate_text(value: Any) -> str:
+        """Normalize human-entered text for duplicate comparisons."""
+        return " ".join(str(value or "").split()).casefold()
+
+    @classmethod
+    def _duplicate_json(cls, value: Any) -> str:
+        """Return deterministic JSON after recursively normalizing strings."""
+
+        def normalize(item: Any) -> Any:
+            if isinstance(item, dict):
+                return {str(key): normalize(val) for key, val in sorted(item.items())}
+            if isinstance(item, list):
+                return [normalize(val) for val in item]
+            if isinstance(item, str):
+                return cls._duplicate_text(item)
+            return item
+
+        return json.dumps(normalize(value), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+    def ensure_unique_farm(self, candidate: Farm) -> None:
+        def signature(item: Farm) -> tuple[str, ...]:
+            return tuple(
+                self._duplicate_text(value)
+                for value in (item.name, item.operator, item.address, item.phone)
+            )
+        candidate_signature = signature(candidate)
+        if any(
+            record_id != candidate.farm_id and signature(item) == candidate_signature
+            for record_id, item in self.farms.items()
+        ):
+            raise ValueError("相同農場資料已存在，請選用既有農場或修改內容。")
+
+    def ensure_unique_plot(self, candidate: Plot) -> None:
+        def signature(item: Plot) -> tuple[str, ...]:
+            return (
+                item.farm_id,
+                *(self._duplicate_text(value) for value in (
+                    item.name, item.product, item.tgap_category, item.area, item.location
+                )),
+            )
+        candidate_signature = signature(candidate)
+        if any(
+            record_id != candidate.plot_id and signature(item) == candidate_signature
+            for record_id, item in self.plots.items()
+        ):
+            raise ValueError("相同場區資料已存在，請選用既有場區或修改內容。")
+
+    def ensure_unique_sensor_profile(self, candidate: SensorProfile) -> None:
+        def signature(item: SensorProfile) -> tuple[Any, ...]:
+            return (
+                item.plot_id,
+                self._duplicate_text(item.name),
+                tuple(sorted(self._duplicate_text(value) for value in item.entity_ids)),
+                tuple(sorted(self._duplicate_text(value) for value in item.action_entity_ids)),
+                tuple(sorted(self._duplicate_text(value) for value in item.control_entity_ids)),
+                tuple(sorted(self._duplicate_json(value) for value in item.observation_entities)),
+                self._duplicate_json(item.start_actions),
+                self._duplicate_json(item.end_actions),
+                self._duplicate_json(item.evidence_policy),
+            )
+
+        candidate_signature = signature(candidate)
+        if any(
+            record_id != candidate.profile_id and signature(item) == candidate_signature
+            for record_id, item in self.sensor_profiles.items()
+        ):
+            raise ValueError("相同 Operation Profile 已存在，請選用既有 Profile 或修改內容。")
+
+    def ensure_unique_operation(self, candidate: AgriOperation) -> None:
+        def signature(item: AgriOperation) -> tuple[Any, ...]:
+            return (
+                item.cycle_id,
+                *(self._duplicate_text(value) for value in (
+                    item.operation_type, item.scheduled_start, item.actual_start,
+                    item.operator, item.material_name, item.quantity, item.unit
+                )),
+                self._duplicate_json(item.sensor_snapshot),
+                self._duplicate_text(item.notes),
+                self._duplicate_text(item.calendar_entity),
+                self._duplicate_text(item.calendar_event_uid),
+                self._duplicate_text(item.profile_id),
+                self._duplicate_json(item.start_actions),
+                self._duplicate_json(item.end_actions),
+                self._duplicate_text(item.status),
+            )
+
+        candidate_signature = signature(candidate)
+        if any(
+            record_id != candidate.operation_id and signature(item) == candidate_signature
+            for record_id, item in self.operations.items()
+        ):
+            raise ValueError("相同農務作業已存在，請選用既有作業或修改內容。")
+
+    def ensure_unique_evidence(self, candidate: EvidenceRecord) -> None:
+        def signature(item: EvidenceRecord) -> tuple[str, ...]:
+            return (
+                item.operation_id,
+                self._duplicate_text(item.evidence_type),
+                self._duplicate_text(item.title),
+                self._duplicate_json(item.content),
+                self._duplicate_text(item.source_entity),
+                self._duplicate_text(item.uri),
+            )
+        candidate_signature = signature(candidate)
+        if any(
+            record_id != candidate.evidence_id and signature(item) == candidate_signature
+            for record_id, item in self.evidence.items()
+        ):
+            raise ValueError("相同佐證資料已存在，請選用既有佐證或修改內容。")
+
     def export_operation_rows(self) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
         for operation in sorted(

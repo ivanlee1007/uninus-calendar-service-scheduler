@@ -38,10 +38,12 @@ class AgriStore:
         await self._store.async_save(self.records.as_dict())
 
     async def async_add_farm(self, farm: Farm) -> None:
+        self.records.ensure_unique_farm(farm)
         self.records.farms[farm.farm_id] = farm
         await self.async_save()
 
     async def async_add_plot(self, plot: Plot) -> None:
+        self.records.ensure_unique_plot(plot)
         self.records.plots[plot.plot_id] = plot
         await self.async_save()
 
@@ -50,18 +52,22 @@ class AgriStore:
         await self.async_save()
 
     async def async_add_operation(self, operation: AgriOperation) -> None:
+        self.records.ensure_unique_operation(operation)
         self.records.operations[operation.operation_id] = operation
         await self.async_save()
 
     async def async_add_evidence(self, evidence: EvidenceRecord) -> None:
+        self.records.ensure_unique_evidence(evidence)
         self.records.evidence[evidence.evidence_id] = evidence
         await self.async_save()
 
     async def async_add_sensor_profile(self, profile: SensorProfile) -> None:
+        self.records.ensure_unique_sensor_profile(profile)
         self.records.sensor_profiles[profile.profile_id] = profile
         await self.async_save()
 
     async def async_update_sensor_profile(self, profile: SensorProfile) -> None:
+        self.records.ensure_unique_sensor_profile(profile)
         self.records.sensor_profiles[profile.profile_id] = profile
         await self.async_save()
 
@@ -72,6 +78,7 @@ class AgriStore:
         return deleted
 
     async def async_update_evidence(self, evidence: EvidenceRecord) -> None:
+        self.records.ensure_unique_evidence(evidence)
         self.records.evidence[evidence.evidence_id] = evidence
         await self.async_save()
 
@@ -82,10 +89,12 @@ class AgriStore:
         return deleted
 
     async def async_update_farm(self, farm: Farm) -> None:
+        self.records.ensure_unique_farm(farm)
         self.records.farms[farm.farm_id] = farm
         await self.async_save()
 
     async def async_update_plot(self, plot: Plot) -> None:
+        self.records.ensure_unique_plot(plot)
         self.records.plots[plot.plot_id] = plot
         await self.async_save()
 

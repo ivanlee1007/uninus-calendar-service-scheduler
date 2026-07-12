@@ -2090,6 +2090,26 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     } catch (err) { this._message = `儲存場區失敗: ${err?.message || err}`; this._render(); }
   }
 
+  _normalizeDuplicateText(value = "") {
+    return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+  }
+
+  _findDuplicateTraceFarm({ name, operator = "", address = "", phone = "", excludeFarmId = "" }) {
+    const signature = [name, operator, address, phone].map((value) => this._normalizeDuplicateText(value)).join("\u0000");
+    return Object.values(this._traceabilityRecords().farms || {}).find((farm) => {
+      if (farm.farm_id === excludeFarmId) return false;
+      return [farm.name, farm.operator, farm.address, farm.phone].map((value) => this._normalizeDuplicateText(value)).join("\u0000") === signature;
+    });
+  }
+
+  _findDuplicateTracePlot({ farmId, name, product = "", tgapCategory = "", area = "", location = "", excludePlotId = "" }) {
+    const signature = [farmId, name, product, tgapCategory, area, location].map((value) => this._normalizeDuplicateText(value)).join("\u0000");
+    return Object.values(this._traceabilityRecords().plots || {}).find((plot) => {
+      if (plot.plot_id === excludePlotId) return false;
+      return [plot.farm_id, plot.name, plot.product, plot.tgap_category, plot.area, plot.location].map((value) => this._normalizeDuplicateText(value)).join("\u0000") === signature;
+    });
+  }
+
   _traceCycleDateToken(startDate = "") {
     const digits = String(startDate || new Date().toISOString()).replace(/\D/g, "").slice(0, 8);
     return digits || new Date().toISOString().slice(0, 10).replace(/\D/g, "");
@@ -2162,6 +2182,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   async _createTraceFarm() {
     this._captureManagementForm();
     if (!this._managementForm.farmName.trim()) { this._message = "建立農場失敗：請輸入農場名稱。"; this._render(); return; }
+    const duplicate = this._findDuplicateTraceFarm({ name: this._managementForm.farmName, operator: this._managementForm.farmOperator, address: this._managementForm.farmAddress, phone: this._managementForm.farmPhone });
+    if (duplicate) { this._message = `建立農場失敗：相同農場資料已存在（${duplicate.name || duplicate.farm_id}），請選用既有農場或修改內容。`; this._render(); return; }
     try {
       const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "create_farm", service_data: { name: this._managementForm.farmName, operator: this._managementForm.farmOperator, address: this._managementForm.farmAddress, phone: this._managementForm.farmPhone }, return_response: true });
       const payload = this._serviceResponsePayload(response);
@@ -2178,6 +2200,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this._captureManagementForm();
     if (!this._managementForm.plotFarmId) { this._message = "建立場區失敗：請先選擇農場。"; this._render(); return; }
     if (!this._managementForm.plotName.trim()) { this._message = "建立場區失敗：請輸入場區名稱。"; this._render(); return; }
+    const duplicate = this._findDuplicateTracePlot({ farmId: this._managementForm.plotFarmId, name: this._managementForm.plotName, product: this._managementForm.plotProduct, tgapCategory: this._managementForm.plotTgapCategory, area: this._managementForm.plotArea, location: this._managementForm.plotLocation });
+    if (duplicate) { this._message = `建立場區失敗：相同場區資料已存在（${duplicate.name || duplicate.plot_id}），請選用既有場區或修改內容。`; this._render(); return; }
     try {
       const response = await this._hass.callWS({ type: "call_service", domain: "uninus_calendar_service_scheduler", service: "create_plot", service_data: { farm_id: this._managementForm.plotFarmId, name: this._managementForm.plotName, product: this._managementForm.plotProduct, tgap_category: this._managementForm.plotTgapCategory, area: this._managementForm.plotArea, location: this._managementForm.plotLocation }, return_response: true });
       const payload = this._serviceResponsePayload(response);

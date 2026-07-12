@@ -570,6 +570,13 @@ def _register_services_once(hass: HomeAssistant) -> None:
         if scheduler is not None:
             scheduler._notify()  # noqa: SLF001 - reuse existing status sensor listener path
 
+    async def _persist_unique(awaitable: Any) -> None:
+        """Translate duplicate rejection into a clear Home Assistant service error."""
+        try:
+            await awaitable
+        except ValueError as err:
+            raise vol.Invalid(str(err)) from err
+
     async def _create_farm(call: ServiceCall) -> dict[str, Any]:
         agri_store: AgriStore = _entry_data(hass)["agri_store"]
         farm = Farm.create(
@@ -578,7 +585,7 @@ def _register_services_once(hass: HomeAssistant) -> None:
             address=call.data.get("address") or "",
             phone=call.data.get("phone") or "",
         )
-        await agri_store.async_add_farm(farm)
+        await _persist_unique(agri_store.async_add_farm(farm))
         _notify_agri_changed()
         return {"farm_id": farm.farm_id, "farm": farm.as_dict()}
 
@@ -595,7 +602,7 @@ def _register_services_once(hass: HomeAssistant) -> None:
             area=call.data.get("area") or "",
             location=call.data.get("location") or "",
         )
-        await agri_store.async_add_plot(plot)
+        await _persist_unique(agri_store.async_add_plot(plot))
         _notify_agri_changed()
         return {"plot_id": plot.plot_id, "plot": plot.as_dict()}
 
@@ -644,7 +651,7 @@ def _register_services_once(hass: HomeAssistant) -> None:
             archived_at=call.data.get("archived_at") or existing.archived_at,
             created_at=existing.created_at,
         )
-        await agri_store.async_update_farm(farm)
+        await _persist_unique(agri_store.async_update_farm(farm))
         _notify_agri_changed()
         return {"farm_id": farm.farm_id, "farm": farm.as_dict()}
 
@@ -669,7 +676,7 @@ def _register_services_once(hass: HomeAssistant) -> None:
             archived_at=call.data.get("archived_at") or existing.archived_at,
             created_at=existing.created_at,
         )
-        await agri_store.async_update_plot(plot)
+        await _persist_unique(agri_store.async_update_plot(plot))
         _notify_agri_changed()
         return {"plot_id": plot.plot_id, "plot": plot.as_dict()}
 
@@ -753,7 +760,7 @@ def _register_services_once(hass: HomeAssistant) -> None:
             )
         except ValueError as err:
             raise vol.Invalid(str(err)) from err
-        await agri_store.async_add_sensor_profile(profile)
+        await _persist_unique(agri_store.async_add_sensor_profile(profile))
         _notify_agri_changed()
         return {"profile_id": profile.profile_id, "sensor_profile": profile.as_dict()}
 
@@ -793,7 +800,7 @@ def _register_services_once(hass: HomeAssistant) -> None:
             evidence_policy=candidate.evidence_policy,
             created_at=existing.created_at,
         )
-        await agri_store.async_update_sensor_profile(profile)
+        await _persist_unique(agri_store.async_update_sensor_profile(profile))
         _notify_agri_changed()
         return {"profile_id": profile.profile_id, "sensor_profile": profile.as_dict()}
 
@@ -828,7 +835,7 @@ def _register_services_once(hass: HomeAssistant) -> None:
             end_actions=list(call.data.get("end_actions") or []),
             status=call.data.get("status"),
         )
-        await agri_store.async_add_operation(operation)
+        await _persist_unique(agri_store.async_add_operation(operation))
         _notify_agri_changed()
         return {"operation_id": operation.operation_id, "operation": operation.as_dict()}
 
@@ -863,7 +870,7 @@ def _register_services_once(hass: HomeAssistant) -> None:
             created_at=existing.created_at,
         )
         operation.record_hash = _stable_hash(operation.as_dict())
-        await agri_store.async_add_operation(operation)
+        await _persist_unique(agri_store.async_add_operation(operation))
         _notify_agri_changed()
         return {"operation_id": operation.operation_id, "operation": operation.as_dict()}
 
@@ -885,7 +892,7 @@ def _register_services_once(hass: HomeAssistant) -> None:
             source_entity=call.data.get("source_entity") or "",
             uri=call.data.get("uri") or "",
         )
-        await agri_store.async_add_evidence(evidence)
+        await _persist_unique(agri_store.async_add_evidence(evidence))
         _notify_agri_changed()
         return {"evidence_id": evidence.evidence_id, "evidence": evidence.as_dict()}
 
@@ -924,7 +931,7 @@ def _register_services_once(hass: HomeAssistant) -> None:
             created_at=existing.created_at,
         )
         evidence.content_hash = _stable_hash(evidence.as_dict())
-        await agri_store.async_update_evidence(evidence)
+        await _persist_unique(agri_store.async_update_evidence(evidence))
         _notify_agri_changed()
         return {"evidence_id": evidence.evidence_id, "evidence": evidence.as_dict()}
 
@@ -1067,7 +1074,7 @@ def _register_services_once(hass: HomeAssistant) -> None:
             )
         except ValueError as err:
             raise vol.Invalid(str(err)) from err
-        await agri_store.async_add_evidence(evidence)
+        await _persist_unique(agri_store.async_add_evidence(evidence))
         _notify_agri_changed()
         return {"evidence_id": evidence.evidence_id, "evidence": evidence.as_dict()}
 
