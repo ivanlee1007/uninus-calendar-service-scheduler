@@ -107,7 +107,7 @@ def next_phase_time(
     after = after or dt_util.utcnow()
     if phase != "end":
         return next_occurrence_start(action, after, include_after=include_after)
-    if not action.end or not action.end_service:
+    if not action.end or (not action.end_service and not action.operation_id):
         return None
     duration = action_duration(action)
     # For recurring events, the next pending end may belong to the occurrence

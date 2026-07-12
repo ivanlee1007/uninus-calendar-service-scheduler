@@ -1,6 +1,7 @@
 import importlib.util
 import sys
 import types
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -127,6 +128,25 @@ def test_scheduled_action_roundtrip_links_agri_operation_and_profile():
     assert loaded.profile_id == "sensor_profile_1"
     assert legacy.operation_id == ""
     assert legacy.profile_id == ""
+
+
+def test_linked_agri_action_has_end_phase_without_end_service():
+    action = ScheduledAction.create(
+        calendar_entity="calendar.farm",
+        summary="Evidence-only irrigation",
+        start="2026-07-12T08:00:00+08:00",
+        end="2026-07-12T08:30:00+08:00",
+        operation_id="op_1",
+        profile_id="profile_1",
+    )
+
+    result = next_phase_time(
+        action,
+        "end",
+        datetime.fromisoformat("2026-07-12T07:59:00+08:00"),
+    )
+
+    assert result == datetime.fromisoformat("2026-07-12T08:30:00+08:00")
 
 
 def test_next_occurrence_daily_rrule():
