@@ -78,12 +78,14 @@ The tab supports:
 
 ### AGRI Calendar event 刪除策略
 
-When deleting a Calendar event that represents an agricultural operation, the panel asks for an explicit linkage strategy:
+When deleting a recurring Calendar event, the panel uses a two-step confirmation:
 
-- **只刪除 Calendar 行程，保留農務作業** — removes the Calendar event but leaves the stored operation for traceability history.
-- **封存農務作業並刪除行程** — marks the stored operation as `skipped`, clears Calendar linkage, then deletes the Calendar event.
+1. Choose the Calendar scope: **僅此一次**, **此次及所有未來行程**, **指定日期範圍**, or **整個重複系列**.
+2. For AGRI events, choose the traceability strategy:
+   - **只調整 Calendar，保留農務作業紀錄** — changes Calendar occurrences but leaves the shared operation for traceability history.
+   - **同時封存受影響的農務作業** — marks the operation as `skipped` and clears Calendar linkage; available only for a non-recurring event or the entire recurring series.
 
-This prevents accidental orphaned `AgriOperation` records and avoids silently deleting traceability history.
+For a middle date range, the panel truncates the original Calendar/action series before the range and creates a continuation series after the range. Partial deletion never archives the shared operation, preventing retained occurrences from pointing to an archived record. The confirmation shows the affected dates and the number of currently loaded occurrences before applying the change.
 
 ### 一致性掃描
 

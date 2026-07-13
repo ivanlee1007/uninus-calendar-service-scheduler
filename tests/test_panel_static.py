@@ -258,14 +258,26 @@ def test_evidence_tab_manages_existing_evidence_records_for_mvp_traceability_gov
 
 
 
-def test_delete_agri_calendar_event_requires_explicit_operation_linkage_strategy():
+def test_delete_agri_calendar_event_separates_recurrence_scope_from_traceability_strategy():
     source = PANEL_JS.read_text(encoding="utf-8")
 
     assert "_currentAgriOperationId" in source
-    assert "delete-this-event-keep-operation" in source
-    assert "delete-this-event-archive-operation" in source
-    assert "只刪除 Calendar 行程，保留農務作業" in source
-    assert "封存農務作業並刪除行程" in source
+    assert 'id="delete-scope-this"' in source
+    assert 'id="delete-scope-future"' in source
+    assert 'id="delete-scope-range"' in source
+    assert 'id="delete-scope-all"' in source
+    assert 'id="delete-range-start"' in source
+    assert 'id="delete-range-end"' in source
+    assert "第一步：選擇 Calendar 刪除範圍" in source
+    assert "第二步：選擇產銷履歷處理方式" in source
+    assert "只調整 Calendar，保留農務作業紀錄" in source
+    assert "同時封存受影響的農務作業" in source
+    assert "_deleteRecurringDateRange" in source
+    assert 'recurrence_range: "THISANDFUTURE"' in source
+    assert "_rruleUntilBefore" in source
+    assert "部分刪除不封存共用農務作業" in source
+    assert "operation_id: action?.operation_id" in source
+    assert "profile_id: action?.profile_id" in source
     assert "_archiveAgriOperationForDeletedEvent" in source
     assert "deleteAgriStrategy" in source
     assert 'service: "update_agri_operation"' in source

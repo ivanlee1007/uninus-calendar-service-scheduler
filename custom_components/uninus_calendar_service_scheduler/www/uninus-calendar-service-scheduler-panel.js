@@ -716,6 +716,11 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       .delete-actions button { border-radius: 22px; }
       .delete-actions .text { background: transparent; color: var(--primary-color); padding-inline: 8px; }
       .delete-actions .danger { background: var(--error-color, #dc3545); color: var(--text-primary-color, #fff); }
+      .delete-scope-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 8px 18px; }
+      .delete-scope-grid button { text-align: left; min-height: 48px; border: 1px solid var(--divider-color); background: var(--secondary-background-color); color: var(--primary-text-color); }
+      .delete-range-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 8px 14px; }
+      .delete-range-fields label { display: grid; gap: 6px; font-size: 12px; font-weight: 600; }
+      .delete-range-fields input { width: 100%; box-sizing: border-box; padding: 9px; }
       .traceability-workbench { display: ${this._traceabilityWorkbenchOpen ? "grid" : "none"}; grid-template-rows: auto auto minmax(0, 1fr) auto; inset: 16px; left: 16px; top: 16px; transform: none; width: auto; max-height: none; overflow: hidden; border-radius: 16px; --trace-primary: var(--primary-color, #2e6b4f); --trace-surface: var(--card-background-color, #fff); --trace-subtle: var(--secondary-background-color, #f6f8f7); --trace-border: var(--divider-color, #dfe5e1); }
       .workbench-header { padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--trace-border); }
       .workbench-header h2 { margin: 2px 0 0; font-size: 22px; font-weight: 650; letter-spacing: -.02em; }
@@ -3110,20 +3115,46 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     if (!this._editingEvent) return "";
     const recurring = this._isRecurringCurrentEvent();
     const agriOperationId = this._currentAgriOperationId();
-    const agriOptions = agriOperationId ? `<p class="warning">這是農務作業行程。請選擇 Calendar event 刪除後，產銷履歷作業要如何處理。</p>` : "";
+    const scope = this._deleteScope || (recurring ? "" : "this");
+    const rangeStart = this._deleteRangeStart || this._dateOnly(this._eventStart(this._editingEvent));
+    const rangeEnd = this._deleteRangeEnd || rangeStart;
+    const scopeStep = recurring && !scope ? `
+      <p><b>第一步：選擇 Calendar 刪除範圍</b></p>
+      <div class="delete-scope-grid">
+        <button id="delete-scope-this">僅此一次</button>
+        <button id="delete-scope-future">此次及所有未來行程</button>
+        <button id="delete-scope-range">指定日期範圍</button>
+        <button id="delete-scope-all">整個重複系列</button>
+      </div>` : "";
+    const rangeFields = scope === "range" ? `<div class="delete-range-fields"><label>開始日期<input id="delete-range-start" type="date" value="${this._escape(rangeStart)}" /></label><label>結束日期<input id="delete-range-end" type="date" value="${this._escape(rangeEnd)}" /></label></div>` : "";
+    const canArchiveOperation = !recurring || scope === "all";
+    const archiveAction = canArchiveOperation
+      ? `<button class="danger" id="delete-confirm-archive-operation">同時封存受影響的農務作業</button>`
+      : `<button class="danger" disabled title="部分日期仍共用同一筆農務作業；只有刪除整個系列時才能封存">部分刪除不封存共用農務作業</button>`;
+    const strategyStep = scope ? `
+      <p><b>${agriOperationId ? "第二步：選擇產銷履歷處理方式" : "確認刪除範圍"}</b></p>
+      ${rangeFields}
+      <p class="warning">${this._escape(this._deleteImpactSummary(scope, rangeStart, rangeEnd))}</p>
+      <div class="delete-actions">
+        <button class="text" id="delete-scope-back">${recurring ? "上一步" : "取消"}</button>
+        ${agriOperationId
+          ? `<button class="danger" id="delete-confirm-keep-operation">只調整 Calendar，保留農務作業紀錄</button>${archiveAction}`
+          : `<button class="danger" id="delete-confirm-calendar">確認刪除</button>`}
+      </div>` : "";
     return `<section class="delete-confirm" role="alertdialog" aria-modal="true" aria-label="刪除行程">
       <header><button class="close" id="delete-cancel-x" aria-label="取消">×</button><span>刪除行程</span></header>
-      <p>${recurring ? "僅刪除此行程、或所有未來的行程？" : "要刪除此行程嗎？"}</p>
-      ${agriOptions}
-      <div class="delete-actions">
-        <button class="text" id="delete-cancel">取消</button>
-        ${agriOperationId
-          ? `<button class="danger" id="delete-this-event-keep-operation">只刪除 Calendar 行程，保留農務作業</button><button class="danger" id="delete-this-event-archive-operation">封存農務作業並刪除行程</button>`
-          : (recurring
-            ? `<button class="danger" id="delete-this-event">僅刪除此<br/>行程</button><button class="danger" id="delete-future-events">刪除所有未來<br/>行程</button>`
-            : `<button class="danger" id="delete-this-event">刪除行程</button>`)}
-      </div>
+      ${scopeStep}${strategyStep}
+      ${!scope ? `<div class="delete-actions"><button class="text" id="delete-cancel">取消</button></div>` : ""}
     </section>`;
+  }
+
+  _deleteImpactSummary(scope, rangeStart = "", rangeEnd = "") {
+    const startDate = this._dateOnly(this._eventStart(this._editingEvent));
+    if (scope === "this") return `將只刪除 ${startDate || "此日"} 這一次行程。`;
+    if (scope === "future") return `將刪除 ${startDate || "此次"} 起的所有未來行程。`;
+    if (scope === "all") return "將刪除整個重複系列（過去與未來）。";
+    const count = this._events.filter((event) => event.uid === this._currentEventUid() && this._dateOnly(this._eventStart(event)) >= rangeStart && this._dateOnly(this._eventStart(event)) <= rangeEnd).length;
+    return `將刪除 ${rangeStart || "?"}～${rangeEnd || "?"} 範圍內${count ? ` ${count} 筆` : ""}行程；範圍前後的系列會保留。`;
   }
 
 
@@ -3292,10 +3323,16 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     this.shadowRoot.getElementById("clone-event")?.addEventListener("click", () => this._cloneCurrentEventForCreate());
     this.shadowRoot.getElementById("delete-cancel")?.addEventListener("click", () => this._closeDeleteConfirm());
     this.shadowRoot.getElementById("delete-cancel-x")?.addEventListener("click", () => this._closeDeleteConfirm());
-    this.shadowRoot.getElementById("delete-this-event")?.addEventListener("click", () => this._deleteCurrentEvent(""));
-    this.shadowRoot.getElementById("delete-future-events")?.addEventListener("click", () => this._deleteCurrentEvent("THISANDFUTURE"));
-    this.shadowRoot.getElementById("delete-this-event-keep-operation")?.addEventListener("click", () => this._deleteCurrentEvent("", "keep"));
-    this.shadowRoot.getElementById("delete-this-event-archive-operation")?.addEventListener("click", () => this._deleteCurrentEvent("", "archive"));
+    this.shadowRoot.getElementById("delete-scope-this")?.addEventListener("click", () => this._selectDeleteScope("this"));
+    this.shadowRoot.getElementById("delete-scope-future")?.addEventListener("click", () => this._selectDeleteScope("future"));
+    this.shadowRoot.getElementById("delete-scope-range")?.addEventListener("click", () => this._selectDeleteScope("range"));
+    this.shadowRoot.getElementById("delete-scope-all")?.addEventListener("click", () => this._selectDeleteScope("all"));
+    this.shadowRoot.getElementById("delete-scope-back")?.addEventListener("click", () => this._backDeleteScope());
+    this.shadowRoot.getElementById("delete-range-start")?.addEventListener("change", (ev) => { this._deleteRangeStart = ev.target.value; this._render(); });
+    this.shadowRoot.getElementById("delete-range-end")?.addEventListener("change", (ev) => { this._deleteRangeEnd = ev.target.value; this._render(); });
+    this.shadowRoot.getElementById("delete-confirm-calendar")?.addEventListener("click", () => this._confirmScopedDelete(""));
+    this.shadowRoot.getElementById("delete-confirm-keep-operation")?.addEventListener("click", () => this._confirmScopedDelete("keep"));
+    this.shadowRoot.getElementById("delete-confirm-archive-operation")?.addEventListener("click", () => this._confirmScopedDelete("archive"));
     this.shadowRoot.getElementById("edit-cancel")?.addEventListener("click", () => this._closeEditConfirm());
     this.shadowRoot.getElementById("edit-cancel-x")?.addEventListener("click", () => this._closeEditConfirm());
     this.shadowRoot.getElementById("edit-this-event")?.addEventListener("click", () => this._confirmUpdateCurrentEvent("this"));
@@ -3776,12 +3813,40 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
   }
 
   _openDeleteConfirm() {
+    this._deleteScope = this._isRecurringCurrentEvent() ? "" : "this";
+    const currentDate = this._dateOnly(this._eventStart(this._editingEvent));
+    this._deleteRangeStart = currentDate;
+    this._deleteRangeEnd = currentDate;
     this._deleteConfirmOpen = true;
     this._render();
   }
 
+  _selectDeleteScope(scope) {
+    this._deleteScope = scope;
+    this._render();
+  }
+
+  _backDeleteScope() {
+    if (!this._isRecurringCurrentEvent()) return this._closeDeleteConfirm();
+    this._deleteScope = "";
+    this._render();
+  }
+
+  async _confirmScopedDelete(deleteAgriStrategy = "") {
+    const scope = this._deleteScope || "this";
+    if (scope === "range") {
+      await this._deleteRecurringDateRange(this._deleteRangeStart, this._deleteRangeEnd, deleteAgriStrategy);
+      return;
+    }
+    const recurrenceRange = scope === "future" ? "THISANDFUTURE" : (scope === "all" ? "ALL" : "");
+    await this._deleteCurrentEvent(recurrenceRange, deleteAgriStrategy);
+  }
+
   _closeDeleteConfirm() {
     this._deleteConfirmOpen = false;
+    this._deleteScope = "";
+    this._deleteRangeStart = "";
+    this._deleteRangeEnd = "";
     this._render();
   }
 
@@ -3902,6 +3967,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       end_target: action?.end_target || {},
       end_data: action?.end_data || {},
       description: action?.description || "",
+      operation_id: action?.operation_id || "",
+      profile_id: action?.profile_id || "",
     };
   }
 
@@ -4168,6 +4235,83 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     });
   }
 
+  async _deleteRecurringDateRange(rangeStart, rangeEnd, deleteAgriStrategy = "") {
+    try {
+      if (!rangeStart || !rangeEnd || rangeStart > rangeEnd) throw new Error("指定日期範圍無效：結束日期不可早於開始日期");
+      const eventUid = this._currentEventUid();
+      const originalCalendar = this._originalEventCalendarEntity();
+      const occurrences = this._events
+        .filter((event) => event.uid === eventUid)
+        .sort((a, b) => String(this._eventStart(a)).localeCompare(String(this._eventStart(b))));
+      const firstDeleted = occurrences.find((event) => {
+        const date = this._dateOnly(this._eventStart(event));
+        return date >= rangeStart && date <= rangeEnd;
+      });
+      if (!firstDeleted?.recurrence_id) throw new Error("目前載入的 Calendar 範圍找不到指定區間的第一筆行程，請先切換到包含該日期的月份");
+      let continuation = occurrences.find((event) => this._dateOnly(this._eventStart(event)) > rangeEnd);
+      if (!continuation) {
+        const rrule = String(this._form.rrule || this._editingEvent?.rrule || "").toUpperCase();
+        if (!rrule.includes("FREQ=DAILY")) throw new Error("目前載入範圍找不到區間後的下一筆行程；非每日系列請先切換到包含下一筆行程的月份");
+        const start = new Date(`${rangeEnd}T${String(this._eventStart(this._editingEvent)).slice(11, 19) || "00:00:00"}`);
+        start.setDate(start.getDate() + 1);
+        const duration = this._durationMs(this._eventStart(this._editingEvent), this._eventEnd(this._editingEvent));
+        continuation = { start: { dateTime: start.toISOString() }, end: { dateTime: new Date(start.getTime() + duration).toISOString() } };
+      }
+      const continuationStart = this._eventStart(continuation);
+      const continuationEnd = this._eventEnd(continuation) || continuationStart;
+      const originalAction = this._storedAction(this._form.actionId);
+      const fallbackPayload = {
+        calendar_entity: originalCalendar,
+        summary: this._editingEvent.summary || this._form.summary,
+        start: continuationStart,
+        end: continuationEnd,
+        all_day: Boolean(this._editingEvent.start?.date),
+        location: this._editingEvent.location || this._form.location || "",
+        rrule: this._form.rrule || this._editingEvent.rrule || "",
+        service: "",
+        target: {},
+        data: {},
+        end_service: "",
+        end_target: {},
+        end_data: {},
+        description: this._cleanDescription(this._editingEvent.description || this._form.description || ""),
+      };
+      const continuationPayload = originalAction
+        ? { ...this._payloadFromStoredAction(originalAction, fallbackPayload, fallbackPayload.rrule), start: continuationStart, end: continuationEnd }
+        : fallbackPayload;
+      if (originalAction) {
+        const truncatedRrule = this._rruleUntilBefore(originalAction.rrule || fallbackPayload.rrule, this._eventStart(firstDeleted));
+        await this._hass.callWS({
+          type: "call_service",
+          domain: "uninus_calendar_service_scheduler",
+          service: "update_event_action",
+          service_data: { ...this._payloadFromStoredAction(originalAction, fallbackPayload, truncatedRrule), action_id: originalAction.action_id, calendar_event_uid: eventUid },
+          return_response: true,
+        });
+      }
+      await this._hass.callWS({
+        type: "calendar/event/delete",
+        entity_id: originalCalendar,
+        uid: eventUid,
+        recurrence_id: firstDeleted.recurrence_id,
+        recurrence_range: "THISANDFUTURE",
+      });
+      if (continuationPayload.service || continuationPayload.end_service) await this._createServiceEventViaCalendarApi(continuationPayload);
+      else await this._createCalendarOnlyEvent(continuationPayload);
+      const agriOperationId = this._currentAgriOperationId();
+      if (agriOperationId && deleteAgriStrategy === "archive") await this._archiveAgriOperationForDeletedEvent(agriOperationId);
+      this._deleteConfirmOpen = false;
+      this._dialogOpen = false;
+      this._editingEvent = undefined;
+      this._message = `已刪除 ${rangeStart}～${rangeEnd} 的重複行程，並保留區間前後系列。`;
+      await this._loadEvents();
+    } catch (err) {
+      this._deleteConfirmOpen = false;
+      this._message = `Error: ${err?.message || err}`;
+      this._render();
+    }
+  }
+
   async _deleteCurrentEvent(recurrenceRange = "", deleteAgriStrategy = "") {
     try {
       const eventUid = this._currentEventUid();
@@ -4177,7 +4321,8 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
       if (!originalCalendar) throw new Error("此行程缺少原始行事曆，無法刪除");
       const isRecurring = this._isRecurringCurrentEvent();
       const deleteAllFuture = isRecurring && recurrenceRange === "THISANDFUTURE";
-      const deleteStoredAction = Boolean(this._form.actionId) && (!isRecurring || deleteAllFuture);
+      const deleteWholeSeries = isRecurring && recurrenceRange === "ALL";
+      const deleteStoredAction = Boolean(this._form.actionId) && (!isRecurring || deleteAllFuture || deleteWholeSeries);
       if (deleteStoredAction) {
         await this._hass.callWS({
           type: "call_service",
@@ -4196,14 +4341,14 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
         type: "calendar/event/delete",
         entity_id: originalCalendar,
         uid: eventUid,
-        recurrence_id: recurrenceId || undefined,
-        recurrence_range: isRecurring ? recurrenceRange : undefined,
+        recurrence_id: deleteWholeSeries ? undefined : (recurrenceId || undefined),
+        recurrence_range: isRecurring && !deleteWholeSeries ? recurrenceRange : undefined,
       };
       await this._hass.callWS(deleteMessage);
       this._deleteConfirmOpen = false;
       this._dialogOpen = false;
       this._editingEvent = undefined;
-      this._message = isRecurring && !deleteAllFuture
+      this._message = isRecurring && !deleteAllFuture && !deleteWholeSeries
         ? "已刪除此筆重複行程。"
         : "已刪除行程。";
       await this._loadEvents();
