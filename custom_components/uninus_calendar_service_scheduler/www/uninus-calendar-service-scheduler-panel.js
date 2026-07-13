@@ -3130,7 +3130,7 @@ class UninusCalendarServiceSchedulerPanel extends HTMLElement {
     const canArchiveOperation = !recurring || scope === "all";
     const archiveAction = canArchiveOperation
       ? `<button class="danger" id="delete-confirm-archive-operation">同時封存受影響的農務作業</button>`
-      : `<button class="danger" disabled title="部分日期仍共用同一筆農務作業；只有刪除整個系列時才能封存">部分刪除不封存共用農務作業</button>`;
+      : `<div class="delete-scope-note">部分刪除會保留共用農務作業（無需另選）</div>`;
     const strategyStep = scope ? `
       <p><b>${agriOperationId ? "第二步：選擇產銷履歷處理方式" : "確認刪除範圍"}</b></p>
       ${rangeFields}

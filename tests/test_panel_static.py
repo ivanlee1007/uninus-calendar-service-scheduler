@@ -275,7 +275,9 @@ def test_delete_agri_calendar_event_separates_recurrence_scope_from_traceability
     assert "_deleteRecurringDateRange" in source
     assert 'recurrence_range: "THISANDFUTURE"' in source
     assert "_rruleUntilBefore" in source
-    assert "部分刪除不封存共用農務作業" in source
+    assert "部分刪除會保留共用農務作業（無需另選）" in source
+    assert '<div class="delete-scope-note">部分刪除會保留共用農務作業（無需另選）</div>' in source
+    assert '<button class="danger" disabled>部分刪除不封存共用農務作業</button>' not in source
     assert "operation_id: action?.operation_id" in source
     assert "profile_id: action?.profile_id" in source
     assert "_archiveAgriOperationForDeletedEvent" in source

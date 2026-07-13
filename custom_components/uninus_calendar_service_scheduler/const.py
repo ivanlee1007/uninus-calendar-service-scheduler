@@ -4,7 +4,7 @@ from __future__ import annotations
 
 DOMAIN = "uninus_calendar_service_scheduler"
 NAME = "Uninus Calendar Service Scheduler"
-VERSION = "0.5.10"
+VERSION = "0.5.11"
 
 CARD_FILENAME = "uninus-calendar-service-scheduler-card.js"
 CARD_RESOURCE_URL = f"/{DOMAIN}/{CARD_FILENAME}?v={VERSION}"
